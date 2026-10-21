@@ -681,11 +681,27 @@ const PRINTERS = {
   // Computer (Chrome/Edge/Brave): a paired Bluetooth printer shows up as a serial port, e.g. "MTP-II"
   async serial(bytes, pick = false) {
     if (!("serial" in navigator)) throw new Error("this browser can't reach Bluetooth printers. Use Chrome, Edge or Brave on the computer.");
-    if (!serialPort || pick) serialPort = pick ? await navigator.serial.requestPort() : (await navigator.serial.getPorts())[0];
-    if (!serialPort) throw new Error("not connected yet. Go to Settings → Receipt printer → Connect printer.");
-    if (!serialPort.writable) await serialPort.open({baudRate: 9600});
-    const w = serialPort.writable.getWriter();
-    try { await w.write(bytes); } finally { w.releaseLock(); }
+    if (pick) {
+      serialPort = await navigator.serial.requestPort();
+      // Keep only the chosen printer: with several remembered ports we could otherwise pick the wrong one after a reload
+      for (const p of await navigator.serial.getPorts()) if (p !== serialPort && p.forget) await p.forget();
+    }
+    if (!serialPort) {
+      const ports = await navigator.serial.getPorts();
+      if (ports.length > 1) throw new Error("not sure which port is the printer. Settings → Receipt printer → Connect printer, then pick it (e.g. MTP-II).");
+      serialPort = ports[0];
+    }
+    if (!serialPort) throw new Error("not connected yet. Settings → Receipt printer → Connect printer.");
+    const within = (job, ms) => Promise.race([job, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
+    try {
+      if (!serialPort.writable) await within(serialPort.open({baudRate: 9600}), 10000);
+      const w = serialPort.writable.getWriter();
+      try { await within(w.write(bytes), 10000); } finally { w.releaseLock(); }
+    } catch (e) {
+      try { await serialPort.close(); } catch {}  // start fresh next time
+      throw new Error(e.message === "timeout" || /open|network|lost|failed/i.test(e.message)
+        ? "the printer isn't answering. Check it is switched on and near this computer, then print again." : e.message);
+    }
   },
   // Android tablet (Chrome): printers that also speak Bluetooth Low Energy
   async ble(bytes, pick = false) {
