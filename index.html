@@ -289,6 +289,20 @@ body.navmini #net.off{background:#f59e0b}
     </form>
   </div>
   <div class="card">
+    <h3>Receipt printer <span class="muted">(this device)</span></h3>
+    <div class="form">
+      <label>How to print receipts <select id="printerMethod">
+        <option value="browser">Regular printer (Print window)</option>
+        <option value="serial">Bluetooth receipt printer: computer</option>
+        <option value="ble">Bluetooth receipt printer: Android (direct)</option>
+        <option value="rawbt">Bluetooth receipt printer: Android (RawBT app)</option>
+      </select></label>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="autoPrint" style="width:auto"> Print automatically after each sale</label>
+      <div class="row"><button id="printerConnect">Connect printer</button><button id="printerTest">Print test receipt</button></div>
+    </div>
+    <p class="muted" id="printerHelp"></p>
+  </div>
+  <div class="card">
     <h3>This device</h3>
     <p id="deviceInfo"></p>
     <div class="row"><button id="syncNow">Sync now</button><button id="changePw">Change password on this device</button></div>
@@ -599,14 +613,21 @@ const pay = run(async () => {
   $("#last").innerHTML = `<div class="done"><div class="muted">✓ Sale #${lastSale.id} done${online ? "" : " · saved on this device, will sync"}</div>
     <div class="row" style="justify-content:space-between;margin-top:4px"><div>Change <span class="big">${peso(lastSale.change)}</span></div>
     <button class="sm" id="printReceipt">Print receipt</button></div></div>`;
-  $("#printReceipt").onclick = printReceipt;
+  $("#printReceipt").onclick = () => printReceipt();
+  if (store.get("autoPrint", false)) printReceipt();
   $("#scan").focus();
 });
 $("#pay").onclick = pay;
 $("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $("#scan").focus(); };
 
-function printReceipt() {
-  const s = lastSale;
+async function printReceipt(sale = lastSale) {
+  const method = store.get("printer", "browser");
+  if (method !== "browser") {
+    try { await PRINTERS[method](receiptBytes(sale)); toast("Receipt printed"); }
+    catch (e) { toast("Printer: " + (e.message || e), true); }
+    return;
+  }
+  const s = sale;
   const st = S.settings || {};
   $("#print").innerHTML = `<div class="receipt"><div style="text-align:center"><b>${esc(st.store_name || "Urdaneta Store")}</b><br>
     ${st.receipt_address ? esc(st.receipt_address) + "<br>" : ""}${st.receipt_phone ? esc(st.receipt_phone) + "<br>" : ""}
@@ -617,6 +638,82 @@ function printReceipt() {
     <hr><div style="text-align:center">${esc(st.receipt_footer || "Salamat po! Come again.")}</div></div>`;
   print();
 }
+
+// ---------- Bluetooth receipt printers (58 mm, ESC/POS, e.g. Goojprt PT-210 / "MTP-II") ----------
+// Browsers can't send to these through the normal Print dialog, so the POS sends printer commands itself.
+function receiptBytes(s) {
+  const st = S.settings || {}, W = 32;  // 32 characters per line on 58 mm paper
+  const clean = v => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/₱/g, "P").replace(/[^\x20-\x7e]/g, "?");
+  const money = n => "P" + Number(n || 0).toFixed(2);
+  const wrap = v => {  // word wrap; only very long words are cut
+    const lines = [""];
+    for (const w of clean(v).split(" ")) {
+      const cur = lines[lines.length - 1];
+      if (cur && (cur + " " + w).length > W) lines.push(w); else lines[lines.length - 1] = cur ? cur + " " + w : w;
+    }
+    return lines.flatMap(l => l.match(new RegExp(`.{1,${W}}`, "g")) || [""]);
+  };
+  const lr = (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; return gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r; };
+  const out = [], ESC = 0x1b;
+  const cmd = (...b) => out.push(...b), line = v => { for (const ch of clean(v)) out.push(ch.charCodeAt(0)); out.push(10); };
+  cmd(ESC, 0x40, ESC, 0x61, 1, ESC, 0x45, 1);          // reset, center, bold
+  wrap(st.store_name || "Urdaneta Store").forEach(line);
+  cmd(ESC, 0x45, 0);
+  if (st.receipt_address) wrap(st.receipt_address).forEach(line);
+  if (st.receipt_phone) line(st.receipt_phone);
+  line(`${String(s.ts).replace("T", " ").slice(0, 16)}  #${s.id}`);
+  cmd(ESC, 0x61, 0);                                    // left
+  line("-".repeat(W));
+  s.items.forEach(i => { wrap(i.name).forEach(line); line(lr(`  ${i.qty} x ${money(i.price)}`, money(i.qty * i.price))); });
+  line("-".repeat(W));
+  cmd(ESC, 0x45, 1); line(lr("TOTAL", money(s.total))); cmd(ESC, 0x45, 0);
+  line(lr("Cash", money(s.cash))); line(lr("Change", money(s.change)));
+  cmd(ESC, 0x61, 1); line("");
+  wrap(st.receipt_footer || "Salamat po! Come again.").forEach(line);
+  line(""); line(""); line("");                         // feed past the tear bar
+  cmd(ESC, 0x61, 0);
+  return new Uint8Array(out);
+}
+
+let serialPort = null, bleChar = null;
+const BLE_SERVICES = [0x18f0, 0xff00, 0xfff0, 0xffe0, 0xae30, "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "49535343-fe7d-4ae5-8fa9-9fafd205e455"];
+const PRINTERS = {
+  // Computer (Chrome/Edge/Brave): a paired Bluetooth printer shows up as a serial port, e.g. "MTP-II"
+  async serial(bytes, pick = false) {
+    if (!("serial" in navigator)) throw new Error("this browser can't reach Bluetooth printers. Use Chrome, Edge or Brave on the computer.");
+    if (!serialPort || pick) serialPort = pick ? await navigator.serial.requestPort() : (await navigator.serial.getPorts())[0];
+    if (!serialPort) throw new Error("not connected yet. Go to Settings → Receipt printer → Connect printer.");
+    if (!serialPort.writable) await serialPort.open({baudRate: 9600});
+    const w = serialPort.writable.getWriter();
+    try { await w.write(bytes); } finally { w.releaseLock(); }
+  },
+  // Android tablet (Chrome): printers that also speak Bluetooth Low Energy
+  async ble(bytes, pick = false) {
+    if (!("bluetooth" in navigator)) throw new Error("this browser has no Bluetooth access. Use Chrome on Android, or the RawBT option.");
+    if (!bleChar || pick) {
+      const dev = await navigator.bluetooth.requestDevice({acceptAllDevices: true, optionalServices: BLE_SERVICES});
+      const server = await dev.gatt.connect();
+      bleChar = null;
+      for (const sv of await server.getPrimaryServices())
+        for (const c of await sv.getCharacteristics()) if (!bleChar && (c.properties.writeWithoutResponse || c.properties.write)) bleChar = c;
+      if (!bleChar) throw new Error("this printer has no direct Bluetooth channel. Use the RawBT option instead.");
+    }
+    for (let i = 0; i < bytes.length; i += 100) {
+      const chunk = bytes.slice(i, i + 100);
+      bleChar.properties.writeWithoutResponse ? await bleChar.writeValueWithoutResponse(chunk) : await bleChar.writeValue(chunk);
+    }
+  },
+  // Android tablet: the free RawBT app prints to any paired Bluetooth printer
+  async rawbt(bytes) {
+    location.href = "rawbt:base64," + btoa(String.fromCharCode(...bytes));
+  },
+};
+const PRINTER_HELP = {
+  browser: "Uses the normal Print window. Works with regular printers, not with small Bluetooth receipt printers.",
+  serial: "For this computer: pair the printer in Bluetooth settings first, then click Connect printer and choose it (e.g. MTP-II or PT-210).",
+  ble: "For Android tablets with Chrome: click Connect printer and choose the printer. If it isn't listed or fails, use RawBT.",
+  rawbt: "For Android tablets (incl. Huawei): install the free RawBT app from Play Store / AppGallery, pick your paired printer in RawBT once. The POS sends each receipt to it.",
+};
 
 // Keyboard: scanner input always lands in the scan box on the Sell tab
 document.addEventListener("keydown", e => {
@@ -795,6 +892,24 @@ $("#setform").onsubmit = $("#pinform").onsubmit = run(async e => {
   if (e.target.id === "setform") setDirty = false;
   e.target.querySelectorAll("[type=password]").forEach(i => i.value = ""); toast("Settings saved"); await load();
 });
+function renderPrinter() {
+  const m = store.get("printer", "browser");
+  $("#printerMethod").value = m;
+  $("#autoPrint").checked = store.get("autoPrint", false);
+  $("#printerConnect").hidden = !(m === "serial" || m === "ble");
+  $("#printerHelp").textContent = PRINTER_HELP[m];
+}
+$("#printerMethod").onchange = e => { store.set("printer", e.target.value); renderPrinter(); };
+$("#autoPrint").onchange = e => store.set("autoPrint", e.target.checked);
+$("#printerConnect").onclick = run(async () => {
+  const m = store.get("printer", "browser");
+  await PRINTERS[m](new Uint8Array([0x1b, 0x40]), true);  // pick the printer, send a harmless reset
+  toast("Printer connected");
+});
+$("#printerTest").onclick = () => printReceipt({id: "TEST", ts: localTime(), total: 20, cash: 50, change: 30,
+  items: [{name: "Test item", qty: 2, price: 10}]});
+renderPrinter();
+
 $("#syncNow").onclick = run(async () => {
   $("#syncNow").disabled = true;
   try { await sync(); await load(); toast(online ? "Synced" : "Still offline: will sync when the connection is back", !online); }
