@@ -266,19 +266,32 @@ body.navmini #net.off{background:#f59e0b}
 </section>
 
 <section id="settings">
-  <div class="pagehead"><h2>Settings</h2><p>Store name, email for seller alerts, and tablet access.</p></div>
+  <div class="pagehead"><h2>Settings</h2><p>Store details for receipts and emails, this device, and seller emails.</p></div>
   <div class="card">
-    <h3>Store &amp; email</h3>
+    <h3>Store &amp; receipt</h3>
     <form id="setform" class="form">
       <label>Store name <input name="store_name" placeholder="Urdaneta Store"></label>
-      <label>SMTP server <input name="smtp_host" placeholder="smtp.gmail.com"></label>
-      <label>SMTP port <input name="smtp_port" placeholder="587"></label>
-      <label>Email login <input name="smtp_user" placeholder="yourstore@gmail.com"></label>
-      <label>Password / App password <input name="smtp_pass" type="password" autocomplete="new-password"></label>
-      <label>Sender name (what sellers see) <input name="smtp_from" placeholder="your store name"></label>
+      <label>Address (on receipts) <input name="receipt_address" placeholder="e.g. Poblacion, Urdaneta City"></label>
+      <label>Phone (on receipts) <input name="receipt_phone" placeholder="e.g. 0917 123 4567"></label>
+      <label>Receipt message <input name="receipt_footer" placeholder="Salamat po! Come again."></label>
+      <label>Sender name on seller emails <input name="smtp_from" placeholder="your store name"></label>
+      <div id="smtpBox" style="grid-column:1/-1">
+        <h3 style="margin:8px 0 4px;font-size:14px">Email server <span class="muted">(only when the POS runs on a store computer)</span></h3>
+        <div class="form">
+          <label>SMTP server <input name="smtp_host" placeholder="smtp.gmail.com"></label>
+          <label>SMTP port <input name="smtp_port" placeholder="587"></label>
+          <label>Email login <input name="smtp_user" placeholder="yourstore@gmail.com"></label>
+          <label>Password / App password <input name="smtp_pass" type="password" autocomplete="new-password"></label>
+        </div>
+        <p class="muted" id="gmailHelp">Gmail: turn on 2-Step Verification, then create an <b>App password</b> (Google Account → Security → App passwords) and paste it above.</p>
+      </div>
       <div class="row"><button class="primary">Save</button></div>
     </form>
-    <p class="muted" id="gmailHelp">Gmail: turn on 2-Step Verification, then create an <b>App password</b> (Google Account → Security → App passwords) and paste it above.</p>
+  </div>
+  <div class="card">
+    <h3>This device</h3>
+    <p id="deviceInfo"></p>
+    <div class="row"><button id="syncNow">Sync now</button><button id="changePw">Change password on this device</button></div>
   </div>
   <div class="card">
     <h3>Tablets &amp; phones (Android, Huawei HarmonyOS, iPad/iPhone)</h3>
@@ -594,12 +607,14 @@ $("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $(
 
 function printReceipt() {
   const s = lastSale;
-  $("#print").innerHTML = `<div class="receipt"><div style="text-align:center"><b>${esc(S.settings.store_name || "Urdaneta Store")}</b><br>
+  const st = S.settings || {};
+  $("#print").innerHTML = `<div class="receipt"><div style="text-align:center"><b>${esc(st.store_name || "Urdaneta Store")}</b><br>
+    ${st.receipt_address ? esc(st.receipt_address) + "<br>" : ""}${st.receipt_phone ? esc(st.receipt_phone) + "<br>" : ""}
     ${s.ts.replace("T", " ")} · #${s.id}</div><hr><table style="width:100%">
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
     </table><hr><table style="width:100%"><tr><td>TOTAL</td><td class="num"><b>${peso(s.total)}</b></td></tr>
     <tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr></table>
-    <hr><div style="text-align:center">Salamat po! Come again.</div></div>`;
+    <hr><div style="text-align:center">${esc(st.receipt_footer || "Salamat po! Come again.")}</div></div>`;
   print();
 }
 
@@ -733,11 +748,11 @@ $("#rshow").onclick = showReport;
 function renderSettings() {
   const f = $("#setform");
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
-  if (!setDirty) for (const k of ["store_name", "smtp_host", "smtp_port", "smtp_user", "smtp_from"]) f[k].value = S.settings[k] || "";
+  if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_host", "smtp_port", "smtp_user", "smtp_from"]) f[k].value = S.settings[k] || "";
   f.smtp_pass.placeholder = S.settings.smtp_pass_set ? "saved (leave blank to keep)" : "";
   $("#pinform").tablet_pin.placeholder = S.settings.tablet_pin_set ? "saved (leave blank to keep)" : "not set: tablets are blocked";
-  $("#pinform").hidden = $("#tabletHelp").hidden = !!S.cloud;  // cloud: one store password for every device, set on the server
-  $("#tabletInfo").innerHTML = S.cloud
+  $("#pinform").hidden = $("#tabletHelp").hidden = !!(S.cloud || API);  // cloud: one store password for every device, set on the server
+  $("#tabletInfo").innerHTML = S.cloud || API
     ? `This POS runs in the cloud. On any phone, tablet or computer open <b style="font-size:20px">${esc(location.href.split("#")[0])}</b>
        and enter the store password. It keeps selling with no internet and syncs when the connection is back.`
     : !S.settings.tablet_pin_set ? `<span class="warn">Set a PIN to allow tablets and outside access.</span>`
@@ -745,9 +760,11 @@ function renderSettings() {
        Outside the store: ${S.remote_url ? `<b style="font-size:20px">${esc(S.remote_url)}</b> <span class="muted">(your phone needs Tailscale on)</span>`
          : `<span class="muted">install Tailscale on this computer to get an address</span>`}`;
   // Google mode: emails go out from the owner's Gmail, so there are no email server settings
-  for (const k of ["smtp_host", "smtp_port", "smtp_user", "smtp_pass"]) f[k].closest("label").hidden = !!S.google;
-  $("#gmailHelp").hidden = !!S.google;
-  $("#obinfo").textContent = S.google ? `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`
+  $("#smtpBox").hidden = !!API;  // Google version: emails go out from the owner's Gmail, no email server to set
+  $("#deviceInfo").innerHTML = `${online ? '<span style="color:var(--brand)">● Connected</span>' : '<span class="warn">● Offline</span>'}
+    · ${queue.length ? `<span class="warn">${queue.length} sale(s) waiting to sync</span>` : "all sales synced"}
+    · data is kept ${API ? "in your Google Sheet" : "on the store computer"}`;
+  $("#obinfo").textContent = API ? `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`
     : !S.settings.smtp_host ? "Email not set up yet. Alerts are being queued and will send once you fill in the settings above."
     : `${S.pending} waiting to send. The program checks alerts and retries every 5 minutes.`;
   $("#oblist").innerHTML = S.outbox.map(m => `<tr><td>${m.created.replace("T", " ")}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td>
@@ -778,6 +795,17 @@ $("#setform").onsubmit = $("#pinform").onsubmit = run(async e => {
   if (e.target.id === "setform") setDirty = false;
   e.target.querySelectorAll("[type=password]").forEach(i => i.value = ""); toast("Settings saved"); await load();
 });
+$("#syncNow").onclick = run(async () => {
+  $("#syncNow").disabled = true;
+  try { await sync(); await load(); toast(online ? "Synced" : "Still offline: will sync when the connection is back", !online); }
+  finally { $("#syncNow").disabled = false; }
+});
+$("#changePw").onclick = run(async () => {
+  if (!confirm("Forget the saved password on this device and enter it again?")) return;
+  PIN = ""; store.set("pin", "");
+  await load();  // asks for the password again
+  toast("Password saved on this device");
+});
 $("#testMail").onclick = run(async () => {
   if (setDirty) return toast("Click Save first, then send the test email", true);
   $("#testMail").disabled = true;
@@ -793,7 +821,11 @@ $("#testMail").onclick = run(async () => {
 $("#sendNow").onclick = run(async () => { $("#sendNow").disabled = true; try { S = await api("/api/send-now", {}, 60000); renderAll(); toast("Done"); } finally { $("#sendNow").disabled = false; } });
 
 // Every 15s: send waiting offline sales, then refresh products (picks up the other counter's changes)
-const tick = run(async () => { await sync(); await load(); });
+let lastTickError = "";  // background refresh: show a problem once, not again every 30 seconds
+const tick = async () => {
+  try { await sync(); await load(); lastTickError = ""; }
+  catch (e) { if (e.message !== lastTickError) toast(e.message, true); lastTickError = e.message; }
+};
 tick(); setInterval(tick, API ? 30000 : 15000);
 // Offline page copy (only on https or localhost; plain-http Wi-Fi addresses fall back to the browser cache)
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
