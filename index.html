@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Urdaneta Store POS</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --bg:#f1f4f7;--panel:#fff;--ink:#0f172a;--ink2:#334155;--muted:#64748b;--line:#e2e8f0;--soft:#f8fafc;
+  --brand:#0e7c66;--brand2:#0b6654;--brandsoft:#e7f5f1;--side:#0f172a;--side2:#1e293b;
+  --warn:#b45309;--warnsoft:#fef3c7;--bad:#dc2626;--badsoft:#fee2e2;--radius:12px;--shadow:0 1px 2px #0f172a0d,0 2px 8px #0f172a0a}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{min-height:100vh;margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+  display:grid;grid-template-columns:220px 1fr;-webkit-font-smoothing:antialiased}
+
+/* sidebar */
+.side{background:var(--side);color:#cbd5e1;display:flex;flex-direction:column;padding:16px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 8px 20px}
+.logo{width:38px;height:38px;border-radius:10px;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px;flex:none}
+.brand b{display:block;color:#fff;font-size:15px;line-height:1.2}
+.brand small{color:#94a3b8;font-size:12px}
+nav{display:flex;flex-direction:column;gap:2px}
+nav button{display:flex;align-items:center;gap:12px;background:none;border:0;color:#cbd5e1;padding:11px 12px;border-radius:9px;font-weight:500;text-align:left;width:100%}
+nav button svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav button:hover{background:var(--side2);color:#fff}
+nav button.on{background:var(--brand);color:#fff}
+#net{margin-top:auto;font-size:12px;line-height:1.35;padding:10px 12px;border-radius:9px;background:var(--side2);color:#86efac}
+#net.off{color:#fcd34d}
+
+/* main */
+main{padding:20px 24px;min-width:0}
+section{display:none}section.on{display:block}
+.pagehead{margin:2px 0 16px}
+.pagehead h2{margin:0;font-size:22px;letter-spacing:-.01em}
+.pagehead p{margin:4px 0 0;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+h3{margin:0 0 14px;font-size:16px}
+input,select{font:inherit;color:var(--ink);padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;min-width:0;width:100%;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px #0e7c6626}
+button{font:inherit;font-weight:600;color:var(--ink2);padding:9px 15px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{background:var(--soft);border-color:#94a3b8}
+button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+button.primary:hover{background:var(--brand2)}
+button.danger{color:var(--bad);border-color:#fecaca}
+button.danger:hover{background:var(--badsoft)}
+button.sm{padding:4px 10px;font-size:13px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 10px;border-bottom:1px solid var(--line)}
+th{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;background:var(--soft);position:sticky;top:0}
+tbody tr:hover{background:#f8fafc}
+.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;align-items:end}
+label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--ink2)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--muted);font-size:13px;font-weight:400}
+.warn{color:var(--warn);font-weight:600}.bad{color:var(--bad);font-weight:600}
+.scroll{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:12px}
+.scroll td:first-child,.scroll th:first-child{padding-left:14px}
+
+/* sell screen */
+#sell.on{display:grid;height:calc(100vh - 40px)}
+.sell{display:grid;grid-template-columns:1fr 380px;gap:20px;min-height:0}
+.catalog{display:flex;flex-direction:column;min-height:0}
+.searchbar{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #cbd5e1;border-radius:12px;padding:4px 6px 4px 14px;box-shadow:var(--shadow)}
+.searchbar:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px #0e7c6626}
+.searchbar svg{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:2;flex:none}
+#scan{border:0;box-shadow:none;font-size:18px;padding:10px 4px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px;overflow:auto;align-content:start;padding:2px 2px 12px}
+.tiles>p{grid-column:1/-1}
+.tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;min-height:112px;padding:16px 14px 12px;
+  border-radius:12px;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);overflow:hidden;color:var(--ink)}
+.tile::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--c,var(--brand))}
+.tile:hover{border-color:var(--c,var(--brand));background:#fff}
+.tile:active{transform:scale(.98)}
+.tile b{font-size:14.5px;line-height:1.3;font-weight:600}
+.tile .owner{font-size:11.5px;color:var(--muted);font-weight:500}
+.tile span{font-size:19px;font-weight:700;color:var(--ink);margin-top:auto;font-variant-numeric:tabular-nums}
+.tile small{font-size:12px;color:var(--muted);font-weight:500}
+.tile.off{opacity:.5;background:var(--soft)}
+.tile.off small{color:var(--bad)}
+
+.ticket{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);min-height:0;overflow:hidden}
+.ticket-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.ticket-head b{font-size:16px}
+.ticket-items{flex:1;overflow:auto;min-height:80px}
+.ticket-items td{padding:10px 18px;vertical-align:middle}
+.ticket-items td:nth-child(2){padding:10px 4px}
+.ticket-items td .muted{font-size:12.5px}
+.ticket-items tr:hover{background:none}
+.empty{color:var(--muted);text-align:center;padding:36px 18px!important;border:0}
+.ticket-foot{border-top:1px solid var(--line);padding:16px 18px;background:var(--soft);display:flex;flex-direction:column;gap:12px}
+.sumrow{display:flex;justify-content:space-between;align-items:baseline}
+.sumrow span{color:var(--ink2);font-weight:600}
+.total{font-size:34px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.quickcash{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.quickcash button{padding:8px 4px;font-size:13.5px}
+.change b{font-size:20px;font-variant-numeric:tabular-nums}
+.pay{background:var(--brand);border:0;color:#fff;font-size:18px;font-weight:700;padding:16px;border-radius:10px;width:100%}
+.pay:hover{background:var(--brand2)}
+.pay:disabled{background:#94a3b8;cursor:default}
+.ghost{border:0;background:none;color:var(--muted);padding:4px}
+.ghost:hover{background:none;color:var(--bad)}
+.done{background:var(--brandsoft);border:1px solid #a7dccd;border-radius:10px;padding:12px 14px}
+.done .big{font-size:22px;font-weight:800}
+
+dialog{border:0;border-radius:16px;padding:22px;width:min(380px,92vw);box-shadow:0 24px 60px #0f172a55}
+dialog::backdrop{background:#0f172a80}
+.qtyrow{flex-wrap:nowrap;margin:18px 0 10px}
+.qtyrow button{font-size:28px;width:64px;height:58px;padding:0;flex:none}
+.qtyrow input{font-size:30px;font-weight:700;text-align:center;height:58px}
+#qtyQuick{margin-bottom:18px}#qtyQuick button{flex:1}
+#qtyDlg .primary{padding:14px;font-size:16px}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;display:none;max-width:90vw;z-index:9;box-shadow:0 10px 30px #0004;font-weight:500}
+#toast.err{background:var(--bad)}
+
+/* collapsible menu: icons only (default on narrow screens, remembered per device) */
+#navToggle{display:flex;align-items:center;gap:12px;background:none;border:0;color:#94a3b8;padding:11px 12px;border-radius:9px;font-weight:500;width:100%;margin:auto 0 8px}
+#navToggle:hover{background:var(--side2);color:#fff}
+#navToggle svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+#net{margin-top:0}
+body.navmini{grid-template-columns:72px 1fr}
+body.navmini .brand div,body.navmini nav button span,body.navmini #navToggle span{display:none}
+body.navmini .brand{justify-content:center;padding:4px 0 20px}
+body.navmini nav button,body.navmini #navToggle{justify-content:center;padding:12px}
+body.navmini #navToggle svg{transform:rotate(180deg)}
+body.navmini #net{font-size:0;padding:0;width:12px;height:12px;border-radius:50%;margin:0 auto 8px;background:#22c55e}
+body.navmini #net.off{background:#f59e0b}
+@media(max-width:900px){.sell{grid-template-columns:1fr 310px}.tiles{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}main{padding:16px}}
+@media(max-width:700px){body,body.navmini{grid-template-columns:1fr}.side{position:sticky;height:auto;flex-direction:row;align-items:center;padding:8px;z-index:5;overflow-x:auto}
+  body.navmini .brand{padding:0 8px 0 0}nav{flex-direction:row}body.navmini #net{margin:0 0 0 auto}#navToggle{display:none}
+  #sell.on{height:auto}.sell{grid-template-columns:1fr}.tiles{max-height:45vh}}
+
+#print{display:none}
+@media print{body{display:block}body>*:not(#print){display:none!important}#print{display:block}@page{margin:6mm}}
+.labels{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm}
+.label{border:1px dashed #aaa;padding:2mm;text-align:center;font:9pt system-ui,sans-serif;break-inside:avoid}
+.label b{display:block;font-size:13pt}
+.label svg{width:100%;height:13mm;display:block}
+.receipt{width:58mm;font:11px/1.35 ui-monospace,monospace}
+.receipt td{border:0;padding:0}
+.kb{display:none;white-space:nowrap}
+@media(pointer:coarse){input,select{font-size:16px}button{padding:12px 18px}button.sm{padding:8px 14px;font-size:16px}td{padding:12px 10px}.kb{display:inline-block}}
+</style>
+</head>
+<body>
+<aside class="side">
+  <div class="brand"><div class="logo">U</div><div><b id="storeName">Urdaneta Store</b><small>Point of Sale</small></div></div>
+  <nav>
+    <button data-tab="sell" class="on" title="Sell"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/></svg><span>Sell</span></button>
+    <button data-tab="products" title="Products"><svg viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span>Products</span></button>
+    <button data-tab="sellers" title="Sellers & Shelves"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg><span>Sellers &amp; Shelves</span></button>
+    <button data-tab="labels" title="Barcode Labels"><svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M18 5v14M21 5v14"/></svg><span>Barcode Labels</span></button>
+    <button data-tab="reports" title="Reports"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg><span>Reports</span></button>
+    <button data-tab="settings" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
+  </nav>
+  <button id="navToggle" title="Collapse / expand the menu"><svg viewBox="0 0 24 24"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span>Collapse</span></button>
+  <div id="net"></div>
+</aside>
+
+<main>
+<section id="sell" class="on">
+  <div class="sell">
+    <div class="catalog">
+      <div class="searchbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="scan" placeholder="Search item or scan barcode" autocomplete="off" autofocus>
+        <button class="kb" id="kb" title="Show on-screen keyboard to type a name">⌨ Type</button></div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+    <div class="ticket">
+      <div class="ticket-head"><b>Current sale</b><span class="muted" id="itemCount"></span></div>
+      <div class="ticket-items"><table><tbody id="cart"></tbody></table></div>
+      <div class="ticket-foot">
+        <div class="sumrow"><span>Total</span><span class="total" id="total">₱0.00</span></div>
+        <label>Cash received <input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Exact amount if blank"></label>
+        <div class="quickcash" id="quickcash"><button data-cash="exact">Exact</button><button data-cash="20">₱20</button><button data-cash="50">₱50</button><button data-cash="100">₱100</button>
+          <button data-cash="200">₱200</button><button data-cash="500">₱500</button><button data-cash="1000">₱1,000</button><button data-cash="">Clear</button></div>
+        <div class="sumrow change"><span>Change</span><b id="change">₱0.00</b></div>
+        <button class="pay" id="pay">Charge</button>
+        <button class="ghost" id="clear">Cancel sale (Esc)</button>
+        <div id="last"></div>
+      </div>
+    </div>
+  </div>
+  <dialog id="qtyDlg"><form id="qtyForm" novalidate>
+    <div id="qtyName" style="font-size:20px;font-weight:700"></div>
+    <div class="muted" id="qtyInfo"></div>
+    <div class="row qtyrow"><button type="button" data-d="-1">−</button><input id="qty" type="number" min="1" step="1" inputmode="numeric"><button type="button" data-d="1">+</button></div>
+    <div class="row" id="qtyQuick"><button type="button" data-q="1">1</button><button type="button" data-q="2">2</button><button type="button" data-q="3">3</button><button type="button" data-q="5">5</button><button type="button" data-q="10">10</button></div>
+    <div class="row"><button class="primary" style="flex:1">Add to sale</button><button type="button" id="qtyCancel">Cancel</button></div>
+  </form></dialog>
+</section>
+
+<section id="products">
+  <div class="pagehead"><h2>Products</h2><p>Items you sell, with price, stock and dates. Scan a barcode in the search box to find or add it.</p></div>
+  <div class="card">
+    <h3 id="pformTitle">New product</h3>
+    <form id="pform" class="form">
+      <input type="hidden" name="id">
+      <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
+      <label>Name <input name="name" required></label>
+      <label>Price (₱) <input name="price" type="number" step="0.01" min="0" required></label>
+      <label>Stock (pcs) <input name="stock" type="number" step="1" min="0" value="0" required></label>
+      <label>Owner <select name="seller_id"></select></label>
+      <label>Manufacturing date <input name="mfg_date" type="date"></label>
+      <label>Expiry date <input name="expiry" type="date"></label>
+      <label>Notify seller on (date seller advised) <input name="notify_on" type="date"></label>
+      <div class="row"><button class="primary">Save</button><button type="button" id="pnew">New</button><button type="button" class="danger" id="pdel">Delete</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <input id="pfilter" placeholder="Search, or scan a barcode to edit / add it">
+    <div class="scroll"><table><thead><tr><th>Barcode</th><th>Name</th><th class="num">Price</th><th class="num">Stock</th><th>Owner</th><th>Expiry</th></tr></thead>
+    <tbody id="plist"></tbody></table></div>
+  </div>
+</section>
+
+<section id="sellers">
+  <div class="pagehead"><h2>Sellers &amp; Shelves</h2><p>People renting your shelves. They get emails about expiring items and low stock.</p></div>
+  <div class="card">
+    <h3 id="sformTitle">New seller (shelf renter)</h3>
+    <form id="sform" class="form">
+      <input type="hidden" name="id">
+      <label>Name <input name="name" required></label>
+      <label>Email (for alerts) <input name="email" type="email"></label>
+      <label>Phone <input name="phone"></label>
+      <label>Shelf no. <input name="shelf" placeholder="e.g. A3"></label>
+      <label>Monthly rent (₱) <input name="rent" type="number" step="0.01" min="0"></label>
+      <label>Low-stock alert at (pcs) <input name="low_stock" type="number" min="0" value="5"></label>
+      <div class="row"><button class="primary">Save</button><button type="button" id="snew">New</button><button type="button" class="danger" id="sdel">Delete</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="muted">Sellers get emailed automatically. You can also send a stock report now.</span>
+      <button id="reportAll">Email stock report to all sellers</button></div>
+    <table><thead><tr><th>Seller</th><th>Shelf</th><th class="num">Rent</th><th>Email</th><th class="num">Items</th><th class="num">Pcs left</th><th>Alerts</th><th></th></tr></thead>
+    <tbody id="slist"></tbody></table>
+  </div>
+</section>
+
+<section id="labels">
+  <div class="pagehead"><h2>Barcode Labels</h2><p>Print price and barcode stickers for your items.</p></div>
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <input id="lfilter" placeholder="Search products" style="flex:1">
+      <button id="lstock">Copies = stock (shown items)</button><button id="lzero">Clear copies</button>
+      <button class="primary" id="lprint">Print labels</button>
+    </div>
+    <p class="muted">Code 128 labels, 4 per row on A4/Letter. Any USB/Bluetooth barcode scanner reads them.</p>
+    <div class="scroll"><table><thead><tr><th>Name</th><th>Barcode</th><th class="num">Price</th><th class="num">Stock</th><th class="num">Copies</th></tr></thead>
+    <tbody id="llist"></tbody></table></div>
+  </div>
+</section>
+
+<section id="reports">
+  <div class="pagehead"><h2>Reports</h2><p>Sales for any period, and what you owe each seller.</p></div>
+  <div class="card">
+    <div class="row"><label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label><button class="primary" id="rshow" style="align-self:end">Show</button></div>
+  </div>
+  <div id="rout"></div>
+</section>
+
+<section id="settings">
+  <div class="pagehead"><h2>Settings</h2><p>Store name, email for seller alerts, and tablet access.</p></div>
+  <div class="card">
+    <h3>Store &amp; email</h3>
+    <form id="setform" class="form">
+      <label>Store name <input name="store_name" placeholder="Urdaneta Store"></label>
+      <label>SMTP server <input name="smtp_host" placeholder="smtp.gmail.com"></label>
+      <label>SMTP port <input name="smtp_port" placeholder="587"></label>
+      <label>Email login <input name="smtp_user" placeholder="yourstore@gmail.com"></label>
+      <label>Password / App password <input name="smtp_pass" type="password" autocomplete="new-password"></label>
+      <label>Sender name (what sellers see) <input name="smtp_from" placeholder="your store name"></label>
+      <div class="row"><button class="primary">Save</button></div>
+    </form>
+    <p class="muted" id="gmailHelp">Gmail: turn on 2-Step Verification, then create an <b>App password</b> (Google Account → Security → App passwords) and paste it above.</p>
+  </div>
+  <div class="card">
+    <h3>Tablets &amp; phones (Android, Huawei HarmonyOS, iPad/iPhone)</h3>
+    <form id="pinform" class="form">
+      <label>Tablet PIN (4+ characters) <input name="tablet_pin" type="password" autocomplete="new-password" inputmode="numeric"></label>
+      <div class="row"><button class="primary">Save PIN</button></div>
+    </form>
+    <p id="tabletInfo"></p>
+    <p class="muted" id="tabletHelp">The tablet must be on the same Wi-Fi as this computer. Open the address in its browser (Chrome, Huawei Browser or Safari),
+      enter the PIN once, then add it to the home screen. If Windows asks about the firewall, click <b>Allow</b> for private networks.</p>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Email outbox</h3>
+      <div class="row"><button id="testMail">Send test email</button><button id="sendNow">Check alerts &amp; send now</button></div></div>
+    <p class="muted" id="obinfo"></p>
+    <table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody id="oblist"></tbody></table>
+  </div>
+</section>
+</main>
+
+<div id="toast"></div>
+<div id="print"></div>
+
+<script src="config.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const peso = n => "₱" + Number(n || 0).toLocaleString("en-PH", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+// Local date/time as "YYYY-MM-DDTHH:MM:SS", the same on every browser (Chrome, Huawei, Safari)
+const localTime = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 19);
+const today = () => localTime().slice(0, 10);
+const daysTo = d => Math.round((new Date(d) - new Date(today())) / 864e5);
+let S = {products: [], sellers: [], settings: {}, outbox: []}, cart = [], copies = {}, lastSale = null;
+
+function toast(msg, err) {
+  const t = $("#toast"); t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", err ? 4500 : 2500);
+}
+
+// Saved on this device: PIN, a copy of the products (to keep selling offline) and sales not yet synced.
+const store = {
+  get(k, dflt) { try { return JSON.parse(localStorage.getItem(k)) ?? dflt; } catch { return dflt; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let PIN = store.get("pin", ""), queue = store.get("queue", []), online = true;
+
+// Where the data lives: a Google Apps Script web app (address in config.js), or else pos.py on this computer/Wi-Fi
+const API = /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost:\d+\/)/.test(window.POS_API || "")  // localhost = test bench
+  ? window.POS_API : "";
+if (window.POS_API && !API) setTimeout(() => toast("config.js: paste your Google Apps Script Web app address there", true), 500);
+
+class Offline extends Error {}
+async function api(path, body, ms = API ? 30000 : 5000) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms);
+  let r;
+  try {
+    if (API) {  // Google: every call is a POST to the one web-app address; plain text avoids a CORS preflight
+      const [p, q] = path.split("?");
+      r = await fetch(API, {method: "POST", signal: ctl.signal, headers: {"Content-Type": "text/plain;charset=utf-8"},
+        body: JSON.stringify({pin: PIN, path: p, body: body || Object.fromEntries(new URLSearchParams(q || ""))})});
+    } else {
+      r = await fetch(path, {signal: ctl.signal, headers: {"Content-Type": "application/json", "X-PIN": PIN},
+        ...(body ? {method: "POST", body: JSON.stringify(body)} : {})});
+    }
+  } catch {
+    throw new Offline(API ? "No internet connection" : "Cannot reach the store computer. Is pos.py running, and is this device on the store Wi-Fi?");
+  } finally { clearTimeout(timer); }
+  let j;
+  try { j = await r.json(); }
+  catch { throw new Error(API ? "Google Script didn't answer properly. Check the Web app address and that access is set to 'Anyone'." : "Bad answer from the POS program"); }
+  const status = API ? j.status : r.status;
+  if (status === 401) {  // ask once, remember on this device
+    const p = prompt("Enter the store password (or Tablet PIN)");
+    if (p === null) throw new Error("Password needed");
+    PIN = p.trim(); store.set("pin", PIN);
+    return api(path, body, ms);
+  }
+  if (status >= 400) throw new Error(j.error);
+  return API ? j.data : j;
+}
+const run = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
+const setOnline = v => { online = v; netStatus(); };
+
+const VERSION = "__VERSION__";  // filled in by pos.py
+function updateIfNewer() {
+  // A newer POS version is on the store computer: reload once to get it (never in the middle of a sale)
+  let tried = ""; try { tried = sessionStorage.getItem("reloadFor"); } catch {}
+  if (S.version && S.version !== VERSION && !cart.length && tried !== S.version) {
+    try { sessionStorage.setItem("reloadFor", S.version); } catch {}
+    location.reload();
+  }
+}
+
+async function load() {
+  try { S = await api("/api/state"); store.set("state", S); setOnline(true); updateIfNewer(); }
+  catch (e) {
+    if (!(e instanceof Offline)) throw e;
+    setOnline(false);
+    if (!S.products.length) S = store.get("state", S);  // just opened with no connection: use the saved copy
+  }
+  renderAll();
+}
+
+// Push offline sales to the store computer, oldest first. Each has a uid, so a retry never double-counts.
+let syncing = false;
+async function sync() {
+  if (syncing || !queue.length) return;
+  syncing = true;
+  try {
+    while (queue.length) {
+      await api("/api/sale", queue[0]);
+      queue.shift(); store.set("queue", queue);
+      if (!queue.length) toast("Offline sales synced to the store computer");
+    }
+  } catch (e) { if (e instanceof Offline) setOnline(false); else throw e; }
+  finally { syncing = false; netStatus(); }
+}
+function renderAll() {
+  $("#storeName").textContent = S.settings.store_name || "Urdaneta Store";
+  $(".logo").textContent = (S.settings.store_name || "U")[0].toUpperCase();
+  renderCart(); renderTiles(); renderProducts(); renderSellers(); renderLabels(); renderSettings();
+}
+
+// ---------- tabs ----------
+// Left menu: icons only or full. Phones always use the icon bar; elsewhere the choice is remembered per device
+// (first visit: icons only on screens narrower than 1100px, like tablets).
+const phone = matchMedia("(max-width:700px)");
+const applyNav = () => document.body.classList.toggle("navmini", phone.matches || store.get("navMini", innerWidth <= 1100));
+$("#navToggle").onclick = () => { store.set("navMini", !document.body.classList.contains("navmini")); applyNav(); };
+phone.addEventListener("change", applyNav); applyNav();
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button, section").forEach(e => e.classList.remove("on"));
+  b.classList.add("on"); $("#" + b.dataset.tab).classList.add("on");
+  if (b.dataset.tab === "sell") $("#scan").focus();
+  if (b.dataset.tab === "reports") showReport();
+});
+const onSell = () => $("#sell").classList.contains("on");
+
+function netStatus() {
+  const n = $("#net"), q = queue.length;
+  n.className = online && !q ? "" : "off";
+  n.textContent = !online ? `● ${S.cloud || API ? "No internet" : "Store computer not reachable"}: selling offline${q ? `, ${q} sale(s) waiting to sync` : ""}`
+    : q ? `● Syncing ${q} sale(s)…` : "● Connected";
+}
+
+// ---------- barcode (Code 128-B) ----------
+const C128 = ("212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 112232 122132 122231 113222 " +
+  "123122 123221 223211 221132 221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 212123 212321 232121 " +
+  "111323 131123 131321 112313 132113 132311 211313 231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 " +
+  "231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 314111 221411 431111 111224 111422 121124 121421 " +
+  "141122 141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 111242 121142 121241 114212 " +
+  "124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 114131 " +
+  "311141 411131 211412 211214 211232 2331112").split(" ");
+function barcodeSVG(text) {
+  const codes = [104, ...[...text].map(c => c.charCodeAt(0) - 32)];
+  const check = codes.reduce((s, c, i) => s + c * (i || 1), 0) % 103;
+  let x = 10, bars = "";
+  [...[...codes, check, 106].map(c => C128[c]).join("")].forEach((w, i) => {
+    if (i % 2 === 0) bars += `<rect x="${x}" width="${w}" height="40"/>`;
+    x += +w;
+  });
+  return `<svg viewBox="0 0 ${x + 10} 40" preserveAspectRatio="none" shape-rendering="crispEdges">${bars}</svg>`;
+}
+
+// ---------- selling ----------
+const byCode = code => S.products.find(p => p.barcode === code);
+const isExpired = p => p.expiry && p.expiry < today();
+
+// Tablet: a Bluetooth/USB scanner types like a keyboard, so keep the on-screen keyboard
+// hidden in the scan box; the ⌨ button brings it back for typing a product name.
+if (matchMedia("(pointer:coarse)").matches) $("#scan").inputMode = "none";
+$("#kb").onclick = () => {
+  const s = $("#scan"); s.blur();
+  s.inputMode = s.inputMode === "none" ? "text" : "none";
+  $("#kb").textContent = s.inputMode === "none" ? "⌨ Type" : "Hide ⌨";
+  s.focus();
+};
+
+// Scanner (barcode + Enter) adds 1 straight away. Typing filters the tiles; Enter on a single match asks the quantity.
+$("#scan").oninput = renderTiles;
+$("#scan").onkeydown = e => {
+  if (e.key !== "Enter") return;
+  let v = e.target.value.trim(), qty = 1;
+  e.target.value = "";
+  if (!v) return renderTiles();
+  const m = v.match(/^(\d+)\*(.+)$/);
+  if (m) { qty = +m[1]; v = m[2].trim(); }
+  const p = byCode(v);
+  if (p) { renderTiles(); return addToCart(p, qty); }
+  const hits = S.products.filter(p => p.name.toLowerCase().includes(v.toLowerCase()));
+  if (!hits.length) { renderTiles(); return toast(`Not found: "${v}". Add it in Products.`, true); }
+  if (hits.length === 1) { renderTiles(); return m ? addToCart(hits[0], qty) : askQty(hits[0]); }
+  e.target.value = v; renderTiles();  // several matches: leave them as tiles to tap
+};
+
+function renderTiles() {
+  const f = $("#scan").value.trim().toLowerCase();
+  const list = S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f));
+  $("#tiles").innerHTML = list.map(p => {
+    const note = isExpired(p) ? "EXPIRED" : p.stock <= 0 ? "Out of stock" : `${p.stock} left`;
+    const s = S.sellers.find(s => s.id === p.seller_id);
+    return `<button class="tile${note.endsWith("left") ? "" : " off"}" data-id="${p.id}" style="--c:${ownerColor(p.seller_id)}">
+      <b>${esc(p.name)}</b><div class="owner">${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
+      <span>${peso(p.price)}</span><small>${note}</small></button>`;
+  }).join("") || `<p class="muted">${S.products.length ? "No item matches." : "No products yet. Add them in the Products tab."}</p>`;
+}
+// Each seller's items get their own color strip on the tile, so staff can tell shelves apart at a glance
+const SELLER_COLORS = ["#2563eb", "#d97706", "#9333ea", "#db2777", "#0891b2", "#65a30d", "#dc2626", "#4f46e5"];
+const ownerColor = id => id ? SELLER_COLORS[id % SELLER_COLORS.length] : "var(--brand)";
+$("#tiles").onclick = e => { const b = e.target.closest(".tile"); if (b) askQty(S.products.find(p => p.id === +b.dataset.id)); };
+
+// Quantity pop-up after tapping an item
+let qtyFor = null;
+function askQty(p) {
+  if (isExpired(p)) return toast(`${p.name} is EXPIRED (${p.expiry}). Do not sell, pull it out.`, true);
+  const inCart = cart.find(l => l.id === p.id)?.qty || 0, left = p.stock - inCart;
+  if (left < 1) return toast(p.stock < 1 ? `${p.name} is out of stock` : `All ${p.stock} ${p.name} are already in this sale`, true);
+  qtyFor = p;
+  $("#qtyName").textContent = p.name;
+  $("#qtyInfo").textContent = `${peso(p.price)} each · ${left} available${inCart ? ` · ${inCart} already in this sale` : ""}`;
+  $("#qty").value = 1; $("#qty").max = left;
+  $("#qtyDlg").showModal();
+  if (!matchMedia("(pointer:coarse)").matches) $("#qty").select();  // touch: use the buttons, no keyboard pop-up
+}
+$("#qtyDlg").onclick = e => {
+  const d = e.target.dataset, q = $("#qty");
+  if (d.d) q.value = Math.max(1, (parseInt(q.value) || 0) + +d.d);
+  if (d.q) q.value = d.q;
+};
+$("#qtyForm").onsubmit = e => {
+  e.preventDefault();
+  const n = parseInt($("#qty").value);
+  if (!(n >= 1)) return toast("Enter a quantity", true);
+  if (addToCart(qtyFor, n)) $("#qtyDlg").close();
+};
+$("#qtyCancel").onclick = () => $("#qtyDlg").close();
+$("#qtyDlg").onclose = () => { if (onSell()) $("#scan").focus(); };
+
+function addToCart(p, qty = 1) {
+  if (isExpired(p)) return toast(`${p.name} is EXPIRED (${p.expiry}). Do not sell, pull it out.`, true);
+  const line = cart.find(l => l.id === p.id), want = (line ? line.qty : 0) + qty;
+  if (want > p.stock) return toast(`Only ${p.stock} ${p.name} in stock`, true);
+  if (want < 1) return;
+  line ? line.qty = want : cart.push({id: p.id, name: p.name, price: p.price, qty});
+  renderCart();
+  return true;
+}
+
+function renderCart() {
+  $("#cart").innerHTML = cart.map((l, i) => `<tr><td>${esc(l.name)}<div class="muted">${peso(l.price)} × ${l.qty}</div></td>
+    <td class="num">${peso(l.price * l.qty)}</td>
+    <td class="num"><button class="sm" data-i="${i}" data-d="-1">−</button> <button class="sm" data-i="${i}" data-d="1">+</button> <button class="sm" data-i="${i}" data-d="x">✕</button></td></tr>`).join("")
+    || `<tr><td class="empty">Tap an item or scan a barcode to start.</td></tr>`;
+  const total = cart.reduce((s, l) => s + l.price * l.qty, 0), cash = parseFloat($("#cash").value);
+  const pcs = cart.reduce((n, l) => n + l.qty, 0);
+  $("#itemCount").textContent = pcs ? `${pcs} item${pcs > 1 ? "s" : ""}` : "";  $("#pay").textContent = cart.length ? `Charge ${peso(total)}` : "Charge";
+  $("#pay").disabled = !cart.length;
+  if (cart.length) $("#last").innerHTML = "";  // new sale started: hide the previous sale's change
+  $("#total").textContent = peso(total);
+  $("#change").textContent = cash ? peso(cash - total) : "₱0.00";
+  $("#change").className = cash && cash < total ? "bad" : "";
+}
+$("#cart").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const l = cart[b.dataset.i];
+  if (b.dataset.d === "x" || (l.qty === 1 && b.dataset.d === "-1")) cart.splice(b.dataset.i, 1);
+  else addToCart(S.products.find(p => p.id === l.id), +b.dataset.d);
+  renderCart(); $("#scan").focus();
+};
+$("#cash").oninput = renderCart;$("#quickcash").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const total = cart.reduce((s, l) => s + l.price * l.qty, 0);
+  $("#cash").value = b.dataset.cash === "exact" ? (total ? total.toFixed(2) : "") : b.dataset.cash;
+  renderCart();
+};
+$("#cash").onkeydown = e => { if (e.key === "Enter") pay(); };
+
+let paying = false;  // a double F2 / double click must not record the sale twice
+const pay = run(async () => {
+  if (paying) return;
+  if (!cart.length) return toast("Cart is empty", true);
+  const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
+  const cash = parseFloat($("#cash").value) || total;
+  if (cash < total) return toast("Cash received is less than the total", true);
+  const sale = {uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts: localTime(), cash,
+                items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
+  paying = true;
+  try {
+    // Google takes 1-3 s per call, so there every sale is finished on the tablet at once and sent in the background
+    if (API) throw new Offline("queued");
+    lastSale = await api("/api/sale", sale);
+  } catch (e) {
+    if (!(e instanceof Offline)) throw e;
+    // Server unreachable (or Google mode): finish the sale here and sync it later
+    queue.push({...sale, offline: true}); store.set("queue", queue);
+    for (const l of sale.items) { const p = S.products.find(p => p.id === l.id); if (p) p.stock -= l.qty; }
+    store.set("state", S);
+    if (!API) setOnline(false);
+    lastSale = {...sale, id: API ? sale.uid.slice(-6).toUpperCase() : "OFF-" + sale.uid.slice(-5), total, change: cash - total};
+  } finally { paying = false; }
+  cart = []; $("#cash").value = "";
+  if (API) { renderAll(); netStatus(); tick(); }
+  else if (online) await load(); else renderAll();
+  $("#last").innerHTML = `<div class="done"><div class="muted">✓ Sale #${lastSale.id} done${online ? "" : " · saved on this device, will sync"}</div>
+    <div class="row" style="justify-content:space-between;margin-top:4px"><div>Change <span class="big">${peso(lastSale.change)}</span></div>
+    <button class="sm" id="printReceipt">Print receipt</button></div></div>`;
+  $("#printReceipt").onclick = printReceipt;
+  $("#scan").focus();
+});
+$("#pay").onclick = pay;
+$("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $("#scan").focus(); };
+
+function printReceipt() {
+  const s = lastSale;
+  $("#print").innerHTML = `<div class="receipt"><div style="text-align:center"><b>${esc(S.settings.store_name || "Urdaneta Store")}</b><br>
+    ${s.ts.replace("T", " ")} · #${s.id}</div><hr><table style="width:100%">
+    ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
+    </table><hr><table style="width:100%"><tr><td>TOTAL</td><td class="num"><b>${peso(s.total)}</b></td></tr>
+    <tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr></table>
+    <hr><div style="text-align:center">Salamat po! Come again.</div></div>`;
+  print();
+}
+
+// Keyboard: scanner input always lands in the scan box on the Sell tab
+document.addEventListener("keydown", e => {
+  if (!onSell() || $("#qtyDlg").open) return;  // quantity pop-up handles its own keys (Enter = add, Esc = cancel)
+  if (e.key === "F2") { e.preventDefault(); pay(); }
+  else if (e.key === "Escape") $("#clear").click();
+  else if (!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && e.key.length === 1) $("#scan").focus();
+});
+
+// ---------- products ----------
+const owner = id => { const s = S.sellers.find(s => s.id === id); return s ? `${s.name}${s.shelf ? " · " + s.shelf : ""}` : "Store"; };
+// Same rule as the server: notify on the seller's advised date, else 3 days before expiry
+const addDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString().slice(0, 10);
+const notifyDate = p => p.notify_on || addDays(p.expiry, -3);
+const dueSoon = p => p.expiry && today() >= notifyDate(p);
+function expiryCell(p) {
+  const made = p.mfg_date ? `<div class="muted">made ${p.mfg_date}</div>` : "";
+  if (!p.expiry) return made;
+  const d = daysTo(p.expiry), cls = d < 0 ? "bad" : dueSoon(p) ? "warn" : "";
+  return `<span class="${cls}">${p.expiry}${d < 0 ? " · EXPIRED" : dueSoon(p) ? ` · ${d}d left` : ""}</span>
+    <div class="muted">notify ${notifyDate(p)}</div>${made}`;
+}
+function renderProducts() {
+  const sel = $("#pform").seller_id, keep = sel.value;  // the 15s refresh must not reset a product being edited
+  sel.innerHTML = `<option value="">Store (my own goods)</option>` +
+    S.sellers.map(s => `<option value="${s.id}">${esc(s.name)}${s.shelf ? " · shelf " + esc(s.shelf) : ""}</option>`).join("");
+  sel.value = keep;
+  const f = $("#pfilter").value.toLowerCase();
+  $("#plist").innerHTML = S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
+    .map(p => `<tr data-id="${p.id}" style="cursor:pointer"><td>${esc(p.barcode)}</td><td>${esc(p.name)}</td><td class="num">${peso(p.price)}</td>
+      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.stock}</td><td>${esc(owner(p.seller_id))}</td><td>${expiryCell(p)}</td></tr>`).join("")
+    || `<tr><td colspan="6" class="muted">No products yet.</td></tr>`;
+}
+function editProduct(p) {
+  const f = $("#pform"); f.reset();
+  for (const k of ["id", "barcode", "name", "price", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
+  $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
+  f.name.focus();
+}
+$("#plist").onclick = e => { const tr = e.target.closest("tr[data-id]"); if (tr) editProduct(S.products.find(p => p.id === +tr.dataset.id)); };
+$("#pfilter").oninput = renderProducts;
+$("#pfilter").onkeydown = e => {
+  if (e.key !== "Enter") return;
+  const v = e.target.value.trim(), p = byCode(v);
+  if (p) editProduct(p);
+  else if (v && !S.products.some(p => p.name.toLowerCase().includes(v.toLowerCase()))) editProduct({barcode: v});
+  e.target.value = ""; renderProducts();
+};
+// A scanner in the barcode field types + Enter: don't submit, jump to Name
+$("#pform").barcode.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#pform").name.focus(); } };
+$("#pform").onsubmit = run(async e => {
+  e.preventDefault();
+  const r = await api("/api/products", Object.fromEntries(new FormData(e.target)));
+  toast(`Saved. Barcode ${r.barcode}`); editProduct(null); await load();
+});
+$("#pnew").onclick = () => editProduct(null);
+// Suggest a notify date (3 days before expiry) the first time an expiry is entered; the seller's advised date can replace it
+$("#pform").expiry.onchange = e => { const n = $("#pform").notify_on; if (e.target.value && !n.value) n.value = addDays(e.target.value, -3); };
+$("#pdel").onclick = run(async () => {
+  const f = $("#pform"); if (!f.id.value || !confirm(`Delete ${f.name.value}?`)) return;
+  await api("/api/products/delete", {id: f.id.value}); editProduct(null); await load();
+});
+
+// ---------- sellers ----------
+function renderSellers() {
+  $("#slist").innerHTML = S.sellers.map(s => {
+    const items = S.products.filter(p => p.seller_id === s.id);
+    const expiring = items.filter(p => p.stock > 0 && dueSoon(p)).length;
+    const low = items.filter(p => p.stock <= s.low_stock).length;
+    return `<tr><td>${esc(s.name)}<div class="muted">${esc(s.phone)}</div></td><td>${esc(s.shelf)}</td><td class="num">${peso(s.rent)}</td>
+      <td>${esc(s.email) || '<span class="warn">no email</span>'}</td><td class="num">${items.length}</td>
+      <td class="num">${items.reduce((n, p) => n + p.stock, 0)}</td>
+      <td>${expiring ? `<span class="warn">${expiring} expiring</span> ` : ""}${low ? `<span class="warn">${low} low</span>` : ""}</td>
+      <td class="row"><button class="sm" data-edit="${s.id}">Edit</button>${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}</td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="muted">No sellers yet. Add the people renting your shelves.</td></tr>`;
+}
+function editSeller(s) {
+  const f = $("#sform"); f.reset();
+  for (const k of ["id", "name", "email", "phone", "shelf", "rent", "low_stock"]) if (s) f[k].value = s[k] ?? "";
+  $("#sformTitle").textContent = s ? "Edit seller" : "New seller (shelf renter)";
+}
+$("#slist").onclick = run(async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
+  if (b.dataset.report) { await api("/api/sellers/report", {id: b.dataset.report}); toast("Stock report queued"); await load(); }
+});
+$("#reportAll").onclick = run(async () => { const r = await api("/api/sellers/report", {}); toast(`Queued ${r.queued} report(s)`); await load(); });
+$("#sform").onsubmit = run(async e => {
+  e.preventDefault(); await api("/api/sellers", Object.fromEntries(new FormData(e.target)));
+  toast("Seller saved"); editSeller(null); await load();
+});
+$("#snew").onclick = () => editSeller(null);
+$("#sdel").onclick = run(async () => {
+  const f = $("#sform"); if (!f.id.value || !confirm(`Delete ${f.name.value}?`)) return;
+  await api("/api/sellers/delete", {id: f.id.value}); editSeller(null); await load();
+});
+
+// ---------- labels ----------
+const shownLabels = () => { const f = $("#lfilter").value.toLowerCase(); return S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f)); };
+function renderLabels() {
+  $("#llist").innerHTML = shownLabels().map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.barcode)}</td><td class="num">${peso(p.price)}</td>
+    <td class="num">${p.stock}</td><td class="num"><input type="number" min="0" style="width:80px" data-id="${p.id}" value="${copies[p.id] || ""}"></td></tr>`).join("");
+}
+$("#lfilter").oninput = renderLabels;
+$("#llist").oninput = e => copies[e.target.dataset.id] = +e.target.value;
+$("#lstock").onclick = () => { shownLabels().forEach(p => copies[p.id] = Math.max(p.stock, 0)); renderLabels(); };
+$("#lzero").onclick = () => { copies = {}; renderLabels(); };
+$("#lprint").onclick = () => {
+  const html = S.products.flatMap(p => Array(copies[p.id] || 0).fill(`<div class="label">${esc(p.name)}<b>${peso(p.price)}</b>
+    ${barcodeSVG(p.barcode)}${esc(p.barcode)}</div>`)).join("");
+  if (!html) return toast("Set copies for at least one product", true);
+  $("#print").innerHTML = `<div class="labels">${html}</div>`; print();
+};
+
+// ---------- reports ----------
+$("#rfrom").value = $("#rto").value = today();
+const showReport = run(async () => {
+  const r = await api(`/api/report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
+  const tbl = (rows, cols) => `<table><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map(x => `<tr>${cols.map(c => `<td class="${c[2] || ""}">${c[1](x)}</td>`).join("")}</tr>`).join("") || `<tr><td class="muted">No sales.</td></tr>`}</tbody></table>`;
+  $("#rout").innerHTML = `<div class="card"><div class="muted">${r.summary.n} sale(s)</div><div class="total">${peso(r.summary.total)}</div></div>
+    <div class="card"><h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner, [["Owner", x => esc(x.owner)], ["Shelf", x => esc(x.shelf)],
+      ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>
+    <div class="card"><h3>By item</h3>${tbl(r.by_item, [["Item", x => esc(x.name)], ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>`;
+});
+$("#rshow").onclick = showReport;
+
+// ---------- settings ----------
+function renderSettings() {
+  const f = $("#setform");
+  // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
+  if (!setDirty) for (const k of ["store_name", "smtp_host", "smtp_port", "smtp_user", "smtp_from"]) f[k].value = S.settings[k] || "";
+  f.smtp_pass.placeholder = S.settings.smtp_pass_set ? "saved (leave blank to keep)" : "";
+  $("#pinform").tablet_pin.placeholder = S.settings.tablet_pin_set ? "saved (leave blank to keep)" : "not set: tablets are blocked";
+  $("#pinform").hidden = $("#tabletHelp").hidden = !!S.cloud;  // cloud: one store password for every device, set on the server
+  $("#tabletInfo").innerHTML = S.cloud
+    ? `This POS runs in the cloud. On any phone, tablet or computer open <b style="font-size:20px">${esc(location.href.split("#")[0])}</b>
+       and enter the store password. It keeps selling with no internet and syncs when the connection is back.`
+    : !S.settings.tablet_pin_set ? `<span class="warn">Set a PIN to allow tablets and outside access.</span>`
+    : `In the store (same Wi-Fi): <b style="font-size:20px">${esc(S.tablet_url)}</b><br>
+       Outside the store: ${S.remote_url ? `<b style="font-size:20px">${esc(S.remote_url)}</b> <span class="muted">(your phone needs Tailscale on)</span>`
+         : `<span class="muted">install Tailscale on this computer to get an address</span>`}`;
+  // Google mode: emails go out from the owner's Gmail, so there are no email server settings
+  for (const k of ["smtp_host", "smtp_port", "smtp_user", "smtp_pass"]) f[k].closest("label").hidden = !!S.google;
+  $("#gmailHelp").hidden = !!S.google;
+  $("#obinfo").textContent = S.google ? `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`
+    : !S.settings.smtp_host ? "Email not set up yet. Alerts are being queued and will send once you fill in the settings above."
+    : `${S.pending} waiting to send. The program checks alerts and retries every 5 minutes.`;
+  $("#oblist").innerHTML = S.outbox.map(m => `<tr><td>${m.created.replace("T", " ")}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td>
+    <td>${!m.sent ? `<span class="warn">waiting</span><div class="muted">${esc(m.error)}</div>` : m.error ? `<span class="bad">${esc(m.error)}</span>` : "sent"}</td>
+    <td class="num">${m.sent ? "" : `<button class="sm" data-readdress="${m.id}">Change email</button> `}<button class="sm danger" data-delmail="${m.id}">Delete</button></td></tr>`).join("")
+    || `<tr><td colspan="5" class="muted">No emails yet. An email is created when a seller's item reaches its notify date, expires or runs low,
+         or when you click <b>Email stock</b> in Sellers &amp; Shelves. Use <b>Send test email</b> to check your settings.</td></tr>`;
+}
+$("#oblist").onclick = run(async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const m = S.outbox.find(m => m.id === +(b.dataset.readdress || b.dataset.delmail));
+  if (b.dataset.readdress) {
+    const to = prompt(`Send "${m.subject}" to which email address?`, m.to_addr);
+    if (!to || to.trim() === m.to_addr) return;
+    await api("/api/outbox/readdress", {id: m.id, to_addr: to});
+    toast("Email address changed. To fix future alerts too, edit the seller in Sellers & Shelves.");
+  } else {
+    if (!confirm(`Delete this email to ${m.to_addr}? It will not be sent.`)) return;
+    await api("/api/outbox/delete", {id: m.id});
+    toast("Email deleted");
+  }
+  await load();
+});
+let setDirty = false;
+$("#setform").oninput = () => setDirty = true;
+$("#setform").onsubmit = $("#pinform").onsubmit = run(async e => {
+  e.preventDefault(); await api("/api/settings", Object.fromEntries(new FormData(e.target)));
+  if (e.target.id === "setform") setDirty = false;
+  e.target.querySelectorAll("[type=password]").forEach(i => i.value = ""); toast("Settings saved"); await load();
+});
+$("#testMail").onclick = run(async () => {
+  if (setDirty) return toast("Click Save first, then send the test email", true);
+  $("#testMail").disabled = true;
+  try {
+    await api("/api/outbox/test", {});
+    toast("Sending test email…");
+    S = await api("/api/send-now", {}, 60000); renderAll();
+    const m = S.outbox[0];  // newest
+    if (m && m.sent && !m.error) toast(`Test email sent to ${m.to_addr}. Check your inbox.`);
+    else toast(`Not sent: ${m?.error || "check the settings above"}`, true);
+  } finally { $("#testMail").disabled = false; }
+});
+$("#sendNow").onclick = run(async () => { $("#sendNow").disabled = true; try { S = await api("/api/send-now", {}, 60000); renderAll(); toast("Done"); } finally { $("#sendNow").disabled = false; } });
+
+// Every 15s: send waiting offline sales, then refresh products (picks up the other counter's changes)
+const tick = run(async () => { await sync(); await load(); });
+tick(); setInterval(tick, API ? 30000 : 15000);
+// Offline page copy (only on https or localhost; plain-http Wi-Fi addresses fall back to the browser cache)
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+addEventListener("online", tick);
+netStatus();
+</script>
+</body>
+</html>
