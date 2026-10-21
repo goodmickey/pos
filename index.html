@@ -147,6 +147,10 @@ body.navmini #net.off{background:#f59e0b}
 .label svg{width:100%;height:13mm;display:block}
 .receipt{width:58mm;font:11px/1.35 ui-monospace,monospace}
 .receipt td{border:0;padding:0}
+.report{font:12px/1.4 system-ui,sans-serif;color:#000}
+.report h2{font-size:18px;margin:0 0 4px}.report h3{font-size:14px;margin:16px 0 6px}
+.report th{background:none;position:static;color:#000;border-bottom:1px solid #000}
+.report td,.report th{padding:4px 6px}
 .kb{display:none;white-space:nowrap}
 @media(pointer:coarse){input,select{font-size:16px}button{padding:12px 18px}button.sm{padding:8px 14px;font-size:16px}td{padding:12px 10px}.kb{display:inline-block}}
 </style>
@@ -159,6 +163,7 @@ body.navmini #net.off{background:#f59e0b}
     <button data-tab="products" title="Products"><svg viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span>Products</span></button>
     <button data-tab="sellers" title="Sellers & Shelves"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg><span>Sellers &amp; Shelves</span></button>
     <button data-tab="labels" title="Barcode Labels"><svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M18 5v14M21 5v14"/></svg><span>Barcode Labels</span></button>
+    <button data-tab="history" title="History"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
     <button data-tab="reports" title="Reports"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg><span>Reports</span></button>
     <button data-tab="settings" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
   </nav>
@@ -272,10 +277,28 @@ body.navmini #net.off{background:#f59e0b}
   </div>
 </section>
 
+<section id="history">
+  <div class="pagehead"><h2>History</h2><p>Every sale, with its items. Open one to see the details or print the receipt again.</p></div>
+  <div class="card">
+    <div class="row"><label>From <input type="date" id="hfrom"></label><label>To <input type="date" id="hto"></label>
+      <label style="flex:1;min-width:180px">Search <input id="hsearch" placeholder="Receipt # or item name"></label>
+      <button class="primary" id="hshow" style="align-self:end">Show</button></div>
+    <p class="muted" id="hsummary" style="margin:12px 0 0"></p>
+    <div class="scroll"><table><thead><tr><th>Time</th><th>Receipt #</th><th>Items</th><th class="num">Total</th><th class="num">Cash</th><th class="num">Change</th><th></th></tr></thead>
+    <tbody id="hlist"></tbody></table></div>
+  </div>
+  <dialog id="saleDlg">
+    <div id="saleView"></div>
+    <div class="row" style="flex-wrap:nowrap;margin-top:14px"><button id="saleReprint" style="flex:1">Reprint receipt</button>
+      <button id="saleReprint2" style="flex:1">Reprint + store copy</button></div>
+    <button class="ghost" id="saleClose" style="width:100%;margin-top:8px">Close</button>
+  </dialog>
+</section>
+
 <section id="reports">
   <div class="pagehead"><h2>Reports</h2><p>Sales for any period, and what you owe each seller.</p></div>
   <div class="card">
-    <div class="row"><label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label><button class="primary" id="rshow" style="align-self:end">Show</button></div>
+    <div class="row"><label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label><button class="primary" id="rshow" style="align-self:end">Show</button><button id="rprint" style="align-self:end">Print report</button></div>
   </div>
   <div id="rout"></div>
 </section>
@@ -458,6 +481,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   b.classList.add("on"); $("#" + b.dataset.tab).classList.add("on");
   if (b.dataset.tab === "sell") $("#scan").focus();
   if (b.dataset.tab === "reports") showReport();
+  if (b.dataset.tab === "history") showHistory();
 });
 const onSell = () => $("#sell").classList.contains("on");
 
@@ -599,6 +623,7 @@ $("#cash").oninput = renderCart;$("#quickcash").onclick = e => {
 };
 $("#cash").onkeydown = e => { if (e.key === "Enter") pay(); };
 
+const receiptNo = s => s.uid ? s.uid.slice(-6).toUpperCase() : String(s.id);  // printed on the receipt
 let paying = false;  // a double F2 / double click must not record the sale twice
 const pay = run(async () => {
   if (paying) return;
@@ -613,6 +638,7 @@ const pay = run(async () => {
     // Google takes 1-3 s per call, so there every sale is finished on the tablet at once and sent in the background
     if (API) throw new Offline("queued");
     lastSale = await api("/api/sale", sale);
+    lastSale.id = receiptNo(sale);
   } catch (e) {
     if (!(e instanceof Offline)) throw e;
     // Server unreachable (or Google mode): finish the sale here and sync it later
@@ -620,7 +646,7 @@ const pay = run(async () => {
     for (const l of sale.items) { const p = S.products.find(p => p.id === l.id); if (p) p.stock -= l.qty; }
     store.set("state", S);
     if (!API) setOnline(false);
-    lastSale = {...sale, id: API ? sale.uid.slice(-6).toUpperCase() : "OFF-" + sale.uid.slice(-5), total, change: cash - total};
+    lastSale = {...sale, id: receiptNo(sale), total, change: cash - total};
   } finally { paying = false; }
   cart = []; $("#cash").value = "";
   if (API) { renderAll(); netStatus(); tick(); }
@@ -689,10 +715,10 @@ function receiptHTML(s, label) {
 
 // ---------- Bluetooth receipt printers (58 mm, ESC/POS, e.g. Goojprt PT-210 / "MTP-II") ----------
 // Browsers can't send to these through the normal Print dialog, so the POS sends printer commands itself.
-function receiptBytes(s, label = "") {
-  const st = S.settings || {}, W = 32;  // 32 characters per line on 58 mm paper
+// A 58 mm ticket (32 characters per line) built from ESC/POS printer commands
+function ticket() {
+  const W = 32, ESC = 0x1b, out = [ESC, 0x40];  // reset
   const clean = v => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/₱/g, "P").replace(/[^\x20-\x7e]/g, "?");
-  const money = n => "P" + Number(n || 0).toFixed(2);
   const wrap = v => {  // word wrap; only very long words are cut
     const lines = [""];
     for (const w of clean(v).split(" ")) {
@@ -701,29 +727,58 @@ function receiptBytes(s, label = "") {
     }
     return lines.flatMap(l => l.match(new RegExp(`.{1,${W}}`, "g")) || [""]);
   };
-  const lr = (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; return gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r; };
-  const out = [], ESC = 0x1b;
-  const cmd = (...b) => out.push(...b), line = v => { for (const ch of clean(v)) out.push(ch.charCodeAt(0)); out.push(10); };
-  cmd(ESC, 0x40, ESC, 0x61, 1, ESC, 0x45, 1);          // reset, center, bold
-  wrap(st.store_name || "Urdaneta Store").forEach(line);
-  cmd(ESC, 0x45, 0);
-  if (st.receipt_address) wrap(st.receipt_address).forEach(line);
-  if (st.receipt_phone) line(st.receipt_phone);
-  line(`${String(s.ts).replace("T", " ").slice(0, 16)}  #${s.id}`);
-  if (label) { cmd(ESC, 0x45, 1); line(`*** ${label} ***`); cmd(ESC, 0x45, 0); }
-  cmd(ESC, 0x61, 0);                                    // left
-  line("-".repeat(W));
-  s.items.forEach(i => { wrap(i.name).forEach(line); line(lr(`  ${i.qty} x ${money(i.price)}`, money(i.qty * i.price))); });
-  line("-".repeat(W));
-  cmd(ESC, 0x45, 1); line(lr("TOTAL", money(s.total))); cmd(ESC, 0x45, 0);
-  line(lr("Cash", money(s.cash))); line(lr("Change", money(s.change)));
-  cmd(ESC, 0x61, 1); line("");
-  wrap(st.receipt_footer || "Salamat po! Come again.").forEach(line);
-  line(""); line(""); line("");                         // feed past the tear bar
-  cmd(ESC, 0x61, 0);
-  return new Uint8Array(out);
+  const t = {
+    money: n => "P" + Number(n || 0).toFixed(2),
+    line: v => { for (const ch of clean(v)) out.push(ch.charCodeAt(0)); out.push(10); },
+    text: v => wrap(v).forEach(t.line),
+    lr: (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; t.line(gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r); },
+    rule: () => t.line("-".repeat(W)),
+    bold: on => out.push(ESC, 0x45, on ? 1 : 0),
+    center: on => out.push(ESC, 0x61, on ? 1 : 0),
+    end: () => { t.center(0); t.line(""); t.line(""); t.line(""); return new Uint8Array(out); },  // feed past the tear bar
+  };
+  return t;
 }
 
+function storeHeader(t) {
+  const st = S.settings || {};
+  t.center(1); t.bold(1); t.text(st.store_name || "Urdaneta Store"); t.bold(0);
+  if (st.receipt_address) t.text(st.receipt_address);
+  if (st.receipt_phone) t.line(st.receipt_phone);
+}
+
+function receiptBytes(s, label = "") {
+  const t = ticket(), m = t.money;
+  storeHeader(t);
+  t.line(`${String(s.ts).replace("T", " ").slice(0, 16)}  #${s.id}`);
+  if (label) { t.bold(1); t.line(`*** ${label} ***`); t.bold(0); }
+  t.center(0); t.rule();
+  s.items.forEach(i => { t.text(i.name); t.lr(`  ${i.qty} x ${m(i.price)}`, m(i.qty * i.price)); });
+  t.rule();
+  t.bold(1); t.lr("TOTAL", m(s.total)); t.bold(0);
+  t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change));
+  t.center(1); t.line(""); t.text((S.settings || {}).receipt_footer || "Salamat po! Come again.");
+  return t.end();
+}
+
+function reportBytes(r) {
+  const t = ticket(), m = t.money;
+  storeHeader(t);
+  t.bold(1); t.line("SALES REPORT"); t.bold(0);
+  t.line(r.from === r.to ? r.from : `${r.from} to ${r.to}`);
+  t.line("Printed " + localTime().replace("T", " ").slice(0, 16));
+  t.center(0); t.rule();
+  t.lr("Sales", String(r.summary.n));
+  t.bold(1); t.lr("TOTAL", m(r.summary.total)); t.bold(0);
+  t.rule(); t.bold(1); t.line("BY OWNER (pay sellers)"); t.bold(0);
+  r.by_owner.forEach(o => { t.text(o.owner + (o.shelf ? ` (shelf ${o.shelf})` : "")); t.lr(`  ${o.qty} pcs`, m(o.amount)); });
+  if (!r.by_owner.length) t.line("  No sales");
+  t.rule(); t.bold(1); t.line("BY ITEM"); t.bold(0);
+  r.by_item.forEach(i => { t.text(i.name); t.lr(`  ${i.qty} pcs`, m(i.amount)); });
+  if (!r.by_item.length) t.line("  No sales");
+  t.rule();
+  return t.end();
+}
 let serialPort = null, bleChar = null;
 const BLE_SERVICES = [0x18f0, 0xff00, 0xfff0, 0xffe0, 0xae30, "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "49535343-fe7d-4ae5-8fa9-9fafd205e455"];
 const PRINTERS = {
@@ -901,6 +956,7 @@ $("#lprint").onclick = () => {
 $("#rfrom").value = $("#rto").value = today();
 const showReport = run(async () => {
   const r = await api(`/api/report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
+  lastReport = {...r, from: $("#rfrom").value, to: $("#rto").value};
   const tbl = (rows, cols) => `<table><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>
     ${rows.map(x => `<tr>${cols.map(c => `<td class="${c[2] || ""}">${c[1](x)}</td>`).join("")}</tr>`).join("") || `<tr><td class="muted">No sales.</td></tr>`}</tbody></table>`;
   $("#rout").innerHTML = `<div class="card"><div class="muted">${r.summary.n} sale(s)</div><div class="total">${peso(r.summary.total)}</div></div>
@@ -909,6 +965,61 @@ const showReport = run(async () => {
     <div class="card"><h3>By item</h3>${tbl(r.by_item, [["Item", x => esc(x.name)], ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>`;
 });
 $("#rshow").onclick = showReport;
+
+// ---------- history ----------
+let history = [], viewing = null;
+$("#hfrom").value = $("#hto").value = today();
+const showHistory = run(async () => {
+  const from = $("#hfrom").value, to = $("#hto").value;
+  const saved = await api(`/api/sales?from=${from}&to=${to}`);
+  // sales still waiting to sync (made offline on this device) are shown too
+  const waiting = queue.filter(s => s.ts.slice(0, 10) >= from && s.ts.slice(0, 10) <= to).map(s => {
+    const total = Math.round(s.items.reduce((n, i) => n + i.price * i.qty, 0) * 100) / 100;
+    return {...s, total, waiting: true};
+  });
+  history = [...waiting, ...saved].map(s => ({...s, id: receiptNo(s), change: Math.round((s.cash - s.total) * 100) / 100}));
+  renderHistory();
+});
+function renderHistory() {
+  const q = $("#hsearch").value.trim().toLowerCase();
+  const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q)));
+  $("#hsummary").textContent = `${list.length} sale(s) · ${peso(list.reduce((n, s) => n + s.total, 0))}`;
+  $("#hlist").innerHTML = list.map((s, i) => `<tr data-i="${history.indexOf(s)}" style="cursor:pointer">
+    <td>${esc(s.ts.replace("T", " ").slice(0, 16))}${s.waiting ? ' <span class="warn">waiting to sync</span>' : ""}</td>
+    <td><b>${esc(s.id)}</b></td><td>${esc(s.items.map(i => `${i.name} ×${i.qty}`).join(", "))}</td>
+    <td class="num">${peso(s.total)}</td><td class="num">${peso(s.cash)}</td><td class="num">${peso(s.change)}</td>
+    <td><button class="sm">View</button></td></tr>`).join("") || `<tr><td colspan="7" class="muted">No sales in these dates.</td></tr>`;
+}
+$("#hshow").onclick = showHistory;
+$("#hsearch").oninput = renderHistory;
+$("#hlist").onclick = e => {
+  const tr = e.target.closest("tr[data-i]"); if (!tr) return;
+  viewing = history[+tr.dataset.i];
+  $("#saleView").innerHTML = receiptHTML(viewing, "").replace('class="receipt"', 'class="receipt" style="width:auto;font-size:13px"');
+  $("#saleDlg").showModal();
+};
+$("#saleReprint").onclick = () => printReceipt(viewing, 1);
+$("#saleReprint2").onclick = () => printReceipt(viewing, 2);
+$("#saleClose").onclick = () => $("#saleDlg").close();
+
+// ---------- print the report (thermal or normal printer, like receipts) ----------
+let lastReport = null;
+$("#rprint").onclick = run(async () => {
+  if (!lastReport) await showReport();
+  const r = lastReport, method = store.get("printer", "browser");
+  if (method !== "browser") {
+    try { await PRINTERS[method](reportBytes(r)); toast("Report printed"); } catch (e) { toast("Printer: " + (e.message || e), true); }
+    return;
+  }
+  const st = S.settings || {};
+  const tbl = (rows, head) => `<table><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows || '<tr><td colspan="3">No sales</td></tr>'}</tbody></table>`;
+  $("#print").innerHTML = `<div class="report"><h2>${esc(st.store_name || "Urdaneta Store")}: Sales report</h2>
+    <p>${r.from === r.to ? r.from : `${r.from} to ${r.to}`} · printed ${localTime().replace("T", " ").slice(0, 16)}</p>
+    <p><b>${r.summary.n} sale(s) · Total ${peso(r.summary.total)}</b></p>
+    <h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner.map(o => `<tr><td>${esc(o.owner)}${o.shelf ? ` (shelf ${esc(o.shelf)})` : ""}</td><td>${o.qty} pcs</td><td>${peso(o.amount)}</td></tr>`).join(""), ["Owner", "Sold", "Amount"])}
+    <h3>By item</h3>${tbl(r.by_item.map(i => `<tr><td>${esc(i.name)}</td><td>${i.qty} pcs</td><td>${peso(i.amount)}</td></tr>`).join(""), ["Item", "Sold", "Amount"])}</div>`;
+  print();
+});
 
 // ---------- settings ----------
 function renderSettings() {
