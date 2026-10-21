@@ -105,8 +105,11 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;
 .pay:disabled{background:#94a3b8;cursor:default}
 .ghost{border:0;background:none;color:var(--muted);padding:4px}
 .ghost:hover{background:none;color:var(--bad)}
-.done{background:var(--brandsoft);border:1px solid #a7dccd;border-radius:10px;padding:12px 14px}
-.done .big{font-size:22px;font-weight:800}
+#doneDlg{width:min(400px,92vw)}
+.donecheck{width:56px;height:56px;border-radius:50%;background:var(--brandsoft);color:var(--brand);font-size:30px;font-weight:800;display:grid;place-items:center;margin:0 auto}
+.donesum{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:16px 0 8px;display:grid;gap:6px}
+.donechange{border-top:1px solid var(--line);padding-top:8px}
+.donechange b{font-size:30px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums}
 
 dialog{border:0;border-radius:16px;padding:22px;width:min(380px,92vw);box-shadow:0 24px 60px #0f172a55}
 dialog::backdrop{background:#0f172a80}
@@ -183,7 +186,6 @@ body.navmini #net.off{background:#f59e0b}
         <div class="sumrow change"><span>Change</span><b id="change">₱0.00</b></div>
         <button class="pay" id="pay">Charge</button>
         <button class="ghost" id="clear">Cancel sale (Esc)</button>
-        <div id="last"></div>
       </div>
     </div>
   </div>
@@ -194,6 +196,19 @@ body.navmini #net.off{background:#f59e0b}
     <div class="row" id="qtyQuick"><button type="button" data-q="1">1</button><button type="button" data-q="2">2</button><button type="button" data-q="3">3</button><button type="button" data-q="5">5</button><button type="button" data-q="10">10</button></div>
     <div class="row"><button class="primary" style="flex:1">Add to sale</button><button type="button" id="qtyCancel">Cancel</button></div>
   </form></dialog>
+  <dialog id="doneDlg">
+    <div style="text-align:center"><div class="donecheck">✓</div><h2 style="margin:6px 0 2px">Sale complete</h2>
+      <div class="muted" id="doneInfo"></div></div>
+    <div class="donesum">
+      <div class="sumrow"><span>Total</span><b id="doneTotal"></b></div>
+      <div class="sumrow"><span>Cash</span><b id="doneCash"></b></div>
+      <div class="sumrow donechange"><span>Change</span><b id="doneChange"></b></div>
+    </div>
+    <div class="muted" id="donePrinting" style="text-align:center;min-height:18px"></div>
+    <div class="row" style="flex-wrap:nowrap"><button id="donePrint" style="flex:1">Print receipt</button>
+      <button id="donePrint2" style="flex:1">Print + store copy</button></div>
+    <button class="pay" id="doneNew" style="margin-top:10px" autofocus>New sale (Enter)</button>
+  </dialog>
 </section>
 
 <section id="products">
@@ -414,11 +429,12 @@ let syncing = false;
 async function sync() {
   if (syncing || !queue.length) return;
   syncing = true;
+  const wasOffline = !online;  // only announce when sales really waited for the connection
   try {
     while (queue.length) {
       await api("/api/sale", queue[0]);
       queue.shift(); store.set("queue", queue);
-      if (!queue.length) toast("Offline sales synced to the store computer");
+      if (!queue.length && wasOffline) toast("Offline sales are now saved" + (API ? " to your Google Sheet" : " on the store computer"));
     }
   } catch (e) { if (e instanceof Offline) setOnline(false); else throw e; }
   finally { syncing = false; netStatus(); }
@@ -564,7 +580,6 @@ function renderCart() {
   const pcs = cart.reduce((n, l) => n + l.qty, 0);
   $("#itemCount").textContent = pcs ? `${pcs} item${pcs > 1 ? "s" : ""}` : "";  $("#pay").textContent = cart.length ? `Charge ${peso(total)}` : "Charge";
   $("#pay").disabled = !cart.length;
-  if (cart.length) $("#last").innerHTML = "";  // new sale started: hide the previous sale's change
   $("#total").textContent = peso(total);
   $("#change").textContent = cash ? peso(cash - total) : "₱0.00";
   $("#change").className = cash && cash < total ? "bad" : "";
@@ -610,38 +625,71 @@ const pay = run(async () => {
   cart = []; $("#cash").value = "";
   if (API) { renderAll(); netStatus(); tick(); }
   else if (online) await load(); else renderAll();
-  $("#last").innerHTML = `<div class="done"><div class="muted">✓ Sale #${lastSale.id} done${online ? "" : " · saved on this device, will sync"}</div>
-    <div class="row" style="justify-content:space-between;margin-top:4px"><div>Change <span class="big">${peso(lastSale.change)}</span></div>
-    <button class="sm" id="printReceipt">Print receipt</button></div></div>`;
-  $("#printReceipt").onclick = () => printReceipt();
-  if (store.get("autoPrint", false)) printReceipt();
-  $("#scan").focus();
+  showDone(lastSale);
 });
+
+// "Sale complete" pop-up: change to give, print (with an optional store copy), then the next customer
+function showDone(s) {
+  $("#doneInfo").textContent = `Sale #${s.id}${online ? "" : " · saved on this device, will sync"}`;
+  $("#doneTotal").textContent = peso(s.total);
+  $("#doneCash").textContent = peso(s.cash);
+  $("#doneChange").textContent = peso(s.change);
+  $("#donePrinting").textContent = "";
+  $("#doneDlg").showModal();
+  $("#doneNew").focus();
+  if (store.get("autoPrint", false)) donePrint(1);
+}
+async function donePrint(copies) {
+  $("#donePrinting").textContent = copies > 1 ? "Printing receipt + store copy…" : "Printing receipt…";
+  await printReceipt(lastSale, copies);
+  $("#donePrinting").textContent = "";
+}
+$("#donePrint").onclick = () => donePrint(1);
+$("#donePrint2").onclick = () => donePrint(2);
+$("#doneNew").onclick = () => $("#doneDlg").close();
+$("#doneDlg").onclose = () => { if (onSell()) $("#scan").focus(); };
+// Scanning the next customer's first item closes the pop-up and goes straight into the search box
+$("#doneDlg").onkeydown = e => {
+  if (e.key === "Enter" && !/donePrint/.test(document.activeElement.id)) { e.preventDefault(); $("#doneDlg").close(); return; }
+  if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();  // carry the first character over, or the barcode loses it
+    $("#doneDlg").close(); $("#scan").value += e.key; $("#scan").focus(); renderTiles();
+  }
+};
 $("#pay").onclick = pay;
 $("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $("#scan").focus(); };
 
-async function printReceipt(sale = lastSale) {
+async function printReceipt(sale = lastSale, copies = 1) {
+  if (!sale) return toast("No sale to print yet", true);
+  const labels = copies > 1 ? ["", "STORE COPY"] : [""];
   const method = store.get("printer", "browser");
   if (method !== "browser") {
-    try { await PRINTERS[method](receiptBytes(sale)); toast("Receipt printed"); }
-    catch (e) { toast("Printer: " + (e.message || e), true); }
+    try {
+      const parts = labels.map(l => receiptBytes(sale, l)), all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+      parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
+      await PRINTERS[method](all);
+      toast(copies > 1 ? "Receipt and store copy printed" : "Receipt printed");
+    } catch (e) { toast("Printer: " + (e.message || e), true); }
     return;
   }
-  const s = sale;
+  $("#print").innerHTML = labels.map(l => receiptHTML(sale, l)).join('<div style="break-after:page"></div>');
+  print();
+}
+
+function receiptHTML(s, label) {
   const st = S.settings || {};
-  $("#print").innerHTML = `<div class="receipt"><div style="text-align:center"><b>${esc(st.store_name || "Urdaneta Store")}</b><br>
+  return `<div class="receipt"><div style="text-align:center"><b>${esc(st.store_name || "Urdaneta Store")}</b><br>
     ${st.receipt_address ? esc(st.receipt_address) + "<br>" : ""}${st.receipt_phone ? esc(st.receipt_phone) + "<br>" : ""}
-    ${s.ts.replace("T", " ")} · #${s.id}</div><hr><table style="width:100%">
+    ${s.ts.replace("T", " ")} · #${s.id}${label ? `<br><b>*** ${label} ***</b>` : ""}</div><hr><table style="width:100%">
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
     </table><hr><table style="width:100%"><tr><td>TOTAL</td><td class="num"><b>${peso(s.total)}</b></td></tr>
     <tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr></table>
     <hr><div style="text-align:center">${esc(st.receipt_footer || "Salamat po! Come again.")}</div></div>`;
-  print();
 }
 
 // ---------- Bluetooth receipt printers (58 mm, ESC/POS, e.g. Goojprt PT-210 / "MTP-II") ----------
 // Browsers can't send to these through the normal Print dialog, so the POS sends printer commands itself.
-function receiptBytes(s) {
+function receiptBytes(s, label = "") {
   const st = S.settings || {}, W = 32;  // 32 characters per line on 58 mm paper
   const clean = v => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/₱/g, "P").replace(/[^\x20-\x7e]/g, "?");
   const money = n => "P" + Number(n || 0).toFixed(2);
@@ -662,6 +710,7 @@ function receiptBytes(s) {
   if (st.receipt_address) wrap(st.receipt_address).forEach(line);
   if (st.receipt_phone) line(st.receipt_phone);
   line(`${String(s.ts).replace("T", " ").slice(0, 16)}  #${s.id}`);
+  if (label) { cmd(ESC, 0x45, 1); line(`*** ${label} ***`); cmd(ESC, 0x45, 0); }
   cmd(ESC, 0x61, 0);                                    // left
   line("-".repeat(W));
   s.items.forEach(i => { wrap(i.name).forEach(line); line(lr(`  ${i.qty} x ${money(i.price)}`, money(i.qty * i.price))); });
@@ -737,7 +786,7 @@ const PRINTER_HELP = {
 
 // Keyboard: scanner input always lands in the scan box on the Sell tab
 document.addEventListener("keydown", e => {
-  if (!onSell() || $("#qtyDlg").open) return;  // quantity pop-up handles its own keys (Enter = add, Esc = cancel)
+  if (!onSell() || $("#qtyDlg").open || $("#doneDlg").open) return;  // quantity pop-up handles its own keys (Enter = add, Esc = cancel)
   if (e.key === "F2") { e.preventDefault(); pay(); }
   else if (e.key === "Escape") $("#clear").click();
   else if (!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && e.key.length === 1) $("#scan").focus();
