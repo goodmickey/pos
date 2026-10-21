@@ -693,14 +693,18 @@ const PRINTERS = {
     }
     if (!serialPort) throw new Error("not connected yet. Settings → Receipt printer → Connect printer.");
     const within = (job, ms) => Promise.race([job, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
+    // Connect, print, disconnect: a printer left connected is locked for every other tab and window
     try {
       if (!serialPort.writable) await within(serialPort.open({baudRate: 9600}), 10000);
       const w = serialPort.writable.getWriter();
-      try { await within(w.write(bytes), 10000); } finally { w.releaseLock(); }
+      await within(w.write(bytes), 10000);
+      await within(w.close(), 10000);  // waits until everything has gone to the printer
+      await serialPort.close();
     } catch (e) {
-      try { await serialPort.close(); } catch {}  // start fresh next time
-      throw new Error(e.message === "timeout" || /open|network|lost|failed/i.test(e.message)
-        ? "the printer isn't answering. Check it is switched on and near this computer, then print again." : e.message);
+      try { await serialPort.close(); } catch {}
+      throw new Error(e.message === "timeout" || /open|network|lost|failed|busy/i.test(e.message)
+        ? "the printer isn't answering. Check it is switched on and nearby, and close any other tab or window with the POS open, then print again."
+        : e.message);
     }
   },
   // Android tablet (Chrome): printers that also speak Bluetooth Low Energy
