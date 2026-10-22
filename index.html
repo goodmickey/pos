@@ -814,11 +814,9 @@ const PRINTERS = {
     try {
       if (!serialPort.writable) await within(serialPort.open({baudRate: 9600}), 10000);
       const w = serialPort.writable.getWriter();
-      // Small pieces with short pauses: the printer has a tiny buffer and silently drops a big batch (reports, statements)
-      for (let i = 0; i < bytes.length; i += 100) {
-        await within(w.write(bytes.slice(i, i + 100)), 10000);
-        await new Promise(r => setTimeout(r, 80));
-      }
+      // One write: in Brave/Chrome, several small writes to a Bluetooth port jam the connection
+      // ponytail: long printouts (reports, statements) are dropped by the printer's small buffer; fix separately
+      await within(w.write(bytes), 10000);
       await within(w.close(), 10000);
       // Stay connected until the printer has printed it: it throws away unprinted data when Bluetooth disconnects
       await new Promise(r => setTimeout(r, Math.min(1500 + bytes.length * 6, 12000)));
