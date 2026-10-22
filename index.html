@@ -814,10 +814,14 @@ const PRINTERS = {
     try {
       if (!serialPort.writable) await within(serialPort.open({baudRate: 9600}), 10000);
       const w = serialPort.writable.getWriter();
-      await within(w.write(bytes), 10000);
+      // Small pieces with short pauses: the printer has a tiny buffer and silently drops a big batch (reports, statements)
+      for (let i = 0; i < bytes.length; i += 100) {
+        await within(w.write(bytes.slice(i, i + 100)), 10000);
+        await new Promise(r => setTimeout(r, 80));
+      }
       await within(w.close(), 10000);
-      // Bluetooth still has to carry the data to the printer: closing right away loses it, so give it time
-      await new Promise(r => setTimeout(r, Math.min(1500 + bytes.length * 3, 15000)));
+      // Bluetooth still has to carry the last piece to the printer: closing right away loses it
+      await new Promise(r => setTimeout(r, 1500));
       await serialPort.close();
     } catch (e) {
       try { await serialPort.close(); } catch {}
@@ -837,9 +841,10 @@ const PRINTERS = {
         for (const c of await sv.getCharacteristics()) if (!bleChar && (c.properties.writeWithoutResponse || c.properties.write)) bleChar = c;
       if (!bleChar) throw new Error("this printer has no direct Bluetooth channel. Use the RawBT option instead.");
     }
-    for (let i = 0; i < bytes.length; i += 100) {
+    for (let i = 0; i < bytes.length; i += 100) {  // small pieces with pauses, same reason as above
       const chunk = bytes.slice(i, i + 100);
       bleChar.properties.writeWithoutResponse ? await bleChar.writeValueWithoutResponse(chunk) : await bleChar.writeValue(chunk);
+      await new Promise(r => setTimeout(r, 80));
     }
   },
   // Android tablet: the free RawBT app prints to any paired Bluetooth printer
