@@ -148,6 +148,12 @@ body.navmini #net.off{background:#f59e0b}
 .receipt{width:58mm;font:11px/1.35 ui-monospace,monospace}
 .receipt td{border:0;padding:0}
 .report{font:12px/1.4 system-ui,sans-serif;color:#000}
+.renter{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+.renter h4{margin:18px 0 6px;font-size:15px}
+.rsum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.rsum div{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.rsum b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.rsum{grid-template-columns:repeat(2,1fr)}}
 .report h2{font-size:18px;margin:0 0 4px}.report h3{font-size:14px;margin:16px 0 6px}
 .report th{background:none;position:static;color:#000;border-bottom:1px solid #000}
 .report td,.report th{padding:4px 6px}
@@ -301,6 +307,13 @@ body.navmini #net.off{background:#f59e0b}
     <div class="row"><label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label><button class="primary" id="rshow" style="align-self:end">Show</button><button id="rprint" style="align-self:end">Print report</button></div>
   </div>
   <div id="rout"></div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Shelf renters</h3>
+      <div class="row"><select id="rseller" style="width:auto"><option value="">All sellers</option></select>
+        <button id="rprintSeller">Print statement</button></div></div>
+    <p class="muted">For the dates above: what each renter sold and earned, rent, stock left, and every email we sent them.</p>
+    <div id="rsellers"></div>
+  </div>
 </section>
 
 <section id="settings">
@@ -959,12 +972,84 @@ const showReport = run(async () => {
   lastReport = {...r, from: $("#rfrom").value, to: $("#rto").value};
   const tbl = (rows, cols) => `<table><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>
     ${rows.map(x => `<tr>${cols.map(c => `<td class="${c[2] || ""}">${c[1](x)}</td>`).join("")}</tr>`).join("") || `<tr><td class="muted">No sales.</td></tr>`}</tbody></table>`;
+  sellerRep = await api(`/api/seller-report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
+  renderRenters();
   $("#rout").innerHTML = `<div class="card"><div class="muted">${r.summary.n} sale(s)</div><div class="total">${peso(r.summary.total)}</div></div>
     <div class="card"><h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner, [["Owner", x => esc(x.owner)], ["Shelf", x => esc(x.shelf)],
       ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>
     <div class="card"><h3>By item</h3>${tbl(r.by_item, [["Item", x => esc(x.name)], ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>`;
 });
 $("#rshow").onclick = showReport;
+
+// ---------- shelf renters: per-seller breakdown (screen, normal printer, thermal) ----------
+let sellerRep = [];
+const when = v => v ? String(v).replace("T", " ").slice(0, 16) : "";
+const mailStatus = m => !m.sent ? "waiting to send" : m.error ? m.error : "sent";
+function renterHTML(r) {
+  const s = r.seller, x = r.summary, tbl = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
+    <tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table>`;
+  return `<div class="renter"><h3 style="margin:0">${esc(s.name)}${s.shelf ? ` · Shelf ${esc(s.shelf)}` : ""}</h3>
+    <div class="muted">${esc(s.email || "no email")}${s.phone ? " · " + esc(s.phone) : ""} · Rent ${peso(s.rent)} / month</div>
+    <div class="rsum"><div><span class="muted">Pieces sold</span><b>${x.pcs}</b></div><div><span class="muted">Sales earned</span><b>${peso(x.amount)}</b></div>
+      <div><span class="muted">Shelf rent</span><b>${peso(x.rent)}</b></div>
+      <div><span class="muted">${x.payout >= 0 ? "Payout after rent" : "Seller still owes (rent)"}</span><b class="${x.payout < 0 ? "bad" : ""}">${peso(Math.abs(x.payout))}</b></div></div>
+    <h4>Products on the shelf</h4>${tbl(["Item", "Price", "Sold", "Earned", "Left", "Expiry"], r.products.map(p =>
+      `<tr><td>${esc(p.name)}</td><td class="num">${peso(p.price)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td><td class="num">${p.stock}</td><td>${esc(p.expiry || "")}</td></tr>`), "No products on the shelf")}
+    <h4>Sales (${r.sales.length})</h4>${tbl(["Date & time", "Receipt #", "Item", "Qty", "Price", "Amount"], r.sales.map(l =>
+      `<tr><td>${when(l.ts)}</td><td>${esc(l.receipt)}</td><td>${esc(l.name)}</td><td class="num">${l.qty}</td><td class="num">${peso(l.price)}</td><td class="num">${peso(l.amount)}</td></tr>`), "No sales in these dates")}
+    <h4>Email notifications sent (${r.emails.length})</h4>${tbl(["Created", "Sent", "Subject", "Status"], r.emails.map(m =>
+      `<tr><td>${when(m.created)}</td><td>${when(m.sent)}</td><td>${esc(m.subject)}</td><td class="${!m.sent ? "warn" : m.error ? "bad" : ""}">${esc(mailStatus(m))}</td></tr>`), "No emails in these dates")}</div>`;
+}
+const chosenRenters = () => sellerRep.filter(r => !$("#rseller").value || String(r.seller.id) === $("#rseller").value);
+function renderRenters() {
+  const sel = $("#rseller"), keep = sel.value;
+  sel.innerHTML = `<option value="">All sellers</option>` + sellerRep.map(r => `<option value="${r.seller.id}">${esc(r.seller.name)}</option>`).join("");
+  sel.value = keep;
+  $("#rsellers").innerHTML = chosenRenters().map(renterHTML).join("") || '<p class="muted">No shelf renters yet. Add them in Sellers & Shelves.</p>';
+}
+$("#rseller").onchange = renderRenters;
+
+function renterBytes(r, period) {
+  const t = ticket(), m = t.money, s = r.seller, x = r.summary;
+  storeHeader(t);
+  t.bold(1); t.line("SELLER STATEMENT"); t.bold(0); t.line(period);
+  t.center(0); t.rule();
+  t.bold(1); t.text(s.name + (s.shelf ? ` - Shelf ${s.shelf}` : "")); t.bold(0);
+  if (s.phone) t.line(s.phone);
+  t.rule();
+  t.lr("Pieces sold", String(x.pcs)); t.lr("Sales earned", m(x.amount)); t.lr("Shelf rent", m(x.rent));
+  t.bold(1); t.lr(x.payout >= 0 ? "PAYOUT" : "SELLER OWES", m(Math.abs(x.payout))); t.bold(0);
+  t.rule(); t.bold(1); t.line("PRODUCTS"); t.bold(0);
+  r.products.forEach(p => { t.text(p.name); t.lr(`  sold ${p.sold}, left ${p.stock}`, m(p.amount)); });
+  if (!r.products.length) t.line("  None");
+  t.rule(); t.bold(1); t.line(`SALES (${r.sales.length})`); t.bold(0);
+  r.sales.forEach(l => { t.text(`${when(l.ts)} #${l.receipt}`); t.lr(`  ${l.qty} x ${l.name}`.slice(0, 22), m(l.amount)); });
+  if (!r.sales.length) t.line("  None");
+  t.rule(); t.bold(1); t.line(`EMAILS SENT (${r.emails.length})`); t.bold(0);
+  r.emails.forEach(e => t.text(`${when(e.sent || e.created)} ${/ACTION NEEDED/.test(e.subject) ? "Alert" : "Stock update"}: ${mailStatus(e)}`));
+  if (!r.emails.length) t.line("  None");
+  t.rule();
+  return t.end();
+}
+
+$("#rprintSeller").onclick = run(async () => {
+  if (!lastReport) await showReport();
+  const list = chosenRenters(), period = lastReport.from === lastReport.to ? lastReport.from : `${lastReport.from} to ${lastReport.to}`;
+  if (!list.length) return toast("No shelf renters to print", true);
+  const method = store.get("printer", "browser");
+  if (method !== "browser") {
+    try {
+      const parts = list.map(r => renterBytes(r, period)), all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+      parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
+      await PRINTERS[method](all); toast("Statement printed");
+    } catch (e) { toast("Printer: " + (e.message || e), true); }
+    return;
+  }
+  const st = S.settings || {};
+  $("#print").innerHTML = list.map(r => `<div class="report"><h2>${esc(st.store_name || "Urdaneta Store")}: Shelf renter statement</h2>
+    <p>${period} · printed ${when(localTime())}</p>${renterHTML(r)}</div>`).join('<div style="break-after:page"></div>');
+  print();
+});
 
 // ---------- history ----------
 let history = [], viewing = null;
