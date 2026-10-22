@@ -820,8 +820,8 @@ const PRINTERS = {
         await new Promise(r => setTimeout(r, 80));
       }
       await within(w.close(), 10000);
-      // Bluetooth still has to carry the last piece to the printer: closing right away loses it
-      await new Promise(r => setTimeout(r, 1500));
+      // Stay connected until the printer has printed it: it throws away unprinted data when Bluetooth disconnects
+      await new Promise(r => setTimeout(r, Math.min(1500 + bytes.length * 6, 12000)));
       await serialPort.close();
     } catch (e) {
       try { await serialPort.close(); } catch {}
