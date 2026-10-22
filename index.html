@@ -815,7 +815,9 @@ const PRINTERS = {
       if (!serialPort.writable) await within(serialPort.open({baudRate: 9600}), 10000);
       const w = serialPort.writable.getWriter();
       await within(w.write(bytes), 10000);
-      await within(w.close(), 10000);  // waits until everything has gone to the printer
+      await within(w.close(), 10000);
+      // Bluetooth still has to carry the data to the printer: closing right away loses it, so give it time
+      await new Promise(r => setTimeout(r, Math.min(1500 + bytes.length * 3, 15000)));
       await serialPort.close();
     } catch (e) {
       try { await serialPort.close(); } catch {}
