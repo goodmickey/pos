@@ -166,7 +166,41 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .photofield label.btn{flex-direction:row;font-size:14px;font-weight:500;color:var(--ink);min-height:40px;padding:8px 16px;border-radius:18px;background:var(--chip);cursor:pointer;align-items:center}
 .photofield label.btn:hover{background:var(--chip2)}
 
-/* settings */
+/* settings: section list on the left (YouTube settings), one panel of setting rows on the right */
+.setwrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;align-items:start}
+.setnav{display:flex;flex-direction:column;gap:2px;position:sticky;top:72px}
+.setnav button{display:flex;align-items:center;gap:16px;justify-content:flex-start;min-height:44px;padding:0 12px;border-radius:10px;background:none;font-size:14px;font-weight:400;text-align:left}
+.setnav button:hover{background:var(--chip)}
+.setnav button.on{background:var(--chip);font-weight:500}
+.setnav svg.i{width:22px;height:22px}
+.setpane{margin:0}
+.sethint{margin:-8px 0 8px}
+.setrow{display:grid;grid-template-columns:minmax(160px,1fr) minmax(0,1.3fr);gap:20px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.setrow:last-of-type{border-bottom:0}
+.setrow b{display:block;font-weight:500}
+.setrow small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.setrow .ctl{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;min-width:0}
+.setrow .ctl select{flex:1}
+.setfoot{display:flex;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--line)}
+#setform .setrow:nth-last-child(2){border-bottom:0}
+.url{font-weight:500;word-break:break-all;text-align:right}
+.switch{appearance:none;-webkit-appearance:none;width:44px;min-width:44px;height:24px;min-height:24px;padding:0;border-radius:12px;border:0;background:var(--chip2);position:relative;cursor:pointer;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.switch:checked{background:var(--accent)}
+.switch:checked::after{transform:translateX(20px)}
+.switch:focus{box-shadow:none}
+.themeopts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:6px}
+.themeopts button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px;border-radius:12px;background:none;border:1px solid var(--line);text-align:left;min-height:0}
+.themeopts button:hover{background:var(--chip)}
+.themeopts button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.themeopts small{color:var(--muted);font-size:12px;font-weight:400}
+.tp{display:block;width:100%;height:64px;border-radius:8px;margin-bottom:6px;border:1px solid var(--line)}
+.tp-light{background:linear-gradient(#fff 0 22%,#f2f2f2 22% 100%)}
+.tp-dark{background:linear-gradient(#0f0f0f 0 22%,#272727 22% 100%)}
+.tp-auto{background:linear-gradient(90deg,#fff 0 50%,#0f0f0f 50% 100%)}
+@media(max-width:900px){.setwrap{grid-template-columns:1fr}.setnav{position:static;flex-direction:row;overflow-x:auto;gap:8px}
+  .setnav button{flex:none;gap:8px;background:var(--chip);border-radius:8px;min-height:40px}.setnav button.on{background:var(--strong);color:var(--onstrong)}}
+@media(max-width:700px){.setrow{grid-template-columns:1fr;gap:8px}.setrow .ctl{justify-content:flex-start}.themeopts{grid-template-columns:1fr}.url{text-align:left}}
 #appNotes{background:var(--chip);border-radius:12px;padding:12px 16px;margin-top:8px;font-size:14px}
 #appNotes ul{margin:6px 0 0;padding-left:20px}
 #appNotes.fresh{box-shadow:inset 0 0 0 2px var(--accent)}
@@ -419,50 +453,73 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </section>
 
 <section id="settings">
-  <div class="pagehead"><h2>Settings</h2><p>Store details for receipts and emails, this device, and seller emails.</p></div>
-  <div class="card">
-    <h3>Appearance <span class="muted">(this device)</span></h3>
-    <div class="chips" id="themePick"><button data-theme="light">☀️ Light</button><button data-theme="dark">🌙 Dark</button><button data-theme="auto">🕕 Automatic</button></div>
-    <p class="muted" style="margin:10px 0 0">Automatic: light from 6 AM, dark from 6 PM, by this device's clock and time zone.</p>
-  </div>
-  <div class="card">
-    <h3>Store &amp; receipt</h3>
-    <form id="setform" class="form">
-      <label>Store name <input name="store_name" placeholder="Urdaneta Store"></label>
-      <label>Address (on receipts) <input name="receipt_address" placeholder="e.g. Poblacion, Urdaneta City"></label>
-      <label>Phone (on receipts) <input name="receipt_phone" placeholder="e.g. 0917 123 4567"></label>
-      <label>Receipt message <input name="receipt_footer" placeholder="Salamat po! Come again."></label>
-      <label>Sender name on seller emails <input name="smtp_from" placeholder="your store name"></label>
-      <div class="row"><button class="primary">Save</button></div>
-    </form>
-  </div>
-  <div class="card">
-    <h3>Receipt printer <span class="muted">(this device)</span></h3>
-    <div class="form">
-      <label>How to print receipts <select id="printerMethod">
-        <option value="browser">Regular printer (Print window)</option>
-        <option value="rawbt">Bluetooth receipt printer: Android browser (RawBT app)</option>
-        <option value="app">Bluetooth receipt printer: this POS app (direct)</option>
-      </select></label>
-      <label id="appPrinterBox">Printer <select id="appPrinter"></select></label>
-      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="autoPrint" style="width:auto"> Print automatically after each sale</label>
-      <div class="row"><button id="printerFind">Find printers</button><button id="printerTest">Print test receipt</button></div>
+  <div class="pagehead"><h2>Settings</h2><p>Your store, this device, printing and seller emails.</p></div>
+  <div class="setwrap">
+    <div class="setnav" id="setnav">
+      <button data-st="store"><svg class="i" viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></svg><span>Store</span></button>
+      <button data-st="printer"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg><span>Receipt printer</span></button>
+      <button data-st="look"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></svg><span>Appearance</span></button>
+      <button data-st="device"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg><span>This device</span></button>
+      <button data-st="update"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg><span>Software update</span></button>
+      <button data-st="email"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>Seller emails</span></button>
     </div>
-    <p class="muted" id="printerHelp"></p>
-  </div>
-  <div class="card">
-    <h3>This device</h3>
-    <p id="deviceInfo"></p>
-    <div class="row"><button id="syncNow">Sync now</button><button id="changePw">Change password on this device</button><button id="appUpdate" hidden>Software update</button></div>
-    <p class="muted" id="appVersion"></p>
-    <div id="appNotes" hidden><b>What's new in this version</b><ul></ul></div>
-    <p class="muted">Any phone, tablet or computer can also use the POS in its web browser: <b id="webUrl"></b> (same store password).</p>
-  </div>
-  <div class="card">
-    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Email outbox</h3>
-      <div class="row"><button id="testMail">Send test email</button><button id="sendNow">Check alerts &amp; send now</button></div></div>
-    <p class="muted" id="obinfo"></p>
-    <table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody id="oblist"></tbody></table>
+    <div>
+      <div class="card setpane" id="st-store">
+        <h3>Store</h3><p class="muted sethint">Shown on receipts, printouts and seller emails. Saved for every device.</p>
+        <form id="setform">
+          <div class="setrow"><div><b>Store name</b><small>Top of receipts and reports</small></div><div class="ctl"><input name="store_name" placeholder="Urdaneta Store"></div></div>
+          <div class="setrow"><div><b>Address</b><small>On receipts</small></div><div class="ctl"><input name="receipt_address" placeholder="e.g. Poblacion, Urdaneta City"></div></div>
+          <div class="setrow"><div><b>Phone</b><small>On receipts</small></div><div class="ctl"><input name="receipt_phone" placeholder="e.g. 0917 123 4567"></div></div>
+          <div class="setrow"><div><b>Receipt message</b><small>Last line of each receipt</small></div><div class="ctl"><input name="receipt_footer" placeholder="Salamat po! Come again."></div></div>
+          <div class="setrow"><div><b>Email sender name</b><small>Who seller emails come from</small></div><div class="ctl"><input name="smtp_from" placeholder="your store name"></div></div>
+          <div class="setfoot"><button class="primary">Save changes</button></div>
+        </form>
+      </div>
+
+      <div class="card setpane" id="st-printer">
+        <h3>Receipt printer</h3><p class="muted sethint">For this device only.</p>
+        <div class="setrow"><div><b>How to print</b><small id="printerHelp"></small></div><div class="ctl"><select id="printerMethod">
+          <option value="browser">Regular printer (Print window)</option>
+          <option value="rawbt">Bluetooth receipt printer: Android browser (RawBT app)</option>
+          <option value="app">Bluetooth receipt printer: this POS app (direct)</option>
+        </select></div></div>
+        <div class="setrow" id="appPrinterBox"><div><b>Printer</b><small>Pair it in Bluetooth settings first</small></div>
+          <div class="ctl"><select id="appPrinter"></select><button id="printerFind">Find printers</button></div></div>
+        <div class="setrow"><div><b>Print after each sale</b><small>Prints the receipt as soon as you charge</small></div>
+          <div class="ctl"><input type="checkbox" class="switch" id="autoPrint" aria-label="Print automatically after each sale"></div></div>
+        <div class="setrow"><div><b>Test</b><small>Prints a short sample receipt</small></div><div class="ctl"><button id="printerTest">Print test receipt</button></div></div>
+      </div>
+
+      <div class="card setpane" id="st-look">
+        <h3>Appearance</h3><p class="muted sethint">For this device only.</p>
+        <div class="themeopts" id="themePick">
+          <button data-theme="light"><i class="tp tp-light"></i><b>Light</b><small>Always light</small></button>
+          <button data-theme="dark"><i class="tp tp-dark"></i><b>Dark</b><small>Always dark</small></button>
+          <button data-theme="auto"><i class="tp tp-auto"></i><b>Automatic</b><small>Light from 6 AM, dark from 6 PM (this device's clock)</small></button>
+        </div>
+      </div>
+
+      <div class="card setpane" id="st-device">
+        <h3>This device</h3><p class="muted sethint">Each device keeps its own copy of the data and syncs it with your Google Sheet.</p>
+        <div class="setrow"><div><b>Connection</b><small id="devConn"></small></div><div class="ctl"><button id="syncNow">Sync now</button></div></div>
+        <div class="setrow"><div><b>Changes</b><small id="devSync"></small></div><div class="ctl"></div></div>
+        <div class="setrow" id="devFailedRow" hidden><div><b class="warn">Refused by Google</b><small id="devFailed"></small></div><div class="ctl"><button id="clearFailed">OK, clear</button></div></div>
+        <div class="setrow"><div><b>Store password</b><small>Saved on this device</small></div><div class="ctl"><button id="changePw">Change password</button></div></div>
+        <div class="setrow"><div><b>Web version</b><small>Any phone, tablet or computer can open the POS in its browser (same password)</small></div><div class="ctl"><b id="webUrl" class="url"></b></div></div>
+      </div>
+
+      <div class="card setpane" id="st-update">
+        <h3>Software update</h3><p class="muted sethint" id="updHint">New versions of the POS install with one tap. Your data stays.</p>
+        <div class="setrow"><div><b>Version</b><small id="appVersion">The web version updates itself each time it opens.</small></div><div class="ctl"><button id="appUpdate" hidden>Software update</button></div></div>
+        <div id="appNotes" hidden><b>What's new in this version</b><ul></ul></div>
+      </div>
+
+      <div class="card setpane" id="st-email">
+        <div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin-bottom:4px">Seller emails</h3><p class="muted sethint" id="obinfo"></p></div>
+          <div class="row"><button id="testMail">Send test email</button><button id="sendNow">Check alerts &amp; send now</button></div></div>
+        <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody id="oblist"></tbody></table></div>
+      </div>
+    </div>
   </div>
 </section>
 </main>
@@ -1314,13 +1371,11 @@ function renderSettings() {
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
   if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";
   const failed = Local.failed();
-  $("#deviceInfo").innerHTML = `${online ? '<span style="color:var(--good)">● Connected</span>' : '<span class="warn">● Offline</span>'}
-    · ${Local.pending() ? `<span class="warn">${Local.pending()} change(s) waiting to sync</span>` : "all synced"}
-      ${Local.lastSync() ? `(last sync ${new Date(Local.lastSync()).toLocaleString()})` : ""}
-    · data is kept on this device and in your Google Sheet
-    ${failed.length ? `<br><span class="warn">Google refused ${failed.length} change(s) from this device:
-      ${esc(failed.map(f => f.error).join("; "))}</span> <button id="clearFailed">OK, clear</button>` : ""}`;
-  const cf = $("#clearFailed"); if (cf) cf.onclick = run(async () => { await Local.clearFailed(); renderSettings(); });
+  $("#devConn").innerHTML = online ? '<span style="color:var(--good)">Connected</span>' : '<span class="warn">Offline: sales are saved on this device</span>';
+  $("#devSync").innerHTML = (Local.pending() ? `<span class="warn">${Local.pending()} waiting to sync</span>` : "All synced")
+    + (Local.lastSync() ? ` · last sync ${new Date(Local.lastSync()).toLocaleString()}` : "");
+  $("#devFailedRow").hidden = !failed.length;
+  $("#devFailed").textContent = failed.map(f => f.error).join("; ");
   $("#obinfo").textContent = `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`;
   $("#oblist").innerHTML = S.outbox.map(m => `<tr><td>${m.created.replace("T", " ")}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td>
     <td>${!m.sent ? `<span class="warn">waiting</span><div class="muted">${esc(m.error)}</div>` : m.error ? `<span class="bad">${esc(m.error)}</span>` : "sent"}</td>
@@ -1328,6 +1383,15 @@ function renderSettings() {
     || `<tr><td colspan="5" class="muted">No emails yet. An email is created when a seller's item reaches its notify date, expires or runs low,
          or when you click <b>Email stock</b> in Sellers &amp; Shelves. Use <b>Send test email</b> to check your settings.</td></tr>`;
 }
+// Settings sections (the last one used is remembered on this device)
+function showSettingsPane(name) {
+  store.set("settingsPane", name);
+  document.querySelectorAll("#setnav button").forEach(b => b.classList.toggle("on", b.dataset.st === name));
+  document.querySelectorAll(".setpane").forEach(p => p.hidden = p.id !== "st-" + name);
+}
+$("#setnav").onclick = e => { const b = e.target.closest("button"); if (b) showSettingsPane(b.dataset.st); };
+showSettingsPane(store.get("settingsPane", "store"));
+$("#clearFailed").onclick = run(async () => { await Local.clearFailed(); renderSettings(); });
 $("#oblist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   const m = S.outbox.find(m => m.id === +(b.dataset.readdress || b.dataset.delmail));
@@ -1422,7 +1486,7 @@ async function checkUpdate(quiet) {
   const major = appShell && appShell.newer(u, shellInfo || (shellInfo = await appShell.info()));  // it has the newest POS inside too
   if (!major && !(u.version > window.APP_VERSION)) return quiet || toast("This app is up to date");
   if (major) { $("#appUpdate").textContent = `Install major update (${major.name})`; $("#appUpdate").classList.add("major"); }
-  if (quiet && (!major || cart.length)) return toast(`${major ? "Major software update" : "Software update"} available: Settings → This device → Software update`);
+  if (quiet && (!major || cart.length)) return toast(`${major ? "Major software update" : "Software update"} available: Settings → Software update`);
   if (cart.length) return toast("Finish or cancel the current sale first, then update", true);
   if (!await askUpdate(u, major)) return;
   store.set("justUpdated", true);  // after the restart: open Settings on what's new
@@ -1486,7 +1550,7 @@ async function tick() {
   try { localStorage.removeItem("posTrying"); } catch {}  // this version started fine (see app-build.js)
   if (window.APP_VERSION && store.get("justUpdated", false)) {  // a Software update just finished: show what it changed
     store.set("justUpdated", false);
-    document.querySelector('nav [data-tab="settings"]').click();
+    document.querySelector('nav [data-tab="settings"]').click(); showSettingsPane("update");
     $("#appNotes").classList.add("fresh"); $("#appNotes").scrollIntoView({block: "center"});
     const expect = store.get("expectApp", ""); store.set("expectApp", "");
     const now = expect && appShell ? (await appShell.info()).name : expect;
