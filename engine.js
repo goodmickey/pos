@@ -414,6 +414,17 @@ function productReport_(q) {
             owner: s ? s.name : "Store", shelf: s ? s.shelf : null, expiry: p.expiry, mfg_date: p.mfg_date,
             sold: mine.reduce((n, i) => n + i.qty, 0), amount: mine.reduce((n, i) => n + i.qty * i.price, 0), sales: new Set(mine.map(i => i.sale_id)).size};
   });
+  if (!one) {  // items sold in the period whose product was deleted since, so the totals match the sales report
+    const gone = new Map();
+    items.filter(i => !products.some(p => p.id === i.product_id)).forEach(i => {
+      const k = i.product_id + "|" + i.name, s = sellers.find(x => x.id === i.seller_id);
+      const g = gone.get(k) || {id: i.product_id, name: i.name, deleted: true, barcode: "", price: i.price, stock: null, value: 0,
+        owner: s ? s.name : "Store", shelf: s ? s.shelf : null, expiry: null, mfg_date: null, sold: 0, amount: 0, ids: new Set()};
+      g.sold += i.qty; g.amount += i.qty * i.price; g.ids.add(i.sale_id);
+      gone.set(k, g);
+    });
+    gone.forEach(g => { g.sales = g.ids.size; delete g.ids; list.push(g); });
+  }
   const lines = !one ? [] : items.map(i => {
     const x = sales.get(i.sale_id);
     return {ts: x.ts, receipt: receiptNo_(x), qty: i.qty, price: i.price, amount: i.qty * i.price};

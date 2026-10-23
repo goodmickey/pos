@@ -1022,9 +1022,9 @@ $("#rproducts").onclick = e => {
 function productHTML(r) {
   const sum = (k) => r.products.reduce((n, p) => n + p[k], 0);
   if (!r.one) return reportTable(["Item", "Owner", "Price", "Stock", "Stock value", "Sold", "Sales"], r.products.map(p =>
-    `<tr data-pid="${p.id}"><td><div class="namecell">${photoImg(p)}<div>${esc(p.name)}<div class="muted">${esc(p.barcode)}</div></div></div></td>
+    `<tr${p.deleted ? "" : ` data-pid="${p.id}"`}><td><div class="namecell">${photoImg(p)}<div>${esc(p.name)}${p.deleted ? ' <span class="muted">(deleted)</span>' : ""}<div class="muted">${esc(p.barcode)}</div></div></div></td>
       <td>${esc(p.owner)}${p.shelf ? ` · ${esc(p.shelf)}` : ""}</td><td class="num">${peso(p.price)}</td>
-      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.stock}</td><td class="num">${peso(p.value)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td></tr>`)
+      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.deleted ? "–" : p.stock}</td><td class="num">${p.deleted ? "–" : peso(p.value)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td></tr>`)
     .concat(r.products.length ? [`<tr class="totalrow"><td>Total (${r.products.length} items)</td><td></td><td></td><td class="num">${sum("stock")}</td>
       <td class="num">${peso(sum("value"))}</td><td class="num">${sum("sold")}</td><td class="num">${peso(sum("amount"))}</td></tr>`] : []), "No products yet.");
   const p = r.products[0];
@@ -1045,8 +1045,8 @@ function productBytes(r) {
   t.line("Printed " + when(localTime()));
   t.center(0); t.rule();
   for (const p of r.products) {
-    t.bold(1); t.text(p.name); t.bold(0);
-    t.lr(`  Price`, m(p.price)); t.lr(`  Stock left`, String(p.stock)); t.lr(`  Sold (${p.sales} sale${p.sales === 1 ? "" : "s"})`, `${p.sold} = ${m(p.amount)}`);
+    t.bold(1); t.text(p.name + (p.deleted ? " (deleted)" : "")); t.bold(0);
+    t.lr(`  Price`, m(p.price)); if (!p.deleted) t.lr(`  Stock left`, String(p.stock)); t.lr(`  Sold (${p.sales} sale${p.sales === 1 ? "" : "s"})`, `${p.sold} = ${m(p.amount)}`);
   }
   if (!r.products.length) t.line("  No products");
   if (r.one) {
