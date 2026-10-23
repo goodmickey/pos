@@ -8,7 +8,7 @@
 
   // Requests that only Google can do (they send email)
   const CLOUD = new Set(["/api/send-now", "/api/outbox/test", "/api/sellers/report", "/api/outbox/delete", "/api/outbox/readdress"]);
-  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings"]);
+  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings"]);
 
   let data = {}, ops = [], meta = {}, failed = [];
 
@@ -127,6 +127,19 @@
       more = r.more;
       await persist();
     }
+    // Photos travel on their own (they are big): download only the ones this device doesn't have in their current version
+    const have = new Map(rows_("Photos").map(r => [r.product_id, r.photo_at]));
+    const want = rows_("Products").filter(p => p.photo_at && have.get(p.id) !== p.photo_at).map(p => p.id);
+    for (let i = 0; i < want.length; i += 25) {
+      const got = await remote("/api/photos", {ids: want.slice(i, i + 25)});
+      if (ops.length) return;  // a change was made meanwhile (maybe a new photo): it goes first, next round
+      const keep = rows_("Photos").filter(r => !got.some(g => g.product_id === r.product_id));
+      replace("Photos", keep.concat(got));
+      await persist();
+    }
+    // Forget photos of deleted products and removed photos
+    const current = new Set(rows_("Products").filter(p => p.photo_at).map(p => p.id));
+    replace("Photos", rows_("Photos").filter(r => current.has(r.product_id)));
     meta.lastSync = Date.now();
     await persist();
   }

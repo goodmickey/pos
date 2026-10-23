@@ -121,6 +121,17 @@ dialog::backdrop{background:#0f172a80}
 
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;display:none;max-width:90vw;z-index:9;box-shadow:0 10px 30px #0004;font-weight:500}
 #toast.err{background:var(--bad)}
+/* product photos */
+.pimg{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;background:var(--soft);border:1px solid var(--line)}
+.tname{display:flex;gap:10px;align-items:center;width:100%}
+.namecell{display:flex;gap:10px;align-items:center}
+.namecell .pimg{width:36px;height:36px}
+#qtyHead{display:flex;gap:14px;align-items:center}
+#qtyHead .pimg{width:72px;height:72px}
+.photofield{grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.photofield .pimg{width:72px;height:72px}
+.photofield label.btn{flex-direction:row;font:inherit;font-weight:600;color:var(--ink2);min-height:44px;padding:10px 16px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;align-items:center}
+.photofield label.btn:hover{background:var(--soft)}
 #appNotes{background:var(--brandsoft);border-radius:10px;padding:12px 16px;margin-top:8px;font-size:14px}
 #appNotes ul{margin:6px 0 0;padding-left:20px}
 #appNotes.fresh{outline:3px solid var(--brand)}
@@ -203,8 +214,9 @@ body.navmini #net.off{background:#f59e0b}
     </div>
   </div>
   <dialog id="qtyDlg"><form id="qtyForm" novalidate>
-    <div id="qtyName" style="font-size:20px;font-weight:700"></div>
-    <div class="muted" id="qtyInfo"></div>
+    <div id="qtyHead"><img id="qtyImg" class="pimg" alt="" hidden><div>
+      <div id="qtyName" style="font-size:20px;font-weight:700"></div>
+      <div class="muted" id="qtyInfo"></div></div></div>
     <div class="row qtyrow"><button type="button" data-d="-1">−</button><input id="qty" type="number" min="1" step="1" inputmode="numeric"><button type="button" data-d="1">+</button></div>
     <div class="row" id="qtyQuick"><button type="button" data-q="1">1</button><button type="button" data-q="2">2</button><button type="button" data-q="3">3</button><button type="button" data-q="5">5</button><button type="button" data-q="10">10</button></div>
     <div class="row"><button class="primary" style="flex:1">Add to sale</button><button type="button" id="qtyCancel">Cancel</button></div>
@@ -238,6 +250,11 @@ body.navmini #net.off{background:#f59e0b}
       <label>Manufacturing date <input name="mfg_date" type="date"></label>
       <label>Expiry date <input name="expiry" type="date"></label>
       <label>Notify seller on (date seller advised) <input name="notify_on" type="date"></label>
+      <div class="photofield"><img id="pphoto" class="pimg" alt="" hidden>
+        <label class="btn" id="pcamera">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden></label>
+        <label class="btn">🖼 Upload photo<input type="file" accept="image/*" hidden></label>
+        <button type="button" id="pphotoDel" hidden>Remove photo</button>
+        <span class="muted">Helps staff find the item on the Sell screen.</span></div>
       <div class="row"><button class="primary">Save</button><button type="button" id="pnew">New</button><button type="button" class="danger" id="pdel">Delete</button></div>
     </form>
   </div>
@@ -382,7 +399,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&
 const localTime = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 19);
 const today = () => localTime().slice(0, 10);
 const daysTo = d => Math.round((new Date(d) - new Date(today())) / 864e5);
-let S = {products: [], sellers: [], settings: {}, outbox: []}, cart = [], lastSale = null;
+let S = {products: [], sellers: [], settings: {}, outbox: [], photos: {}}, cart = [], lastSale = null;
 
 function toast(msg, err) {
   const t = $("#toast"); t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
@@ -451,7 +468,10 @@ const setOnline = v => { online = v; netStatus(); };
 
 async function load() {
   if (Local.isEmpty()) await sync();  // first start on this device: download everything from Google
-  if (!Local.isEmpty()) S = await Local.call("/api/state");
+  if (!Local.isEmpty()) {
+    S = await Local.call("/api/state");
+    S.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
+  }
   renderAll();
 }
 
@@ -555,10 +575,12 @@ function renderTiles() {
     const note = isExpired(p) ? "EXPIRED" : p.stock <= 0 ? "Out of stock" : `${p.stock} left`;
     const s = S.sellers.find(s => s.id === p.seller_id);
     return `<button class="tile${note.endsWith("left") ? "" : " off"}" data-id="${p.id}" style="--c:${ownerColor(p.seller_id)}">
-      <b>${esc(p.name)}</b><div class="owner">${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
+      <div class="tname">${photoImg(p)}<b>${esc(p.name)}</b></div><div class="owner">${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
       <span>${peso(p.price)}</span><small>${note}</small></button>`;
   }).join("") || `<p class="muted">${S.products.length ? "No item matches." : "No products yet. Add them in the Products tab."}</p>`;
 }
+// The product's photo (small JPEG kept on this device), or nothing when it has none
+const photoImg = p => S.photos[p.id] ? `<img class="pimg" src="${esc(S.photos[p.id])}" alt="">` : "";
 // Each seller's items get their own color strip on the tile, so staff can tell shelves apart at a glance
 const SELLER_COLORS = ["#2563eb", "#d97706", "#9333ea", "#db2777", "#0891b2", "#65a30d", "#dc2626", "#4f46e5"];
 const ownerColor = id => id ? SELLER_COLORS[id % SELLER_COLORS.length] : "var(--brand)";
@@ -572,6 +594,7 @@ function askQty(p) {
   if (left < 1) return toast(p.stock < 1 ? `${p.name} is out of stock` : `All ${p.stock} ${p.name} are already in this sale`, true);
   qtyFor = p;
   $("#qtyName").textContent = p.name;
+  $("#qtyImg").hidden = !S.photos[p.id]; $("#qtyImg").src = S.photos[p.id] || "";
   $("#qtyInfo").textContent = `${peso(p.price)} each · ${left} available${inCart ? ` · ${inCart} already in this sale` : ""}`;
   $("#qty").value = 1; $("#qty").max = left;
   $("#qtyDlg").showModal();
@@ -830,7 +853,7 @@ function renderProducts() {
   sel.value = keep;
   const f = $("#pfilter").value.toLowerCase();
   $("#plist").innerHTML = S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
-    .map(p => `<tr data-id="${p.id}" style="cursor:pointer"><td>${esc(p.barcode)}</td><td>${esc(p.name)}</td><td class="num">${peso(p.price)}</td>
+    .map(p => `<tr data-id="${p.id}" style="cursor:pointer"><td>${esc(p.barcode)}</td><td><div class="namecell">${photoImg(p)}${esc(p.name)}</div></td><td class="num">${peso(p.price)}</td>
       <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.stock}</td><td>${esc(owner(p.seller_id))}</td><td>${expiryCell(p)}</td></tr>`).join("")
     || `<tr><td colspan="6" class="muted">No products yet.</td></tr>`;
 }
@@ -838,8 +861,30 @@ function editProduct(p) {
   const f = $("#pform"); f.reset();
   for (const k of ["id", "barcode", "name", "price", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
   $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
+  newPhoto = undefined; showFormPhoto(p?.id && S.photos[p.id]);
   f.name.focus();
 }
+
+// ---------- product photo: shrunk on this device to a small JPEG (about 10 KB) before it is saved and synced ----------
+let newPhoto;  // undefined = unchanged, "" = remove, else the new photo, saved together with the product
+const showFormPhoto = src => { $("#pphoto").hidden = $("#pphotoDel").hidden = !src; $("#pphoto").src = src || ""; };
+$("#pcamera").hidden = !matchMedia("(pointer:coarse)").matches;  // computers: Upload photo only
+async function shrinkPhoto(file) {
+  const img = await createImageBitmap(file), scale = Math.min(1, 240 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  let q = 0.75, url;
+  do { url = c.toDataURL("image/jpeg", q); q -= 0.15; } while (url.length > 40000 && q > 0.2);
+  return url;
+}
+$("#pform").querySelectorAll("input[type=file]").forEach(i => i.onchange = run(async () => {
+  const file = i.files[0]; i.value = "";
+  if (!file) return;
+  newPhoto = await shrinkPhoto(file).catch(() => { throw new Error("Couldn't read that picture. Try another one."); });
+  showFormPhoto(newPhoto);
+}));
+$("#pphotoDel").onclick = () => { newPhoto = ""; showFormPhoto(""); };
 $("#plist").onclick = e => { const tr = e.target.closest("tr[data-id]"); if (tr) editProduct(S.products.find(p => p.id === +tr.dataset.id)); };
 $("#pfilter").oninput = renderProducts;
 $("#pfilter").onkeydown = e => {
@@ -854,6 +899,7 @@ $("#pform").barcode.onkeydown = e => { if (e.key === "Enter") { e.preventDefault
 $("#pform").onsubmit = run(async e => {
   e.preventDefault();
   const r = await api("/api/products", Object.fromEntries(new FormData(e.target)));
+  if (newPhoto !== undefined) await api("/api/photo", {id: r.id, photo: newPhoto, at: localTime()});
   toast(`Saved. Barcode ${r.barcode}`); editProduct(null); await load();
 });
 $("#pnew").onclick = () => editProduct(null);

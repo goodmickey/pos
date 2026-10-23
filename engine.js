@@ -9,17 +9,18 @@
 const TZ = "Asia/Manila";
 const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
-  Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on"],
+  Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at"],
   Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock"],
   Sales: ["id", "uid", "ts", "total", "cash"],
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price"],
   Alerts: ["product_id", "kind", "ref"],
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
+  Photos: ["product_id", "photo", "photo_at"],  // small JPEG per product; Products.photo_at says which version is current
 };
 const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "sale_id", "product_id", "qty"]);
 const DATES = new Set(["expiry", "mfg_date", "notify_on"]);  // yyyy-MM-dd
-const TIMES = new Set(["ts", "created", "sent"]);            // yyyy-MM-ddTHH:mm:ss
+const TIMES = new Set(["ts", "created", "sent", "photo_at"]);  // yyyy-MM-ddTHH:mm:ss
 
 // ---------- web app entry ----------
 
@@ -59,7 +60,9 @@ const ROUTES = {
   "/api/seller-report": sellerReport_,
   "/api/pull": pull_,
   "/api/products": saveProduct_,
-  "/api/products/delete": d => removeById_("Products", d.id),
+  "/api/products/delete": deleteProduct_,
+  "/api/photo": savePhoto_,
+  "/api/photos": photos_,
   "/api/sellers": saveSeller_,
   "/api/sellers/delete": deleteSeller_,
   "/api/sellers/report": stockReport_,
@@ -235,12 +238,39 @@ function saveProduct_(d) {
   if (all.some(r => r.barcode === p.barcode && r.id !== p.id)) bad_("That barcode is already used by another product");
   const old = p.id && all.find(r => r.id === p.id);
   if (old) {
-    update_("Products", Object.assign(p, {_row: old._row}));
+    update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at}));  // the photo is saved separately
   } else {
     p.id = p.id || uniqueId_(all);  // a device that made it offline already chose its id
     insert_("Products", p);
   }
   return {id: p.id, barcode: p.barcode};
+}
+
+function deleteProduct_(d) {
+  removeById_("Products", d.id);
+  const ph = rows_("Photos").find(r => r.product_id === Number(d.id));
+  if (ph) sheet_("Photos").deleteRow(ph._row);
+}
+
+// Product photo: a small JPEG made by the device (data URL). An empty photo removes it.
+// `at` comes from the device, so its own copy and Google's carry the same version.
+function savePhoto_(d) {
+  const id = Number(d.id), photo = String(d.photo || "");
+  if (photo && (photo.length > 45000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(photo))) bad_("The photo is too big or not a picture");
+  const p = rows_("Products").find(r => r.id === id);
+  if (!p) bad_("Product not found (was it deleted?)");
+  const at = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(d.at || "") ? d.at : now_();
+  const old = rows_("Photos").find(r => r.product_id === id);
+  if (old && photo) update_("Photos", Object.assign(old, {photo: photo, photo_at: at}));
+  else if (old) sheet_("Photos").deleteRow(old._row);
+  else if (photo) insert_("Photos", {product_id: id, photo: photo, photo_at: at});
+  update_("Products", Object.assign(p, {photo_at: photo ? at : null}));
+  return {at: at};
+}
+
+function photos_(q) {
+  const ids = q.ids ? new Set(q.ids.map(Number)) : null;
+  return rows_("Photos").filter(r => !ids || ids.has(r.product_id)).map(strip_);
 }
 
 function saveSeller_(d) {
