@@ -106,6 +106,9 @@ label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;
 .ghost{border:0;background:none;color:var(--muted);padding:4px}
 .ghost:hover{background:none;color:var(--bad)}
 #doneDlg{width:min(400px,92vw)}
+#updDlg{width:min(480px,92vw)}
+#updDlg.major #updTitle{color:var(--brand)}
+#appUpdate.major{background:var(--brand);color:#fff;border-color:var(--brand)}
 .donecheck{width:56px;height:56px;border-radius:50%;background:var(--brandsoft);color:var(--brand);font-size:30px;font-weight:800;display:grid;place-items:center;margin:0 auto}
 .donesum{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:16px 0 8px;display:grid;gap:6px}
 .donechange{border-top:1px solid var(--line);padding-top:8px}
@@ -398,6 +401,14 @@ body.navmini #net.off{background:#f59e0b}
   <input id="askInput" autocomplete="off" style="width:100%">
   <div class="row" style="margin-top:12px"><button class="primary" value="ok" style="flex:1">OK</button><button value="" formnovalidate>Cancel</button></div>
 </form></dialog>
+<!-- Software update: what is new, and install now or later -->
+<dialog id="updDlg">
+  <h2 id="updTitle" style="margin:0 0 4px"></h2>
+  <div class="muted" id="updInfo"></div>
+  <ul id="updNotes" style="padding-left:20px;margin:12px 0"></ul>
+  <p class="muted" id="updHow" style="margin:0 0 14px"></p>
+  <div class="row" style="flex-wrap:nowrap"><button class="primary" id="updGo" style="flex:1">Install now</button><button id="updLater">Later</button></div>
+</dialog>
 <div id="toast"></div>
 <div id="print"></div>
 
@@ -1247,23 +1258,56 @@ $("#syncNow").onclick = run(async () => {
 const WEB_URL = "https://goodmickey.github.io/pos/", UPDATE_URL = WEB_URL + "app-update.json";
 $("#webUrl").textContent = WEB_URL;
 const versionText = v => new Date(v * 1000).toLocaleString("en-PH", {dateStyle: "medium", timeStyle: "short"});
-// Android app: can also replace the app itself (android-app/.../AppUpdatePlugin.java) when a new APK is published
-const appUpdater = window.Capacitor?.isPluginAvailable?.("AppUpdate") ? Capacitor.Plugins.AppUpdate : null;
+// The installed app itself can be replaced too (a "major update"): Android installs a new APK (AppUpdatePlugin.java),
+// Mac/Windows swap their app package (desktop/main.js). info() -> {name, code}; newer(u, info) -> {name, url} or null.
+const newerVersion = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+const appShell = window.desktopApp ? {
+  info: async () => ({name: await desktopApp.version()}),
+  newer: (u, i) => u.desktop && newerVersion(u.desktop.version, i.name) ? {name: u.desktop.version, url: u.desktop.url} : null,
+  install: url => desktopApp.update(url),
+  how: "It downloads, installs and restarts the app by itself (a few seconds). Your data stays.",
+} : window.Capacitor?.isPluginAvailable?.("AppUpdate") ? {
+  info: async () => { const r = await Capacitor.Plugins.AppUpdate.info(); return {name: r.versionName, code: r.versionCode}; },
+  newer: (u, i) => u.android && u.android.versionCode > i.code ? {name: u.android.versionName, url: u.android.url} : null,
+  install: url => Capacitor.Plugins.AppUpdate.install({url}),
+  how: "It downloads, then Android asks \"Do you want to update this app?\": tap Update, then Open. Your data stays.",
+} : null;
+let shellInfo = null;  // this app's own version, shown in Settings
+
+// The update pop-up; resolves true for "Install now"
+function askUpdate(u, major) {
+  return new Promise(ok => {
+    const d = $("#updDlg");
+    d.classList.toggle("major", !!major);
+    $("#updTitle").textContent = major ? "Major software update" : "Software update";
+    $("#updInfo").textContent = major ? `A new version of the app is ready: version ${major.name} (you have ${shellInfo.name}).`
+      : `A new version of the POS is ready (${versionText(u.version)}).`;
+    $("#updNotes").innerHTML = (u.notes || []).map(n => `<li>${esc(n)}</li>`).join("");
+    $("#updHow").textContent = major ? appShell.how : "It installs in a few seconds. Your data stays.";
+    $("#updGo").onclick = () => { d.close(); ok(true); };
+    $("#updLater").onclick = () => { d.close(); ok(false); };
+    d.oncancel = () => ok(false);
+    d.showModal();
+  });
+}
+
+// quiet = the check when the app starts: a major update is offered in its pop-up, a small one only mentioned
 async function checkUpdate(quiet) {
   let u;
   try { u = await (await fetch(UPDATE_URL + "?t=" + Date.now(), {cache: "no-store"})).json(); }
   catch { if (quiet) return; throw new Error("Can't check for updates: no internet"); }
-  // A new app version comes first: it has the newest POS inside too
-  const newApp = !!(appUpdater && u.android && u.android.versionCode > (await appUpdater.info()).versionCode);
-  if (!newApp && !(u.version > window.APP_VERSION)) return quiet || toast("This app is up to date");
-  if (quiet) return toast("Software update available: Settings → This device → Software update");
+  const major = appShell && appShell.newer(u, shellInfo || (shellInfo = await appShell.info()));  // it has the newest POS inside too
+  if (!major && !(u.version > window.APP_VERSION)) return quiet || toast("This app is up to date");
+  if (major) { $("#appUpdate").textContent = `Install major update (${major.name})`; $("#appUpdate").classList.add("major"); }
+  if (quiet && (!major || cart.length)) return toast(`${major ? "Major software update" : "Software update"} available: Settings → This device → Software update`);
   if (cart.length) return toast("Finish or cancel the current sale first, then update", true);
-  const news = (u.notes || []).map(n => "• " + n).join("\n");
-  if (!confirm(`A new version of the POS is ready (${versionText(u.version)}).\n\n${news ? news + "\n\n" : ""}Install it now? Your data stays.`)) return;
+  if (!await askUpdate(u, major)) return;
   store.set("justUpdated", true);  // after the restart: open Settings on what's new
-  if (newApp) {  // download it; Android then asks "install this update?" and restarts the app
-    toast("Downloading the new app version…");
-    try { await appUpdater.install({url: u.android.url}); } catch (e) { store.set("justUpdated", false); throw e; }
+  if (major) {
+    store.set("expectApp", major.name);  // checked after the restart
+    toast("Downloading the new version…");
+    try { await appShell.install(major.url); } catch (e) { store.set("justUpdated", false); throw e; }
     return;
   }
   localStorage.setItem("posUpdate", JSON.stringify(u)); localStorage.removeItem("posTrying");
@@ -1272,6 +1316,7 @@ async function checkUpdate(quiet) {
 if (window.APP_VERSION) {
   $("#appUpdate").hidden = false;
   $("#appVersion").textContent = `App version: ${versionText(APP_VERSION)}`;
+  if (appShell) appShell.info().then(i => { shellInfo = i; $("#appVersion").textContent += ` · app ${i.name}`; }).catch(() => {});
   if (window.APP_NOTES?.length) {
     $("#appNotes ul").innerHTML = APP_NOTES.map(n => `<li>${esc(n)}</li>`).join("");
     $("#appNotes").hidden = false;
@@ -1321,7 +1366,10 @@ async function tick() {
     store.set("justUpdated", false);
     document.querySelector('nav [data-tab="settings"]').click();
     $("#appNotes").classList.add("fresh"); $("#appNotes").scrollIntoView({block: "center"});
-    toast("Update installed. What's new is listed under the app version.");
+    const expect = store.get("expectApp", ""); store.set("expectApp", "");
+    const now = expect && appShell ? (await appShell.info()).name : expect;
+    if (now !== expect) toast(`The app update didn't install (still version ${now}). Try Software update again, or use the installer from the Desktop folder.`, true);
+    else toast("Update installed. What's new is listed under the app version.");
   }
   if (window.APP_VERSION) setTimeout(() => checkUpdate(true), 5000);
 })();
