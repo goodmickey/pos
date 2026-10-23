@@ -174,7 +174,31 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .chips button{border-radius:8px}
 .chips button[aria-pressed=true]{background:var(--strong);color:var(--onstrong)}
 
-/* reports */
+/* reports: period chips, summary tiles, tabs (like YouTube Studio analytics) */
+.rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.rhead button{display:flex;align-items:center;gap:8px}.rhead svg.i{width:20px;height:20px}
+.rbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+.rdates{display:flex;align-items:center;gap:8px}.rdates input{width:auto;min-height:40px}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:8px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.kpi span{display:block;font-size:13px;color:var(--muted)}
+.kpi b{display:block;font-size:24px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi small{display:block;font-size:12px;color:var(--muted)}
+.kpi.lead b{color:var(--good)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:8px 0 16px;overflow-x:auto}
+.tabs button{background:none;border-radius:0;padding:12px 16px;min-height:48px;color:var(--muted);font-size:15px;box-shadow:inset 0 -3px 0 transparent;white-space:nowrap}
+.tabs button:hover{background:none;color:var(--ink)}
+.tabs button.on{color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.cols .card{margin:0}
+.rtool{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.rtool p{margin:0}.rtool select{width:auto;min-width:200px}
+.share{height:4px;border-radius:2px;background:var(--chip);margin-top:6px;overflow:hidden}
+.share i{display:block;height:100%;background:var(--accent);border-radius:2px}
+#rsellers .renter{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin:0 0 16px}
+#rsellers .renter h3{font-size:18px}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.cols{grid-template-columns:1fr}}
+@media(max-width:700px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi.lead{grid-column:1/-1}.kpi b{font-size:20px}.rtool select{width:100%}}
 .renter{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
 .renter h4{margin:18px 0 6px;font-size:15px}
 .rsum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
@@ -368,23 +392,28 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </section>
 
 <section id="reports">
-  <div class="pagehead"><h2>Reports</h2><p>Sales for any period, and what you owe each seller.</p></div>
-  <div class="card">
-    <div class="row"><label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label><button class="primary" id="rshow" style="align-self:end">Show</button><button id="rprint" style="align-self:end">Print report</button></div>
+  <div class="pagehead rhead"><div><h2>Reports</h2><p>Sales, products and shelf renters for the period you choose.</p></div>
+    <button id="rprint"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>Print</button></div>
+  <div class="rbar">
+    <div class="chips" id="rperiod"><button data-p="today">Today</button><button data-p="yesterday">Yesterday</button><button data-p="week">Last 7 days</button><button data-p="month">This month</button><button data-p="lastmonth">Last month</button></div>
+    <div class="rdates"><input type="date" id="rfrom" aria-label="From"><span class="muted">to</span><input type="date" id="rto" aria-label="To"></div>
   </div>
-  <div id="rout"></div>
-  <div class="card" id="rprodCard">
-    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Products: stock and sales</h3>
-      <div class="row"><select id="rproduct" style="width:auto"><option value="">All products</option></select>
-        <button id="rprintProduct">Print</button></div></div>
-    <p class="muted">Stock and price now, and what sold in the dates above. Pick a product, or tap one in a list, to see each of its sales.</p>
-    <div id="rproducts"></div>
+  <div class="kpis" id="rkpis"></div>
+  <div class="tabs" id="rtabs"><button data-rt="overview">Overview</button><button data-rt="products">Products</button><button data-rt="renters">Shelf renters</button></div>
+
+  <div class="rtab" id="rt-overview"><div id="rout" class="cols"></div></div>
+
+  <div class="rtab" id="rt-products">
+    <div class="card" id="rprodCard">
+      <div class="rtool"><p class="muted">Stock and price now, and what sold in this period. Tap a product to see each of its sales.</p>
+        <select id="rproduct"><option value="">All products</option></select></div>
+      <div id="rproducts"></div>
+    </div>
   </div>
-  <div class="card">
-    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Shelf renters</h3>
-      <div class="row"><select id="rseller" style="width:auto"><option value="">All sellers</option></select>
-        <button id="rprintSeller">Print statement</button></div></div>
-    <p class="muted">For the dates above: what each renter sold and earned, rent, stock left, and every email we sent them.</p>
+
+  <div class="rtab" id="rt-renters">
+    <div class="rtool"><p class="muted">What each renter sold and earned, rent, stock left, and every email we sent them.</p>
+      <select id="rseller"><option value="">All sellers</option></select></div>
     <div id="rsellers"></div>
   </div>
 </section>
@@ -1050,21 +1079,59 @@ $("#lprint").onclick = () => {
 
 // ---------- reports ----------
 let lastReport = null, sellerRep = [];  // what Reports shows now (printing uses the same)
+// Quick periods; the date boxes beside them set any other range
+const PERIODS = {
+  today: () => [today(), today()],
+  yesterday: () => [addDays(today(), -1), addDays(today(), -1)],
+  week: () => [addDays(today(), -6), today()],
+  month: () => [today().slice(0, 8) + "01", today()],
+  lastmonth: () => { const end = addDays(today().slice(0, 8) + "01", -1); return [end.slice(0, 8) + "01", end]; },
+};
+const markPeriod = () => document.querySelectorAll("#rperiod button").forEach(b =>
+  b.setAttribute("aria-pressed", PERIODS[b.dataset.p]().join() === [$("#rfrom").value, $("#rto").value].join()));
+$("#rperiod").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  [$("#rfrom").value, $("#rto").value] = PERIODS[b.dataset.p](); showReport();
+};
+$("#rfrom").onchange = $("#rto").onchange = () => showReport();
 $("#rfrom").value = $("#rto").value = today();
+const periodText = (from, to) => from === to ? from : `${from} to ${to}`;
+
+// Tabs: Overview, Products, Shelf renters (the last one used is remembered on this device)
+let reportTab = store.get("reportTab", "overview");
+function showReportTab(tab) {
+  reportTab = tab; store.set("reportTab", tab);
+  document.querySelectorAll("#rtabs button").forEach(b => b.classList.toggle("on", b.dataset.rt === tab));
+  document.querySelectorAll(".rtab").forEach(s => s.hidden = s.id !== "rt-" + tab);
+}
+$("#rtabs").onclick = e => { const b = e.target.closest("button"); if (b) showReportTab(b.dataset.rt); };
+showReportTab(reportTab);
+
 const showReport = run(async () => {
-  const r = await api(`/api/report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
-  lastReport = {...r, from: $("#rfrom").value, to: $("#rto").value};
-  const tbl = (rows, cols) => `<table><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>
-    ${rows.map(x => `<tr>${cols.map(c => `<td class="${c[2] || ""}">${c[1](x)}</td>`).join("")}</tr>`).join("") || `<tr><td class="muted">No sales.</td></tr>`}</tbody></table>`;
-  sellerRep = await api(`/api/seller-report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
+  const from = $("#rfrom").value, to = $("#rto").value;
+  markPeriod();
+  const r = await api(`/api/report?from=${from}&to=${to}`);
+  lastReport = {...r, from, to};
+  sellerRep = await api(`/api/seller-report?from=${from}&to=${to}`);
   renderRenters();
   await showProducts();
-  $("#rout").innerHTML = `<div class="card"><div class="muted">${r.summary.n} sale(s)</div><div class="total">${peso(r.summary.total)}</div></div>
-    <div class="card"><h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner, [["Owner", x => esc(x.owner)], ["Shelf", x => esc(x.shelf)],
-      ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>
-    <div class="card"><h3>By item</h3>${tbl(r.by_item, [["Item", x => productLink(x.id, x.name)], ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>`;
+  // Summary tiles
+  const pcs = r.by_item.reduce((n, i) => n + i.qty, 0), renters = sellerRep.reduce((n, s) => n + s.summary.amount, 0);
+  const rent = sellerRep.reduce((n, s) => n + s.summary.rent, 0), n = r.summary.n;
+  $("#rkpis").innerHTML = [
+    ["lead", "Total sales", peso(r.summary.total), periodText(from, to)],
+    ["", "Transactions", n, n ? `average ${peso(r.summary.total / n)}` : "no sales yet"],
+    ["", "Items sold", pcs, `${r.by_item.length} different item${r.by_item.length === 1 ? "" : "s"}`],
+    ["", "Store's own sales", peso(r.summary.total - renters), "your own goods"],
+    ["", "Shelf renters' sales", peso(renters), `rent ${peso(rent)} a month`],
+  ].map(([c, k, v, s]) => `<div class="kpi ${c}"><span>${k}</span><b>${v}</b><small>${esc(s)}</small></div>`).join("");
+  // Overview: who sold and what sold, each with its share of the total
+  const share = a => r.summary.total ? `<div class="share"><i style="width:${Math.round(a / r.summary.total * 100)}%"></i></div>` : "";
+  $("#rout").innerHTML = `<div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
+      `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
+    <div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
+      `<tr><td>${productLink(x.id, x.name)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>`;
 });
-$("#rshow").onclick = showReport;
 $("#rout").onclick = e => { const b = e.target.closest("[data-pid]"); if (b) openProductReport(b.dataset.pid); };
 
 // One table style for the report cards and their printouts (number columns right-aligned)
@@ -1083,8 +1150,8 @@ async function showProducts() {
   $("#rproducts").innerHTML = productHTML(productRep);
 }
 function openProductReport(id) {
-  $("#rproduct").value = id;
-  run(showProducts)().then(() => $("#rprodCard").scrollIntoView({behavior: "smooth", block: "start"}));
+  $("#rproduct").value = id; showReportTab("products");
+  run(showProducts)().then(() => $("#rtabs").scrollIntoView({behavior: "smooth", block: "start"}));
 }
 $("#rproduct").onchange = run(showProducts);
 $("#rproducts").onclick = e => {
@@ -1130,7 +1197,7 @@ function productBytes(r) {
   t.rule();
   return t.end();
 }
-$("#rprintProduct").onclick = run(async () => {
+const printProducts = run(async () => {
   if (!productRep) await showReport();
   const r = productRep, period = r.from === r.to ? r.from : `${r.from} to ${r.to}`;
   if (await printTickets([productBytes(r)], "Product report printed")) return;
@@ -1187,7 +1254,7 @@ function renterBytes(r, period) {
   return t.end();
 }
 
-$("#rprintSeller").onclick = run(async () => {
+const printRenters = run(async () => {
   if (!lastReport) await showReport();
   const list = chosenRenters(), period = lastReport.from === lastReport.to ? lastReport.from : `${lastReport.from} to ${lastReport.to}`;
   if (!list.length) return toast("No shelf renters to print", true);
@@ -1227,8 +1294,9 @@ $("#saleReprint").onclick = () => printReceipt(viewing, 1);
 $("#saleReprint2").onclick = () => printReceipt(viewing, 2);
 $("#saleClose").onclick = () => $("#saleDlg").close();
 
-// ---------- print the report (thermal or normal printer, like receipts) ----------
-$("#rprint").onclick = run(async () => {
+// ---------- print the report (thermal or normal printer, like receipts): the tab that is open ----------
+$("#rprint").onclick = () => ({overview: printOverview, products: printProducts, renters: printRenters})[reportTab]();
+const printOverview = run(async () => {
   if (!lastReport) await showReport();
   const r = lastReport;
   if (await printTickets([reportBytes(r)], "Report printed")) return;
