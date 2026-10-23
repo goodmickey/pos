@@ -12,7 +12,7 @@
 
   let data = {}, ops = [], meta = {}, failed = [];
 
-  // ---------- stand-ins for the Google services engine.js uses ----------
+  // ---------- stand-ins for the Google services the device-side routes use ----------
   const text = v => v === null || v === undefined ? "" : typeof v === "string" && v[0] === "'" ? v.slice(1) : v;
   function sheet(n) {
     const d = data[n];
@@ -31,7 +31,6 @@
     insertSheet: n => { data[n] = []; return sheet(n); },
   })};
   G.Utilities = {
-    sleep() {},
     formatDate(d, tz, f) {
       if (f === "MMM dd, yyyy") return new Intl.DateTimeFormat("en-US", {timeZone: tz, month: "short", day: "2-digit", year: "numeric"}).format(d);
       const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
@@ -39,10 +38,7 @@
       return f === "yyyy-MM-dd" ? `${p.year}-${p.month}-${p.day}` : `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
     },
   };
-  G.LockService = {getScriptLock: () => ({waitLock() {}, releaseLock() {}})};
-  G.PropertiesService = {getScriptProperties: () => ({getProperty: () => null, setProperty() {}})};
-  G.MailApp = {getRemainingDailyQuota: () => meta.quota ?? null, sendEmail() { throw new Error("Emails are sent by Google"); }};
-  G.Session = {getEffectiveUser: () => ({getEmail: () => ""})};
+  G.MailApp = {getRemainingDailyQuota: () => meta.quota ?? null};  // emails themselves are only sent by Google (CLOUD)
 
   // ---------- saving on the device ----------
   let dbp = null;
@@ -80,7 +76,6 @@
       // Send the same change to Google later, with the ids this device chose
       if (out && out.id && (path === "/api/products" || path === "/api/sellers")) copy.id = out.id;
       if (out && out.barcode) copy.barcode = out.barcode;
-      if (path === "/api/sale") copy.offline = true;
       ops.push({path, body: copy, at: Date.now()});
     }
     await persist();

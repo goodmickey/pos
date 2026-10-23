@@ -12,7 +12,7 @@
 :root{
   --bg:#f1f4f7;--panel:#fff;--ink:#0f172a;--ink2:#334155;--muted:#64748b;--line:#e2e8f0;--soft:#f8fafc;
   --brand:#0e7c66;--brand2:#0b6654;--brandsoft:#e7f5f1;--side:#0f172a;--side2:#1e293b;
-  --warn:#b45309;--warnsoft:#fef3c7;--bad:#dc2626;--badsoft:#fee2e2;--radius:12px;--shadow:0 1px 2px #0f172a0d,0 2px 8px #0f172a0a}
+  --warn:#b45309;--bad:#dc2626;--badsoft:#fee2e2;--radius:12px;--shadow:0 1px 2px #0f172a0d,0 2px 8px #0f172a0a}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{min-height:100vh;margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
@@ -29,7 +29,7 @@ nav button{display:flex;align-items:center;gap:14px;background:none;border:0;col
 nav button svg{width:26px;height:26px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 nav button:hover{background:var(--side2);color:#fff}
 nav button.on{background:var(--brand);color:#fff}
-#net{margin-top:auto;font-size:12px;line-height:1.35;padding:10px 12px;border-radius:9px;background:var(--side2);color:#86efac}
+#net{font-size:12px;line-height:1.35;padding:10px 12px;border-radius:9px;background:var(--side2);color:#86efac}
 #net.off{color:#fcd34d}
 
 /* main */
@@ -126,7 +126,6 @@ dialog::backdrop{background:#0f172a80}
 #navToggle{display:flex;align-items:center;gap:14px;background:none;border:0;color:#94a3b8;padding:14px;min-height:54px;border-radius:12px;font-size:16px;font-weight:500;width:100%;margin:auto 0 8px}
 #navToggle:hover{background:var(--side2);color:#fff}
 #navToggle svg{width:26px;height:26px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
-#net{margin-top:0}
 body.navmini{grid-template-columns:92px 1fr}
 body.navmini .brand div,body.navmini nav button span,body.navmini #navToggle span{display:none}
 body.navmini .brand{justify-content:center;padding:4px 0 20px}
@@ -206,11 +205,6 @@ body.navmini #net.off{background:#f59e0b}
     <div class="row qtyrow"><button type="button" data-d="-1">−</button><input id="qty" type="number" min="1" step="1" inputmode="numeric"><button type="button" data-d="1">+</button></div>
     <div class="row" id="qtyQuick"><button type="button" data-q="1">1</button><button type="button" data-q="2">2</button><button type="button" data-q="3">3</button><button type="button" data-q="5">5</button><button type="button" data-q="10">10</button></div>
     <div class="row"><button class="primary" style="flex:1">Add to sale</button><button type="button" id="qtyCancel">Cancel</button></div>
-  </form></dialog>
-  <dialog id="askDlg"><form method="dialog" id="askForm">
-    <div id="askText" style="font-weight:600;margin-bottom:10px"></div>
-    <input id="askInput" autocomplete="off" style="width:100%">
-    <div class="row" style="margin-top:12px"><button class="primary" value="ok" style="flex:1">OK</button><button value="" formnovalidate>Cancel</button></div>
   </form></dialog>
   <dialog id="doneDlg">
     <div style="text-align:center"><div class="donecheck">✓</div><h2 style="margin:6px 0 2px">Sale complete</h2>
@@ -331,16 +325,6 @@ body.navmini #net.off{background:#f59e0b}
       <label>Phone (on receipts) <input name="receipt_phone" placeholder="e.g. 0917 123 4567"></label>
       <label>Receipt message <input name="receipt_footer" placeholder="Salamat po! Come again."></label>
       <label>Sender name on seller emails <input name="smtp_from" placeholder="your store name"></label>
-      <div id="smtpBox" style="grid-column:1/-1">
-        <h3 style="margin:8px 0 4px;font-size:14px">Email server <span class="muted">(only when the POS runs on a store computer)</span></h3>
-        <div class="form">
-          <label>SMTP server <input name="smtp_host" placeholder="smtp.gmail.com"></label>
-          <label>SMTP port <input name="smtp_port" placeholder="587"></label>
-          <label>Email login <input name="smtp_user" placeholder="yourstore@gmail.com"></label>
-          <label>Password / App password <input name="smtp_pass" type="password" autocomplete="new-password"></label>
-        </div>
-        <p class="muted" id="gmailHelp">Gmail: turn on 2-Step Verification, then create an <b>App password</b> (Google Account → Security → App passwords) and paste it above.</p>
-      </div>
       <div class="row"><button class="primary">Save</button></div>
     </form>
   </div>
@@ -349,14 +333,12 @@ body.navmini #net.off{background:#f59e0b}
     <div class="form">
       <label>How to print receipts <select id="printerMethod">
         <option value="browser">Regular printer (Print window)</option>
-        <option value="serial">Bluetooth receipt printer: computer</option>
-        <option value="ble">Bluetooth receipt printer: Android (direct)</option>
-        <option value="rawbt">Bluetooth receipt printer: Android (RawBT app)</option>
+        <option value="rawbt">Bluetooth receipt printer: Android browser (RawBT app)</option>
         <option value="app">Bluetooth receipt printer: this POS app (direct)</option>
       </select></label>
       <label id="appPrinterBox">Printer <select id="appPrinter"></select></label>
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="autoPrint" style="width:auto"> Print automatically after each sale</label>
-      <div class="row"><button id="printerConnect">Connect printer</button><button id="printerTest">Print test receipt</button></div>
+      <div class="row"><button id="printerFind">Find printers</button><button id="printerTest">Print test receipt</button></div>
     </div>
     <p class="muted" id="printerHelp"></p>
   </div>
@@ -365,16 +347,7 @@ body.navmini #net.off{background:#f59e0b}
     <p id="deviceInfo"></p>
     <div class="row"><button id="syncNow">Sync now</button><button id="changePw">Change password on this device</button><button id="appUpdate" hidden>Software update</button></div>
     <p class="muted" id="appVersion"></p>
-  </div>
-  <div class="card">
-    <h3>Tablets &amp; phones (Android, Huawei HarmonyOS, iPad/iPhone)</h3>
-    <form id="pinform" class="form">
-      <label>Tablet PIN (4+ characters) <input name="tablet_pin" type="password" autocomplete="new-password" inputmode="numeric"></label>
-      <div class="row"><button class="primary">Save PIN</button></div>
-    </form>
-    <p id="tabletInfo"></p>
-    <p class="muted" id="tabletHelp">The tablet must be on the same Wi-Fi as this computer. Open the address in its browser (Chrome, Huawei Browser or Safari),
-      enter the PIN once, then add it to the home screen. If Windows asks about the firewall, click <b>Allow</b> for private networks.</p>
+    <p class="muted">Any phone, tablet or computer can also use the POS in its web browser: <b id="webUrl"></b> (same store password).</p>
   </div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><h3 style="margin:0">Email outbox</h3>
@@ -385,6 +358,12 @@ body.navmini #net.off{background:#f59e0b}
 </section>
 </main>
 
+<!-- Password / text box: outside the screens, so it shows over whichever screen is open -->
+<dialog id="askDlg"><form method="dialog" id="askForm">
+  <div id="askText" style="font-weight:600;margin-bottom:10px"></div>
+  <input id="askInput" autocomplete="off" style="width:100%">
+  <div class="row" style="margin-top:12px"><button class="primary" value="ok" style="flex:1">OK</button><button value="" formnovalidate>Cancel</button></div>
+</form></dialog>
 <div id="toast"></div>
 <div id="print"></div>
 
@@ -399,132 +378,91 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&
 const localTime = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 19);
 const today = () => localTime().slice(0, 10);
 const daysTo = d => Math.round((new Date(d) - new Date(today())) / 864e5);
-let S = {products: [], sellers: [], settings: {}, outbox: []}, cart = [], copies = {}, lastSale = null;
+let S = {products: [], sellers: [], settings: {}, outbox: []}, cart = [], lastSale = null;
 
 function toast(msg, err) {
   const t = $("#toast"); t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
   clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", err ? 4500 : 2500);
 }
 
-// Saved on this device: PIN, a copy of the products (to keep selling offline) and sales not yet synced.
+// Small per-device preferences (password, printer, menu). The POS data itself is in Local (local.js).
 const store = {
   get(k, dflt) { try { return JSON.parse(localStorage.getItem(k)) ?? dflt; } catch { return dflt; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-let PIN = store.get("pin", ""), queue = store.get("queue", []), online = true;
+let PIN = store.get("pin", ""), online = true;
 
-// Where the data lives: a Google Apps Script web app (address in config.js), or else pos.py on this computer/Wi-Fi
-const API = /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost:\d+\/)/.test(window.POS_API || "")  // localhost = test bench
-  ? window.POS_API : "";
-if (window.POS_API && !API) setTimeout(() => toast("config.js: paste your Google Apps Script Web app address there", true), 500);
+// The Google Apps Script web app that keeps the main copy (address in config.js; localhost = test bench)
+const API = /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost:\d+\/)/.test(window.POS_API || "") ? window.POS_API : "";
+if (!API) setTimeout(() => toast("config.js: paste your Google Apps Script Web app address there", true), 500);
 
 // Same as prompt(), which the Mac/Windows app doesn't have: resolves to the typed text, or null on Cancel
 function ask(text, value = "", type = "text") {
   return new Promise(ok => {
     const d = $("#askDlg"), i = $("#askInput");
     $("#askText").textContent = text; i.type = type; i.value = value;
-    d.onclose = () => ok(d.returnValue === "ok" ? i.value : null);
-    d.returnValue = ""; d.showModal(); i.focus();
+    // Answer on the button press itself (Enter = OK): some browsers deliver the dialog's close event late
+    $("#askForm").onsubmit = e => { e.preventDefault(); d.close(); ok(e.submitter?.value === "ok" ? i.value : null); };
+    d.oncancel = () => ok(null);  // Esc
+    d.showModal(); i.focus();
   });
 }
 const askPassword = () => askPassword.p ||
-  (askPassword.p = ask("Enter the store password (or Tablet PIN)", "", "password").finally(() => askPassword.p = null));
+  (askPassword.p = ask("Enter the store password", "", "password").finally(() => askPassword.p = null));
 
 class Offline extends Error { get offline() { return true; } }
-// Google mode keeps its own database on this device (local.js): screens never wait, changes sync in the background
-const LOCAL = API && window.Local ? window.Local : null;
+// Screens work on this device's own database (local.js runs the same routes as Google, engine.js).
+// Changes are queued there and sent to Google in the background; only email actions need Google itself.
 async function api(path, body, ms) {
-  if (!LOCAL) return remoteApi(path, body, ms);
-  if (LOCAL.cloudOnly(path.split("?")[0])) { const r = await remoteApi(path, body, ms); syncSoon(); return r; }  // emails: Google only
   const [p, q] = path.split("?");
-  const out = await LOCAL.call(p, body || Object.fromEntries(new URLSearchParams(q || "")));
-  if (LOCAL.pending()) syncSoon();
+  if (Local.cloudOnly(p)) { const r = await remoteApi(p, body, ms); syncSoon(); return r; }
+  const out = await Local.call(p, body || Object.fromEntries(new URLSearchParams(q || "")));
+  if (Local.pending()) syncSoon();
   return out;
 }
-const syncSoon = () => { clearTimeout(syncSoon.h); syncSoon.h = setTimeout(() => tick(), 1000); };
-async function remoteApi(path, body, ms = API ? 30000 : 5000) {
+const syncSoon = () => { clearTimeout(syncSoon.h); syncSoon.h = setTimeout(tick, 1000); };
+// One request to Google: every call is a POST to the one web-app address; plain text avoids a CORS preflight
+async function remoteApi(path, body, ms = 30000) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms);
   let r;
   try {
-    if (API) {  // Google: every call is a POST to the one web-app address; plain text avoids a CORS preflight
-      const [p, q] = path.split("?");
-      r = await fetch(API, {method: "POST", signal: ctl.signal, headers: {"Content-Type": "text/plain;charset=utf-8"},
-        body: JSON.stringify({pin: PIN, path: p, body: body || Object.fromEntries(new URLSearchParams(q || ""))})});
-    } else {
-      r = await fetch(path, {signal: ctl.signal, headers: {"Content-Type": "application/json", "X-PIN": PIN},
-        ...(body ? {method: "POST", body: JSON.stringify(body)} : {})});
-    }
-  } catch {
-    throw new Offline(API ? "No internet connection" : "Cannot reach the store computer. Is pos.py running, and is this device on the store Wi-Fi?");
-  } finally { clearTimeout(timer); }
+    r = await fetch(API, {method: "POST", signal: ctl.signal, headers: {"Content-Type": "text/plain;charset=utf-8"},
+      body: JSON.stringify({pin: PIN, path, body: body || {}})});
+  } catch { throw new Offline("No internet connection"); }
+  finally { clearTimeout(timer); }
   let j;
   try { j = await r.json(); }
-  catch { throw new Error(API ? "Google Script didn't answer properly. Check the Web app address and that access is set to 'Anyone'." : "Bad answer from the POS program"); }
-  const status = API ? j.status : r.status;
-  if (status === 401) {  // ask once, remember on this device
+  catch { throw new Error("Google Script didn't answer properly. Check the Web app address and that access is set to 'Anyone'."); }
+  if (j.status === 401) {  // ask once, remember on this device
     const p = await askPassword();
     if (p === null) throw new Offline("Password needed");
     PIN = p.trim(); store.set("pin", PIN);
     return remoteApi(path, body, ms);
   }
-  if (status >= 400) throw Object.assign(new Error(j.error), {status});
-  return API ? j.data : j;
+  if (j.status >= 400) throw Object.assign(new Error(j.error), {status: j.status});
+  return j.data;
 }
 const run = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
 const setOnline = v => { online = v; netStatus(); };
 
-const VERSION = "__VERSION__";  // filled in by pos.py
-function updateIfNewer() {
-  // A newer POS version is on the store computer: reload once to get it (never in the middle of a sale)
-  let tried = ""; try { tried = sessionStorage.getItem("reloadFor"); } catch {}
-  if (S.version && S.version !== VERSION && !cart.length && tried !== S.version) {
-    try { sessionStorage.setItem("reloadFor", S.version); } catch {}
-    location.reload();
-  }
-}
-
 async function load() {
-  if (LOCAL) {
-    if (LOCAL.isEmpty()) await sync();  // first start on this device: download everything from Google
-    S = LOCAL.isEmpty() ? store.get("state", S) : await LOCAL.call("/api/state");
-    return renderAll();
-  }
-  try { S = await api("/api/state"); store.set("state", S); setOnline(true); updateIfNewer(); }
-  catch (e) {
-    if (!(e instanceof Offline)) throw e;
-    setOnline(false);
-    if (!S.products.length) S = store.get("state", S);  // just opened with no connection: use the saved copy
-  }
+  if (Local.isEmpty()) await sync();  // first start on this device: download everything from Google
+  if (!Local.isEmpty()) S = await Local.call("/api/state");
   renderAll();
 }
 
-// Push offline sales to the store computer, oldest first. Each has a uid, so a retry never double-counts.
-let syncing = false;
-async function sync() {
-  if (LOCAL) {
-    if (syncing) return;
-    syncing = true;
-    const sales = LOCAL.pendingSaleUids().size, wasOffline = !online, before = LOCAL.failed().length;
-    try {
-      await LOCAL.sync(remoteApi); setOnline(true);
-      if (sales && wasOffline) toast("Offline sales are now saved to your Google Sheet");
-      const f = LOCAL.failed();
-      if (f.length > before) toast(`Google refused a change made on this device: ${f[f.length - 1].error}`, true);
-    } catch (e) { if (e instanceof Offline) setOnline(false); else throw e; }
-    finally { syncing = false; netStatus(); }
-    return;
-  }
-  if (syncing || !queue.length) return;
-  syncing = true;
-  const wasOffline = !online;  // only announce when sales really waited for the connection
+// Send this device's changes to Google, then get everyone else's. Sales carry a uid, so a retry never double-counts.
+// Callers share a running sync (and wait for it) instead of starting a second one.
+const sync = () => sync.p || (sync.p = syncNow().finally(() => sync.p = null));
+async function syncNow() {
+  const sales = Local.pendingSaleUids().size, wasOffline = !online, before = Local.failed().length;
   try {
-    while (queue.length) {
-      await api("/api/sale", queue[0]);
-      queue.shift(); store.set("queue", queue);
-      if (!queue.length && wasOffline) toast("Offline sales are now saved" + (API ? " to your Google Sheet" : " on the store computer"));
-    }
+    await Local.sync(remoteApi); setOnline(true);
+    if (sales && wasOffline) toast("Offline sales are now saved to your Google Sheet");
+    const f = Local.failed();
+    if (f.length > before) toast(`Google refused a change made on this device: ${f[f.length - 1].error}`, true);
   } catch (e) { if (e instanceof Offline) setOnline(false); else throw e; }
-  finally { syncing = false; netStatus(); }
+  finally { netStatus(); }
 }
 function renderAll() {
   $("#storeName").textContent = S.settings.store_name || "Urdaneta Store";
@@ -550,10 +488,10 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 const onSell = () => $("#sell").classList.contains("on");
 
 function netStatus() {
-  const n = $("#net"), q = LOCAL ? LOCAL.pending() : queue.length;
+  const n = $("#net"), q = Local.pending();
   n.className = online && !q ? "" : "off";
-  n.textContent = !online ? `● ${S.cloud || API ? "No internet" : "Store computer not reachable"}: selling offline${q ? `, ${q} ${LOCAL ? "change(s)" : "sale(s)"} waiting to sync` : ""}`
-    : q ? `● Syncing ${q} ${LOCAL ? "change(s)" : "sale(s)"}…` : "● Connected";
+  n.textContent = !online ? `● No internet: selling offline${q ? `, ${q} change(s) waiting to sync` : ""}`
+    : q ? `● Syncing ${q} change(s)…` : "● Connected";
 }
 
 // ---------- barcode (Code 128-B) ----------
@@ -679,7 +617,8 @@ $("#cart").onclick = e => {
   else addToCart(S.products.find(p => p.id === l.id), +b.dataset.d);
   renderCart(); $("#scan").focus();
 };
-$("#cash").oninput = renderCart;$("#quickcash").onclick = e => {
+$("#cash").oninput = renderCart;
+$("#quickcash").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   const total = cart.reduce((s, l) => s + l.price * l.qty, 0);
   $("#cash").value = b.dataset.cash === "exact" ? (total ? total.toFixed(2) : "") : b.dataset.cash;
@@ -698,30 +637,16 @@ const pay = run(async () => {
   const sale = {uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts: localTime(), cash,
                 items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
   paying = true;
-  try {
-    // Google takes 1-3 s per call, so there every sale is finished on the tablet at once and sent in the background
-    if (API && !LOCAL) throw new Offline("queued");
-    lastSale = await api("/api/sale", LOCAL ? {...sale, offline: true} : sale);
-    lastSale.id = receiptNo(sale);
-  } catch (e) {
-    if (!(e instanceof Offline)) throw e;
-    // Server unreachable (or Google mode): finish the sale here and sync it later
-    queue.push({...sale, offline: true}); store.set("queue", queue);
-    for (const l of sale.items) { const p = S.products.find(p => p.id === l.id); if (p) p.stock -= l.qty; }
-    store.set("state", S);
-    if (!API) setOnline(false);
-    lastSale = {...sale, id: receiptNo(sale), total, change: cash - total};
-  } finally { paying = false; }
+  try { lastSale = {...await api("/api/sale", sale), id: receiptNo(sale)}; }  // saved on this device at once
+  finally { paying = false; }
   cart = []; $("#cash").value = "";
-  if (LOCAL) { await load(); netStatus(); }
-  else if (API) { renderAll(); netStatus(); tick(); }
-  else if (online) await load(); else renderAll();
+  await load();
   showDone(lastSale);
 });
 
 // "Sale complete" pop-up: change to give, print (with an optional store copy), then the next customer
 function showDone(s) {
-  $("#doneInfo").textContent = `Sale #${s.id}${online && !LOCAL ? "" : " · saved on this device" + (online ? "" : ", will sync")}`;
+  $("#doneInfo").textContent = `Sale #${s.id}${online ? "" : " · no internet: it syncs when the connection is back"}`;
   $("#doneTotal").textContent = peso(s.total);
   $("#doneCash").textContent = peso(s.cash);
   $("#doneChange").textContent = peso(s.change);
@@ -750,26 +675,27 @@ $("#doneDlg").onkeydown = e => {
 $("#pay").onclick = pay;
 $("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $("#scan").focus(); };
 
-async function printReceipt(sale = lastSale, copies = 1) {
-  if (!sale) return toast("No sale to print yet", true);
-  const labels = copies > 1 ? ["", "STORE COPY"] : [""];
+const storeName = () => S.settings.store_name || "Urdaneta Store";
+// Receipt printer chosen: send it the ticket(s) and return true. Regular printer chosen: return false (caller prints HTML).
+async function printTickets(parts, done) {
   const method = printerMethod();
-  if (method !== "browser") {
-    try {
-      const parts = labels.map(l => receiptBytes(sale, l)), all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-      parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
-      await PRINTERS[method](all);
-      toast(copies > 1 ? "Receipt and store copy printed" : "Receipt printed");
-    } catch (e) { toast("Printer: " + (e.message || e), true); }
-    return;
-  }
-  $("#print").innerHTML = labels.map(l => receiptHTML(sale, l)).join('<div style="break-after:page"></div>');
-  print();
+  if (method === "browser") return false;
+  const all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
+  try { await PRINTERS[method](all); toast(done); } catch (e) { toast("Printer: " + (e.message || e), true); }
+  return true;
+}
+const printHTML = pages => { $("#print").innerHTML = pages.join('<div style="break-after:page"></div>'); print(); };
+
+async function printReceipt(sale, copies = 1) {
+  const labels = copies > 1 ? ["", "STORE COPY"] : [""];
+  if (await printTickets(labels.map(l => receiptBytes(sale, l)), copies > 1 ? "Receipt and store copy printed" : "Receipt printed")) return;
+  printHTML(labels.map(l => receiptHTML(sale, l)));
 }
 
 function receiptHTML(s, label) {
-  const st = S.settings || {};
-  return `<div class="receipt"><div style="text-align:center"><b>${esc(st.store_name || "Urdaneta Store")}</b><br>
+  const st = S.settings;
+  return `<div class="receipt"><div style="text-align:center"><b>${esc(storeName())}</b><br>
     ${st.receipt_address ? esc(st.receipt_address) + "<br>" : ""}${st.receipt_phone ? esc(st.receipt_phone) + "<br>" : ""}
     ${s.ts.replace("T", " ")} · #${s.id}${label ? `<br><b>*** ${label} ***</b>` : ""}</div><hr><table style="width:100%">
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
@@ -806,8 +732,8 @@ function ticket() {
 }
 
 function storeHeader(t) {
-  const st = S.settings || {};
-  t.center(1); t.bold(1); t.text(st.store_name || "Urdaneta Store"); t.bold(0);
+  const st = S.settings;
+  t.center(1); t.bold(1); t.text(storeName()); t.bold(0);
   if (st.receipt_address) t.text(st.receipt_address);
   if (st.receipt_phone) t.line(st.receipt_phone);
 }
@@ -822,7 +748,7 @@ function receiptBytes(s, label = "") {
   t.rule();
   t.bold(1); t.lr("TOTAL", m(s.total)); t.bold(0);
   t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change));
-  t.center(1); t.line(""); t.text((S.settings || {}).receipt_footer || "Salamat po! Come again.");
+  t.center(1); t.line(""); t.text(S.settings.receipt_footer || "Salamat po! Come again.");
   return t.end();
 }
 
@@ -844,70 +770,18 @@ function reportBytes(r) {
   t.rule();
   return t.end();
 }
-let serialPort = null, bleChar = null;
 // Android app: its BtPrinter plugin (android-app/) gives the same direct printing as the Mac/Windows app (desktop/preload.js)
 if (!window.nativePrinter && window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
   const bt = Capacitor.Plugins.BtPrinter;
   window.nativePrinter = {list: async () => (await bt.list()).printers,
     print: (id, bytes) => bt.print({id, data: btoa(String.fromCharCode(...bytes))})};
 }
-const printerMethod = () => store.get("printer", window.nativePrinter ? "app" : "browser");  // the installed app prints directly
-const BLE_SERVICES = [0x18f0, 0xff00, 0xfff0, 0xffe0, 0xae30, "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "49535343-fe7d-4ae5-8fa9-9fafd205e455"];
+// The installed app prints directly by default; a choice of a printing method no longer offered falls back to that default
+const printerMethod = () => { const m = store.get("printer", ""); return m === "browser" || m in PRINTERS ? m : window.nativePrinter ? "app" : "browser"; };
 const PRINTERS = {
-  // Computer (Chrome/Edge/Brave): a paired Bluetooth printer shows up as a serial port, e.g. "MTP-II"
-  async serial(bytes, pick = false) {
-    if (!("serial" in navigator)) throw new Error("this browser can't reach Bluetooth printers. Use Chrome, Edge or Brave on the computer.");
-    if (pick) {
-      serialPort = await navigator.serial.requestPort();
-      // Keep only the chosen printer: with several remembered ports we could otherwise pick the wrong one after a reload
-      for (const p of await navigator.serial.getPorts()) if (p !== serialPort && p.forget) await p.forget();
-    }
-    if (!serialPort) {
-      const ports = await navigator.serial.getPorts();
-      if (ports.length > 1) throw new Error("not sure which port is the printer. Settings → Receipt printer → Connect printer, then pick it (e.g. MTP-II).");
-      serialPort = ports[0];
-    }
-    if (!serialPort) throw new Error("not connected yet. Settings → Receipt printer → Connect printer.");
-    const within = (job, ms) => Promise.race([job, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
-    // Connect, print, disconnect: a printer left connected is locked for every other tab and window
-    try {
-      if (!serialPort.writable) await within(serialPort.open({baudRate: 9600}), 10000);
-      const w = serialPort.writable.getWriter();
-      // One write: in Brave/Chrome, several small writes to a Bluetooth port jam the connection
-      // ponytail: long printouts (reports, statements) are dropped by the printer's small buffer; fix separately
-      await within(w.write(bytes), 10000);
-      await within(w.close(), 10000);
-      // Stay connected until the printer has printed it: it throws away unprinted data when Bluetooth disconnects
-      await new Promise(r => setTimeout(r, Math.min(1500 + bytes.length * 6, 12000)));
-      await serialPort.close();
-    } catch (e) {
-      try { await serialPort.close(); } catch {}
-      throw new Error(e.message === "timeout" || /open|network|lost|failed|busy/i.test(e.message)
-        ? "the printer isn't answering. Check it is switched on and nearby, and close any other tab or window with the POS open, then print again."
-        : e.message);
-    }
-  },
-  // Android tablet (Chrome): printers that also speak Bluetooth Low Energy
-  async ble(bytes, pick = false) {
-    if (!("bluetooth" in navigator)) throw new Error("this browser has no Bluetooth access. Use Chrome on Android, or the RawBT option.");
-    if (!bleChar || pick) {
-      const dev = await navigator.bluetooth.requestDevice({acceptAllDevices: true, optionalServices: BLE_SERVICES});
-      const server = await dev.gatt.connect();
-      bleChar = null;
-      for (const sv of await server.getPrimaryServices())
-        for (const c of await sv.getCharacteristics()) if (!bleChar && (c.properties.writeWithoutResponse || c.properties.write)) bleChar = c;
-      if (!bleChar) throw new Error("this printer has no direct Bluetooth channel. Use the RawBT option instead.");
-    }
-    for (let i = 0; i < bytes.length; i += 100) {  // small pieces with pauses, same reason as above
-      const chunk = bytes.slice(i, i + 100);
-      bleChar.properties.writeWithoutResponse ? await bleChar.writeValueWithoutResponse(chunk) : await bleChar.writeValue(chunk);
-      await new Promise(r => setTimeout(r, 80));
-    }
-  },
   // The installed POS app (Mac, Windows, Android) prints straight to a paired Bluetooth printer
-  async app(bytes, pick = false) {
+  async app(bytes) {
     if (!window.nativePrinter) throw new Error("this works only in the installed POS app");
-    if (pick) return renderPrinter(true);
     const id = store.get("appPrinter", "");
     if (!id) throw new Error("pick the printer first: Settings → Receipt printer → Printer.");
     await nativePrinter.print(id, Array.from(bytes));
@@ -919,11 +793,9 @@ const PRINTERS = {
 };
 const PRINTER_HELP = {
   browser: "Uses the normal Print window. Works with regular printers, not with small Bluetooth receipt printers.",
-  serial: "For this computer: pair the printer in Bluetooth settings first, then click Connect printer and choose it (e.g. MTP-II or PT-210).",
-  ble: "For Android tablets with Chrome: click Connect printer and choose the printer. If it isn't listed or fails, use RawBT.",
   app: "Pair the printer in this device's Bluetooth settings first, then pick it above and click Print test receipt. "
     + "On Windows a printer gets two COM ports: if one doesn't print, pick the other. Click Find printers after pairing a new one.",
-  rawbt: "For Android tablets (incl. Huawei): install the free RawBT app from Play Store / AppGallery, pick your paired printer in RawBT once. The POS sends each receipt to it.",
+  rawbt: "For the POS in an Android browser: install the free RawBT app from Play Store / AppGallery, pick your paired printer in RawBT once. The POS sends each receipt to it.",
 };
 
 // Keyboard: scanner input always lands in the scan box on the Sell tab
@@ -948,7 +820,7 @@ function expiryCell(p) {
     <div class="muted">notify ${notifyDate(p)}</div>${made}`;
 }
 function renderProducts() {
-  const sel = $("#pform").seller_id, keep = sel.value;  // the 15s refresh must not reset a product being edited
+  const sel = $("#pform").seller_id, keep = sel.value;  // the background refresh must not reset a product being edited
   sel.innerHTML = `<option value="">Store (my own goods)</option>` +
     S.sellers.map(s => `<option value="${s.id}">${esc(s.name)}${s.shelf ? " · shelf " + esc(s.shelf) : ""}</option>`).join("");
   sel.value = keep;
@@ -1009,9 +881,9 @@ function editSeller(s) {
 $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
-  if (b.dataset.report) { await api("/api/sellers/report", {id: b.dataset.report}); toast("Stock report queued"); await load(); }
+  if (b.dataset.report) { await api("/api/sellers/report", {id: b.dataset.report}); toast("Stock report sent"); }
 });
-$("#reportAll").onclick = run(async () => { const r = await api("/api/sellers/report", {}); toast(`Queued ${r.queued} report(s)`); await load(); });
+$("#reportAll").onclick = run(async () => { const r = await api("/api/sellers/report", {}); toast(`Sent ${r.queued} stock report(s)`); });
 $("#sform").onsubmit = run(async e => {
   e.preventDefault(); await api("/api/sellers", Object.fromEntries(new FormData(e.target)));
   toast("Seller saved"); editSeller(null); await load();
@@ -1023,23 +895,25 @@ $("#sdel").onclick = run(async () => {
 });
 
 // ---------- labels ----------
+let labelCopies = {};  // product id -> number of stickers to print
 const shownLabels = () => { const f = $("#lfilter").value.toLowerCase(); return S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f)); };
 function renderLabels() {
   $("#llist").innerHTML = shownLabels().map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.barcode)}</td><td class="num">${peso(p.price)}</td>
-    <td class="num">${p.stock}</td><td class="num"><input type="number" min="0" style="width:80px" data-id="${p.id}" value="${copies[p.id] || ""}"></td></tr>`).join("");
+    <td class="num">${p.stock}</td><td class="num"><input type="number" min="0" style="width:80px" data-id="${p.id}" value="${labelCopies[p.id] || ""}"></td></tr>`).join("");
 }
 $("#lfilter").oninput = renderLabels;
-$("#llist").oninput = e => copies[e.target.dataset.id] = +e.target.value;
-$("#lstock").onclick = () => { shownLabels().forEach(p => copies[p.id] = Math.max(p.stock, 0)); renderLabels(); };
-$("#lzero").onclick = () => { copies = {}; renderLabels(); };
+$("#llist").oninput = e => labelCopies[e.target.dataset.id] = +e.target.value;
+$("#lstock").onclick = () => { shownLabels().forEach(p => labelCopies[p.id] = Math.max(p.stock, 0)); renderLabels(); };
+$("#lzero").onclick = () => { labelCopies = {}; renderLabels(); };
 $("#lprint").onclick = () => {
-  const html = S.products.flatMap(p => Array(copies[p.id] || 0).fill(`<div class="label">${esc(p.name)}<b>${peso(p.price)}</b>
+  const html = S.products.flatMap(p => Array(labelCopies[p.id] || 0).fill(`<div class="label">${esc(p.name)}<b>${peso(p.price)}</b>
     ${barcodeSVG(p.barcode)}${esc(p.barcode)}</div>`)).join("");
   if (!html) return toast("Set copies for at least one product", true);
-  $("#print").innerHTML = `<div class="labels">${html}</div>`; print();
+  printHTML([`<div class="labels">${html}</div>`]);
 };
 
 // ---------- reports ----------
+let lastReport = null, sellerRep = [];  // what Reports shows now (printing uses the same)
 $("#rfrom").value = $("#rto").value = today();
 const showReport = run(async () => {
   const r = await api(`/api/report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
@@ -1056,7 +930,6 @@ const showReport = run(async () => {
 $("#rshow").onclick = showReport;
 
 // ---------- shelf renters: per-seller breakdown (screen, normal printer, thermal) ----------
-let sellerRep = [];
 const when = v => v ? String(v).replace("T", " ").slice(0, 16) : "";
 const mailStatus = m => !m.sent ? "waiting to send" : m.error ? m.error : "sent";
 function renterHTML(r) {
@@ -1110,19 +983,9 @@ $("#rprintSeller").onclick = run(async () => {
   if (!lastReport) await showReport();
   const list = chosenRenters(), period = lastReport.from === lastReport.to ? lastReport.from : `${lastReport.from} to ${lastReport.to}`;
   if (!list.length) return toast("No shelf renters to print", true);
-  const method = printerMethod();
-  if (method !== "browser") {
-    try {
-      const parts = list.map(r => renterBytes(r, period)), all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-      parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
-      await PRINTERS[method](all); toast("Statement printed");
-    } catch (e) { toast("Printer: " + (e.message || e), true); }
-    return;
-  }
-  const st = S.settings || {};
-  $("#print").innerHTML = list.map(r => `<div class="report"><h2>${esc(st.store_name || "Urdaneta Store")}: Shelf renter statement</h2>
-    <p>${period} · printed ${when(localTime())}</p>${renterHTML(r)}</div>`).join('<div style="break-after:page"></div>');
-  print();
+  if (await printTickets(list.map(r => renterBytes(r, period)), "Statement printed")) return;
+  printHTML(list.map(r => `<div class="report"><h2>${esc(storeName())}: Shelf renter statement</h2>
+    <p>${period} · printed ${when(localTime())}</p>${renterHTML(r)}</div>`));
 });
 
 // ---------- history ----------
@@ -1130,21 +993,15 @@ let history = [], viewing = null;
 $("#hfrom").value = $("#hto").value = today();
 const showHistory = run(async () => {
   const from = $("#hfrom").value, to = $("#hto").value;
-  const saved = await api(`/api/sales?from=${from}&to=${to}`);
-  // sales still waiting to sync (made offline on this device) are shown too
-  const waiting = queue.filter(s => s.ts.slice(0, 10) >= from && s.ts.slice(0, 10) <= to).map(s => {
-    const total = Math.round(s.items.reduce((n, i) => n + i.price * i.qty, 0) * 100) / 100;
-    return {...s, total, waiting: true};
-  });
-  const pend = LOCAL ? LOCAL.pendingSaleUids() : new Set();
-  history = [...waiting, ...saved.map(s => pend.has(s.uid) ? {...s, waiting: true} : s)].map(s => ({...s, id: receiptNo(s), change: Math.round((s.cash - s.total) * 100) / 100}));
+  const sales = await api(`/api/sales?from=${from}&to=${to}`), waiting = Local.pendingSaleUids();  // not yet sent to Google
+  history = sales.map(s => ({...s, id: receiptNo(s), waiting: waiting.has(s.uid), change: Math.round((s.cash - s.total) * 100) / 100}));
   renderHistory();
 });
 function renderHistory() {
   const q = $("#hsearch").value.trim().toLowerCase();
   const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q)));
   $("#hsummary").textContent = `${list.length} sale(s) · ${peso(list.reduce((n, s) => n + s.total, 0))}`;
-  $("#hlist").innerHTML = list.map((s, i) => `<tr data-i="${history.indexOf(s)}" style="cursor:pointer">
+  $("#hlist").innerHTML = list.map(s => `<tr data-i="${history.indexOf(s)}" style="cursor:pointer">
     <td>${esc(s.ts.replace("T", " ").slice(0, 16))}${s.waiting ? ' <span class="warn">waiting to sync</span>' : ""}</td>
     <td><b>${esc(s.id)}</b></td><td>${esc(s.items.map(i => `${i.name} ×${i.qty}`).join(", "))}</td>
     <td class="num">${peso(s.total)}</td><td class="num">${peso(s.cash)}</td><td class="num">${peso(s.change)}</td>
@@ -1163,52 +1020,32 @@ $("#saleReprint2").onclick = () => printReceipt(viewing, 2);
 $("#saleClose").onclick = () => $("#saleDlg").close();
 
 // ---------- print the report (thermal or normal printer, like receipts) ----------
-let lastReport = null;
 $("#rprint").onclick = run(async () => {
   if (!lastReport) await showReport();
-  const r = lastReport, method = printerMethod();
-  if (method !== "browser") {
-    try { await PRINTERS[method](reportBytes(r)); toast("Report printed"); } catch (e) { toast("Printer: " + (e.message || e), true); }
-    return;
-  }
-  const st = S.settings || {};
+  const r = lastReport;
+  if (await printTickets([reportBytes(r)], "Report printed")) return;
   const tbl = (rows, head) => `<table><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows || '<tr><td colspan="3">No sales</td></tr>'}</tbody></table>`;
-  $("#print").innerHTML = `<div class="report"><h2>${esc(st.store_name || "Urdaneta Store")}: Sales report</h2>
+  printHTML([`<div class="report"><h2>${esc(storeName())}: Sales report</h2>
     <p>${r.from === r.to ? r.from : `${r.from} to ${r.to}`} · printed ${localTime().replace("T", " ").slice(0, 16)}</p>
     <p><b>${r.summary.n} sale(s) · Total ${peso(r.summary.total)}</b></p>
     <h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner.map(o => `<tr><td>${esc(o.owner)}${o.shelf ? ` (shelf ${esc(o.shelf)})` : ""}</td><td>${o.qty} pcs</td><td>${peso(o.amount)}</td></tr>`).join(""), ["Owner", "Sold", "Amount"])}
-    <h3>By item</h3>${tbl(r.by_item.map(i => `<tr><td>${esc(i.name)}</td><td>${i.qty} pcs</td><td>${peso(i.amount)}</td></tr>`).join(""), ["Item", "Sold", "Amount"])}</div>`;
-  print();
+    <h3>By item</h3>${tbl(r.by_item.map(i => `<tr><td>${esc(i.name)}</td><td>${i.qty} pcs</td><td>${peso(i.amount)}</td></tr>`).join(""), ["Item", "Sold", "Amount"])}</div>`]);
 });
 
 // ---------- settings ----------
 function renderSettings() {
   const f = $("#setform");
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
-  if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_host", "smtp_port", "smtp_user", "smtp_from"]) f[k].value = S.settings[k] || "";
-  f.smtp_pass.placeholder = S.settings.smtp_pass_set ? "saved (leave blank to keep)" : "";
-  $("#pinform").tablet_pin.placeholder = S.settings.tablet_pin_set ? "saved (leave blank to keep)" : "not set: tablets are blocked";
-  $("#pinform").hidden = $("#tabletHelp").hidden = !!(S.cloud || API);  // cloud: one store password for every device, set on the server
-  $("#tabletInfo").innerHTML = S.cloud || API
-    ? `This POS runs in the cloud. On any phone, tablet or computer open <b style="font-size:20px">${esc(location.href.split("#")[0])}</b>
-       and enter the store password. It keeps selling with no internet and syncs when the connection is back.`
-    : !S.settings.tablet_pin_set ? `<span class="warn">Set a PIN to allow tablets and outside access.</span>`
-    : `In the store (same Wi-Fi): <b style="font-size:20px">${esc(S.tablet_url)}</b><br>
-       Outside the store: ${S.remote_url ? `<b style="font-size:20px">${esc(S.remote_url)}</b> <span class="muted">(your phone needs Tailscale on)</span>`
-         : `<span class="muted">install Tailscale on this computer to get an address</span>`}`;
-  // Google mode: emails go out from the owner's Gmail, so there are no email server settings
-  $("#smtpBox").hidden = !!API;  // Google version: emails go out from the owner's Gmail, no email server to set
+  if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";
+  const failed = Local.failed();
   $("#deviceInfo").innerHTML = `${online ? '<span style="color:var(--brand)">● Connected</span>' : '<span class="warn">● Offline</span>'}
-    · ${LOCAL ? (LOCAL.pending() ? `<span class="warn">${LOCAL.pending()} change(s) waiting to sync</span>` : "all synced")
-      + (LOCAL.lastSync() ? ` (last sync ${new Date(LOCAL.lastSync()).toLocaleString()})` : "")
-      : queue.length ? `<span class="warn">${queue.length} sale(s) waiting to sync</span>` : "all sales synced"}
-    · data is kept ${LOCAL ? "on this device and in your Google Sheet" : API ? "in your Google Sheet" : "on the store computer"}
-    ${LOCAL && LOCAL.failed().length ? `<br><span class="warn">Google refused ${LOCAL.failed().length} change(s) from this device:
-      ${esc(LOCAL.failed().map(f => f.error).join("; "))}</span> <button id="clearFailed">OK, clear</button>` : ""}`;
-  const cf = $("#clearFailed"); if (cf) cf.onclick = run(async () => { await LOCAL.clearFailed(); renderSettings(); });
-  $("#obinfo").textContent = API ? `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`
-    : !S.settings.smtp_host ? "Email not set up yet. Alerts are being queued and will send once you fill in the settings above."
-    : `${S.pending} waiting to send. The program checks alerts and retries every 5 minutes.`;
+    · ${Local.pending() ? `<span class="warn">${Local.pending()} change(s) waiting to sync</span>` : "all synced"}
+      ${Local.lastSync() ? `(last sync ${new Date(Local.lastSync()).toLocaleString()})` : ""}
+    · data is kept on this device and in your Google Sheet
+    ${failed.length ? `<br><span class="warn">Google refused ${failed.length} change(s) from this device:
+      ${esc(failed.map(f => f.error).join("; "))}</span> <button id="clearFailed">OK, clear</button>` : ""}`;
+  const cf = $("#clearFailed"); if (cf) cf.onclick = run(async () => { await Local.clearFailed(); renderSettings(); });
+  $("#obinfo").textContent = `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`;
   $("#oblist").innerHTML = S.outbox.map(m => `<tr><td>${m.created.replace("T", " ")}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td>
     <td>${!m.sent ? `<span class="warn">waiting</span><div class="muted">${esc(m.error)}</div>` : m.error ? `<span class="bad">${esc(m.error)}</span>` : "sent"}</td>
     <td class="num">${m.sent ? "" : `<button class="sm" data-readdress="${m.id}">Change email</button> `}<button class="sm danger" data-delmail="${m.id}">Delete</button></td></tr>`).join("")
@@ -1228,23 +1065,19 @@ $("#oblist").onclick = run(async e => {
     await api("/api/outbox/delete", {id: m.id});
     toast("Email deleted");
   }
-  await load();
 });
 let setDirty = false;
 $("#setform").oninput = () => setDirty = true;
-$("#setform").onsubmit = $("#pinform").onsubmit = run(async e => {
+$("#setform").onsubmit = run(async e => {
   e.preventDefault(); await api("/api/settings", Object.fromEntries(new FormData(e.target)));
-  if (e.target.id === "setform") setDirty = false;
-  e.target.querySelectorAll("[type=password]").forEach(i => i.value = ""); toast("Settings saved"); await load();
+  setDirty = false; toast("Settings saved"); await load();
 });
 async function renderPrinter(refresh) {
   const m = printerMethod();
   $("#printerMethod").value = m;
   $("#printerMethod").querySelector("[value=app]").hidden = !window.nativePrinter;
   $("#autoPrint").checked = store.get("autoPrint", false);
-  $("#printerConnect").hidden = !(m === "serial" || m === "ble" || m === "app");
-  $("#printerConnect").textContent = m === "app" ? "Find printers" : "Connect printer";
-  $("#appPrinterBox").hidden = m !== "app";
+  $("#printerFind").hidden = $("#appPrinterBox").hidden = m !== "app";
   $("#printerHelp").textContent = PRINTER_HELP[m];
   if (m === "app" && window.nativePrinter && (refresh || !$("#appPrinter").options.length)) {
     const list = await nativePrinter.list(), cur = store.get("appPrinter", "");
@@ -1257,11 +1090,7 @@ async function renderPrinter(refresh) {
 $("#appPrinter").onchange = e => store.set("appPrinter", e.target.value);
 $("#printerMethod").onchange = e => { store.set("printer", e.target.value); renderPrinter(); };
 $("#autoPrint").onchange = e => store.set("autoPrint", e.target.checked);
-$("#printerConnect").onclick = run(async () => {
-  const m = printerMethod();
-  await PRINTERS[m](new Uint8Array([0x1b, 0x40]), true);  // pick the printer, send a harmless reset
-  toast(m === "app" ? "Printer list updated" : "Printer connected");
-});
+$("#printerFind").onclick = run(async () => { await renderPrinter(true); toast("Printer list updated"); });
 $("#printerTest").onclick = () => printReceipt({id: "TEST", ts: localTime(), total: 20, cash: 50, change: 30,
   items: [{name: "Test item", qty: 2, price: 10}]});
 renderPrinter().catch(e => toast("Printer: " + e.message, true));
@@ -1272,7 +1101,8 @@ $("#syncNow").onclick = run(async () => {
   finally { $("#syncNow").disabled = false; }
 });
 // ---------- software update (installed app): downloads the newest POS from GitHub Pages (app-build.js makes it) ----------
-const UPDATE_URL = "https://goodmickey.github.io/pos/app-update.json";
+const WEB_URL = "https://goodmickey.github.io/pos/", UPDATE_URL = WEB_URL + "app-update.json";
+$("#webUrl").textContent = WEB_URL;
 const versionText = v => new Date(v * 1000).toLocaleString("en-PH", {dateStyle: "medium", timeStyle: "short"});
 async function checkUpdate(quiet) {
   let u;
@@ -1296,8 +1126,8 @@ if (window.APP_VERSION) {
 $("#changePw").onclick = run(async () => {
   if (!confirm("Forget the saved password on this device and enter it again?")) return;
   PIN = ""; store.set("pin", "");
-  await load();  // asks for the password again
-  toast("Password saved on this device");
+  await sync();  // Google answers "wrong password", so the password box opens
+  toast(PIN ? "Password saved on this device" : "No password saved: it is asked again at the next sync", !PIN);
 });
 $("#testMail").onclick = run(async () => {
   if (setDirty) return toast("Click Save first, then send the test email", true);
@@ -1305,33 +1135,34 @@ $("#testMail").onclick = run(async () => {
   try {
     await api("/api/outbox/test", {});
     toast("Sending test email…");
-    S = await api("/api/send-now", {}, 60000); renderAll();
-    const m = S.outbox[0];  // newest
+    const m = (await api("/api/send-now", {}, 60000)).outbox[0];  // newest
     if (m && m.sent && !m.error) toast(`Test email sent to ${m.to_addr}. Check your inbox.`);
     else toast(`Not sent: ${m?.error || "check the settings above"}`, true);
   } finally { $("#testMail").disabled = false; }
 });
-$("#sendNow").onclick = run(async () => { $("#sendNow").disabled = true; try { S = await api("/api/send-now", {}, 60000); renderAll(); toast("Done"); } finally { $("#sendNow").disabled = false; } });
+$("#sendNow").onclick = run(async () => {
+  $("#sendNow").disabled = true;
+  try { await api("/api/send-now", {}, 60000); toast("Alerts checked, emails sent"); } finally { $("#sendNow").disabled = false; }
+});
 
-// Every 15s: send waiting offline sales, then refresh products (picks up the other counter's changes)
+// Every 30 s (and right after a change): sync with Google, then show the result (other devices' sales and changes)
 let lastTickError = "";  // background refresh: show a problem once, not again every 30 seconds
-const tick = async () => {
+async function tick() {
   try { await sync(); await load(); lastTickError = ""; }
   catch (e) { if (e.message !== lastTickError) toast(e.message, true); lastTickError = e.message; }
-};
+}
 (async () => {
-  if (LOCAL) {
-    await LOCAL.open();
-    // Sales made before this device had its own database: hand them to it to send
-    for (const s of queue) await LOCAL.addOp("/api/sale", s);
-    queue = []; store.set("queue", queue);
-  }
-  tick(); setInterval(tick, API ? 30000 : 15000);
+  await Local.open();
+  // Offline sales an older POS version kept in the browser: hand them to this device's database to send
+  const old = store.get("queue", []);
+  for (const s of old) await Local.addOp("/api/sale", s);
+  if (old.length) store.set("queue", []);
+  tick(); setInterval(tick, 30000);
   try { localStorage.removeItem("posTrying"); } catch {}  // this version started fine (see app-build.js)
   if (window.APP_VERSION) setTimeout(() => checkUpdate(true), 5000);
 })();
-// Offline page copy (only on https or localhost; plain-http Wi-Fi addresses fall back to the browser cache)
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+// Web version: keep a copy of the page so it opens with no internet (the installed apps have their files built in)
+if (!window.APP_VERSION && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 addEventListener("online", tick);
 netStatus();
 </script>

@@ -96,7 +96,7 @@ function setup() {
 }
 
 function storePassword_() {
-  return String(settings_().store_password || PropertiesService.getScriptProperties().getProperty("POS_PASSWORD") || "").trim();
+  return String(settings_().store_password || "").trim();
 }
 
 function hourly() {
@@ -272,9 +272,10 @@ function deleteSeller_(d) {
 // ---------- selling ----------
 
 function sale_(d) {
-  // `uid` (made by the tablet) makes retries safe. `offline` = a sale already completed on the tablet:
-  // the customer has left with the goods, so record it as it happened (its prices and time, stock may go negative).
-  const uid = d.uid || null, offline = !!d.offline;
+  // Every sale is finished on the device first: the customer has left with the goods, so record it as it happened
+  // (its prices and time; stock may go negative). The device checks stock and expiry before selling.
+  // `uid` (made by the device) makes retries safe.
+  const uid = d.uid || null;
   const sales = rows_("Sales");
   if (uid) {
     const old = sales.find(s => s.uid === uid);
@@ -287,29 +288,19 @@ function sale_(d) {
     byId.set(id, l);
   });
   if (!byId.size) bad_("Cart is empty");
-  const products = rows_("Products"), today = today_(), lines = [];
+  const products = rows_("Products"), lines = [];
   let total = 0;
   byId.forEach((it, pid) => {
-    const p = products.find(r => r.id === pid);
+    const p = products.find(r => r.id === pid);  // may be gone if it was deleted meanwhile
     if (!(it.qty > 0)) bad_("Bad quantity");
-    let line;
-    if (offline) {
-      line = {p: p, id: pid, name: it.name || (p && p.name) || "?", price: Number(it.price), seller_id: p ? p.seller_id : null};
-    } else {
-      if (!p) bad_("Product not found (was it deleted?)");
-      if (p.stock < it.qty) bad_("Only " + p.stock + " " + p.name + " in stock");
-      if (p.expiry && p.expiry < today) bad_(p.name + " is EXPIRED (" + p.expiry + "). Do not sell.");
-      line = {p: p, id: pid, name: p.name, price: p.price, seller_id: p.seller_id};
-    }
+    const line = {p: p, id: pid, name: it.name || (p && p.name) || "?", price: Number(it.price), seller_id: p ? p.seller_id : null, qty: it.qty};
     if (!isFinite(line.price)) bad_("Bad price");
-    line.qty = it.qty;
     total += line.price * it.qty;
     lines.push(line);
   });
   total = Math.round(total * 100) / 100;
   const cash = Number(d.cash) || total;
-  if (cash < total && !offline) bad_("Cash received is less than the total");
-  const ts = offline && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
+  const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   const id = nextId_(sales);
   insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash});
   insertMany_("SaleItems", lines.map(l => ({sale_id: id, product_id: l.id, name: l.name, seller_id: l.seller_id, qty: l.qty, price: l.price})));
@@ -498,14 +489,12 @@ function saveSettings_(d) {
 }
 
 function state_() {
-  const st = settings_(), emails = rows_("Emails");
+  const st = settings_();
   return {
     products: rows_("Products").sort(byName_).map(strip_),
     sellers: rows_("Sellers").sort(byName_).map(strip_),
     settings: PUBLIC_SETTINGS.reduce((o, k) => { o[k] = st[k] || ""; return o; }, {}),  // never the password
-    outbox: emails.slice(-20).reverse().map(m => { const c = strip_(m); delete c.body; return c; }),
-    pending: emails.filter(m => !m.sent).length,
+    outbox: rows_("Emails").slice(-20).reverse().map(m => { const c = strip_(m); delete c.body; return c; }),
     quota: MailApp.getRemainingDailyQuota(),
-    cloud: true, google: true,
   };
 }
