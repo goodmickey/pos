@@ -210,7 +210,7 @@ body.navmini #net.off{background:#f59e0b}
       <div class="ticket-items"><table><tbody id="cart"></tbody></table></div>
       <div class="ticket-foot">
         <div class="sumrow"><span>Total</span><span class="total" id="total">₱0.00</span></div>
-        <label>Cash received <input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Exact amount if blank"></label>
+        <label>Cash received <input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Amount the customer gave"></label>
         <div class="quickcash" id="quickcash"><button data-cash="exact">Exact</button><button data-cash="20">₱20</button><button data-cash="50">₱50</button><button data-cash="100">₱100</button>
           <button data-cash="200">₱200</button><button data-cash="500">₱500</button><button data-cash="1000">₱1,000</button><button data-cash="">Clear</button></div>
         <div class="sumrow change"><span>Change</span><b id="change">₱0.00</b></div>
@@ -435,6 +435,7 @@ function ask(text, value = "", type = "text") {
   return new Promise(ok => {
     const d = $("#askDlg"), i = $("#askInput");
     $("#askText").textContent = text; i.type = type; i.value = value;
+    i.inputMode = type === "number" ? "decimal" : ""; i.step = "any";
     // Answer on the button press itself (Enter = OK): some browsers deliver the dialog's close event late
     $("#askForm").onsubmit = e => { e.preventDefault(); d.close(); ok(e.submitter?.value === "ok" ? i.value : null); };
     d.oncancel = () => ok(null);  // Esc
@@ -672,8 +673,15 @@ const pay = run(async () => {
   if (paying) return;
   if (!cart.length) return toast("Cart is empty", true);
   const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
-  const cash = parseFloat($("#cash").value) || total;
-  if (cash < total) return toast("Cash received is less than the total", true);
+  let cash = parseFloat($("#cash").value);
+  if (!(cash > 0)) {  // never assume the exact amount: the cashier types what the customer gave (or taps a cash button)
+    paying = true;
+    try { cash = parseFloat(await ask(`How much cash did the customer give? Total: ${peso(total)}`, "", "number")); }
+    finally { paying = false; }
+    if (!(cash > 0)) return toast("Enter the cash received to finish the sale", true);
+    $("#cash").value = cash; renderCart();
+  }
+  if (cash < total) return toast(`Cash received (${peso(cash)}) is less than the total (${peso(total)})`, true);
   const sale = {uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts: localTime(), cash,
                 items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
   paying = true;
@@ -840,7 +848,7 @@ const PRINTER_HELP = {
 
 // Keyboard: scanner input always lands in the scan box on the Sell tab
 document.addEventListener("keydown", e => {
-  if (!onSell() || $("#qtyDlg").open || $("#doneDlg").open) return;  // quantity pop-up handles its own keys (Enter = add, Esc = cancel)
+  if (!onSell() || $("#qtyDlg").open || $("#doneDlg").open || $("#askDlg").open) return;  // pop-ups handle their own keys (Enter, Esc)
   if (e.key === "F2") { e.preventDefault(); pay(); }
   else if (e.key === "Escape") $("#clear").click();
   else if (!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && e.key.length === 1) $("#scan").focus();
