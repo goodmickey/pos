@@ -1239,17 +1239,26 @@ $("#syncNow").onclick = run(async () => {
 const WEB_URL = "https://goodmickey.github.io/pos/", UPDATE_URL = WEB_URL + "app-update.json";
 $("#webUrl").textContent = WEB_URL;
 const versionText = v => new Date(v * 1000).toLocaleString("en-PH", {dateStyle: "medium", timeStyle: "short"});
+// Android app: can also replace the app itself (android-app/.../AppUpdatePlugin.java) when a new APK is published
+const appUpdater = window.Capacitor?.isPluginAvailable?.("AppUpdate") ? Capacitor.Plugins.AppUpdate : null;
 async function checkUpdate(quiet) {
   let u;
   try { u = await (await fetch(UPDATE_URL + "?t=" + Date.now(), {cache: "no-store"})).json(); }
   catch { if (quiet) return; throw new Error("Can't check for updates: no internet"); }
-  if (!(u.version > window.APP_VERSION)) return quiet || toast("This app is up to date");
+  // A new app version comes first: it has the newest POS inside too
+  const newApp = !!(appUpdater && u.android && u.android.versionCode > (await appUpdater.info()).versionCode);
+  if (!newApp && !(u.version > window.APP_VERSION)) return quiet || toast("This app is up to date");
   if (quiet) return toast("Software update available: Settings → This device → Software update");
   if (cart.length) return toast("Finish or cancel the current sale first, then update", true);
   const news = (u.notes || []).map(n => "• " + n).join("\n");
   if (!confirm(`A new version of the POS is ready (${versionText(u.version)}).\n\n${news ? news + "\n\n" : ""}Install it now? Your data stays.`)) return;
-  localStorage.setItem("posUpdate", JSON.stringify(u)); localStorage.removeItem("posTrying");
   store.set("justUpdated", true);  // after the restart: open Settings on what's new
+  if (newApp) {  // download it; Android then asks "install this update?" and restarts the app
+    toast("Downloading the new app version…");
+    try { await appUpdater.install({url: u.android.url}); } catch (e) { store.set("justUpdated", false); throw e; }
+    return;
+  }
+  localStorage.setItem("posUpdate", JSON.stringify(u)); localStorage.removeItem("posTrying");
   location.replace("index.html");  // the start page picks up the new version
 }
 if (window.APP_VERSION) {
