@@ -121,6 +121,9 @@ dialog::backdrop{background:#0f172a80}
 
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;display:none;max-width:90vw;z-index:9;box-shadow:0 10px 30px #0004;font-weight:500}
 #toast.err{background:var(--bad)}
+#appNotes{background:var(--brandsoft);border-radius:10px;padding:12px 16px;margin-top:8px;font-size:14px}
+#appNotes ul{margin:6px 0 0;padding-left:20px}
+#appNotes.fresh{outline:3px solid var(--brand)}
 
 /* collapsible menu: icons only (default on narrow screens, remembered per device) */
 #navToggle{display:flex;align-items:center;gap:14px;background:none;border:0;color:#94a3b8;padding:14px;min-height:54px;border-radius:12px;font-size:16px;font-weight:500;width:100%;margin:auto 0 8px}
@@ -347,6 +350,7 @@ body.navmini #net.off{background:#f59e0b}
     <p id="deviceInfo"></p>
     <div class="row"><button id="syncNow">Sync now</button><button id="changePw">Change password on this device</button><button id="appUpdate" hidden>Software update</button></div>
     <p class="muted" id="appVersion"></p>
+    <div id="appNotes" hidden><b>What's new in this version</b><ul></ul></div>
     <p class="muted">Any phone, tablet or computer can also use the POS in its web browser: <b id="webUrl"></b> (same store password).</p>
   </div>
   <div class="card">
@@ -1111,13 +1115,19 @@ async function checkUpdate(quiet) {
   if (!(u.version > window.APP_VERSION)) return quiet || toast("This app is up to date");
   if (quiet) return toast("Software update available: Settings → This device → Software update");
   if (cart.length) return toast("Finish or cancel the current sale first, then update", true);
-  if (!confirm(`A new version of the POS is ready (${versionText(u.version)}). Install it now? Your data stays.`)) return;
+  const news = (u.notes || []).map(n => "• " + n).join("\n");
+  if (!confirm(`A new version of the POS is ready (${versionText(u.version)}).\n\n${news ? news + "\n\n" : ""}Install it now? Your data stays.`)) return;
   localStorage.setItem("posUpdate", JSON.stringify(u)); localStorage.removeItem("posTrying");
+  store.set("justUpdated", true);  // after the restart: open Settings on what's new
   location.replace("index.html");  // the start page picks up the new version
 }
 if (window.APP_VERSION) {
   $("#appUpdate").hidden = false;
   $("#appVersion").textContent = `App version: ${versionText(APP_VERSION)}`;
+  if (window.APP_NOTES?.length) {
+    $("#appNotes ul").innerHTML = APP_NOTES.map(n => `<li>${esc(n)}</li>`).join("");
+    $("#appNotes").hidden = false;
+  }
   $("#appUpdate").onclick = run(async () => {
     $("#appUpdate").disabled = true;
     try { await checkUpdate(false); } finally { $("#appUpdate").disabled = false; }
@@ -1159,6 +1169,12 @@ async function tick() {
   if (old.length) store.set("queue", []);
   tick(); setInterval(tick, 30000);
   try { localStorage.removeItem("posTrying"); } catch {}  // this version started fine (see app-build.js)
+  if (window.APP_VERSION && store.get("justUpdated", false)) {  // a Software update just finished: show what it changed
+    store.set("justUpdated", false);
+    document.querySelector('nav [data-tab="settings"]').click();
+    $("#appNotes").classList.add("fresh"); $("#appNotes").scrollIntoView({block: "center"});
+    toast("Update installed. What's new is listed under the app version.");
+  }
   if (window.APP_VERSION) setTimeout(() => checkUpdate(true), 5000);
 })();
 // Web version: keep a copy of the page so it opens with no internet (the installed apps have their files built in)
