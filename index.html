@@ -381,6 +381,8 @@ body.navmini #net.off{background:#f59e0b}
 <div id="print"></div>
 
 <script src="config.js"></script>
+<script src="engine.js"></script>
+<script src="local.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const peso = n => "₱" + Number(n || 0).toLocaleString("en-PH", {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -408,8 +410,19 @@ const API = /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost:
   ? window.POS_API : "";
 if (window.POS_API && !API) setTimeout(() => toast("config.js: paste your Google Apps Script Web app address there", true), 500);
 
-class Offline extends Error {}
-async function api(path, body, ms = API ? 30000 : 5000) {
+class Offline extends Error { get offline() { return true; } }
+// Google mode keeps its own database on this device (local.js): screens never wait, changes sync in the background
+const LOCAL = API && window.Local ? window.Local : null;
+async function api(path, body, ms) {
+  if (!LOCAL) return remoteApi(path, body, ms);
+  if (LOCAL.cloudOnly(path.split("?")[0])) { const r = await remoteApi(path, body, ms); syncSoon(); return r; }  // emails: Google only
+  const [p, q] = path.split("?");
+  const out = await LOCAL.call(p, body || Object.fromEntries(new URLSearchParams(q || "")));
+  if (LOCAL.pending()) syncSoon();
+  return out;
+}
+const syncSoon = () => { clearTimeout(syncSoon.h); syncSoon.h = setTimeout(() => tick(), 1000); };
+async function remoteApi(path, body, ms = API ? 30000 : 5000) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms);
   let r;
   try {
@@ -430,11 +443,11 @@ async function api(path, body, ms = API ? 30000 : 5000) {
   const status = API ? j.status : r.status;
   if (status === 401) {  // ask once, remember on this device
     const p = prompt("Enter the store password (or Tablet PIN)");
-    if (p === null) throw new Error("Password needed");
+    if (p === null) throw new Offline("Password needed");
     PIN = p.trim(); store.set("pin", PIN);
-    return api(path, body, ms);
+    return remoteApi(path, body, ms);
   }
-  if (status >= 400) throw new Error(j.error);
+  if (status >= 400) throw Object.assign(new Error(j.error), {status});
   return API ? j.data : j;
 }
 const run = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
@@ -451,6 +464,11 @@ function updateIfNewer() {
 }
 
 async function load() {
+  if (LOCAL) {
+    if (LOCAL.isEmpty()) await sync();  // first start on this device: download everything from Google
+    S = LOCAL.isEmpty() ? store.get("state", S) : await LOCAL.call("/api/state");
+    return renderAll();
+  }
   try { S = await api("/api/state"); store.set("state", S); setOnline(true); updateIfNewer(); }
   catch (e) {
     if (!(e instanceof Offline)) throw e;
@@ -463,6 +481,19 @@ async function load() {
 // Push offline sales to the store computer, oldest first. Each has a uid, so a retry never double-counts.
 let syncing = false;
 async function sync() {
+  if (LOCAL) {
+    if (syncing) return;
+    syncing = true;
+    const sales = LOCAL.pendingSaleUids().size, wasOffline = !online, before = LOCAL.failed().length;
+    try {
+      await LOCAL.sync(remoteApi); setOnline(true);
+      if (sales && wasOffline) toast("Offline sales are now saved to your Google Sheet");
+      const f = LOCAL.failed();
+      if (f.length > before) toast(`Google refused a change made on this device: ${f[f.length - 1].error}`, true);
+    } catch (e) { if (e instanceof Offline) setOnline(false); else throw e; }
+    finally { syncing = false; netStatus(); }
+    return;
+  }
   if (syncing || !queue.length) return;
   syncing = true;
   const wasOffline = !online;  // only announce when sales really waited for the connection
@@ -499,10 +530,10 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 const onSell = () => $("#sell").classList.contains("on");
 
 function netStatus() {
-  const n = $("#net"), q = queue.length;
+  const n = $("#net"), q = LOCAL ? LOCAL.pending() : queue.length;
   n.className = online && !q ? "" : "off";
-  n.textContent = !online ? `● ${S.cloud || API ? "No internet" : "Store computer not reachable"}: selling offline${q ? `, ${q} sale(s) waiting to sync` : ""}`
-    : q ? `● Syncing ${q} sale(s)…` : "● Connected";
+  n.textContent = !online ? `● ${S.cloud || API ? "No internet" : "Store computer not reachable"}: selling offline${q ? `, ${q} ${LOCAL ? "change(s)" : "sale(s)"} waiting to sync` : ""}`
+    : q ? `● Syncing ${q} ${LOCAL ? "change(s)" : "sale(s)"}…` : "● Connected";
 }
 
 // ---------- barcode (Code 128-B) ----------
@@ -649,8 +680,8 @@ const pay = run(async () => {
   paying = true;
   try {
     // Google takes 1-3 s per call, so there every sale is finished on the tablet at once and sent in the background
-    if (API) throw new Offline("queued");
-    lastSale = await api("/api/sale", sale);
+    if (API && !LOCAL) throw new Offline("queued");
+    lastSale = await api("/api/sale", LOCAL ? {...sale, offline: true} : sale);
     lastSale.id = receiptNo(sale);
   } catch (e) {
     if (!(e instanceof Offline)) throw e;
@@ -662,14 +693,15 @@ const pay = run(async () => {
     lastSale = {...sale, id: receiptNo(sale), total, change: cash - total};
   } finally { paying = false; }
   cart = []; $("#cash").value = "";
-  if (API) { renderAll(); netStatus(); tick(); }
+  if (LOCAL) { await load(); netStatus(); }
+  else if (API) { renderAll(); netStatus(); tick(); }
   else if (online) await load(); else renderAll();
   showDone(lastSale);
 });
 
 // "Sale complete" pop-up: change to give, print (with an optional store copy), then the next customer
 function showDone(s) {
-  $("#doneInfo").textContent = `Sale #${s.id}${online ? "" : " · saved on this device, will sync"}`;
+  $("#doneInfo").textContent = `Sale #${s.id}${online && !LOCAL ? "" : " · saved on this device" + (online ? "" : ", will sync")}`;
   $("#doneTotal").textContent = peso(s.total);
   $("#doneCash").textContent = peso(s.cash);
   $("#doneChange").textContent = peso(s.change);
@@ -1067,7 +1099,8 @@ const showHistory = run(async () => {
     const total = Math.round(s.items.reduce((n, i) => n + i.price * i.qty, 0) * 100) / 100;
     return {...s, total, waiting: true};
   });
-  history = [...waiting, ...saved].map(s => ({...s, id: receiptNo(s), change: Math.round((s.cash - s.total) * 100) / 100}));
+  const pend = LOCAL ? LOCAL.pendingSaleUids() : new Set();
+  history = [...waiting, ...saved.map(s => pend.has(s.uid) ? {...s, waiting: true} : s)].map(s => ({...s, id: receiptNo(s), change: Math.round((s.cash - s.total) * 100) / 100}));
   renderHistory();
 });
 function renderHistory() {
@@ -1129,8 +1162,13 @@ function renderSettings() {
   // Google mode: emails go out from the owner's Gmail, so there are no email server settings
   $("#smtpBox").hidden = !!API;  // Google version: emails go out from the owner's Gmail, no email server to set
   $("#deviceInfo").innerHTML = `${online ? '<span style="color:var(--brand)">● Connected</span>' : '<span class="warn">● Offline</span>'}
-    · ${queue.length ? `<span class="warn">${queue.length} sale(s) waiting to sync</span>` : "all sales synced"}
-    · data is kept ${API ? "in your Google Sheet" : "on the store computer"}`;
+    · ${LOCAL ? (LOCAL.pending() ? `<span class="warn">${LOCAL.pending()} change(s) waiting to sync</span>` : "all synced")
+      + (LOCAL.lastSync() ? ` (last sync ${new Date(LOCAL.lastSync()).toLocaleString()})` : "")
+      : queue.length ? `<span class="warn">${queue.length} sale(s) waiting to sync</span>` : "all sales synced"}
+    · data is kept ${LOCAL ? "on this device and in your Google Sheet" : API ? "in your Google Sheet" : "on the store computer"}
+    ${LOCAL && LOCAL.failed().length ? `<br><span class="warn">Google refused ${LOCAL.failed().length} change(s) from this device:
+      ${esc(LOCAL.failed().map(f => f.error).join("; "))}</span> <button id="clearFailed">OK, clear</button>` : ""}`;
+  const cf = $("#clearFailed"); if (cf) cf.onclick = run(async () => { await LOCAL.clearFailed(); renderSettings(); });
   $("#obinfo").textContent = API ? `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`
     : !S.settings.smtp_host ? "Email not set up yet. Alerts are being queued and will send once you fill in the settings above."
     : `${S.pending} waiting to send. The program checks alerts and retries every 5 minutes.`;
@@ -1211,7 +1249,15 @@ const tick = async () => {
   try { await sync(); await load(); lastTickError = ""; }
   catch (e) { if (e.message !== lastTickError) toast(e.message, true); lastTickError = e.message; }
 };
-tick(); setInterval(tick, API ? 30000 : 15000);
+(async () => {
+  if (LOCAL) {
+    await LOCAL.open();
+    // Sales made before this device had its own database: hand them to it to send
+    for (const s of queue) await LOCAL.addOp("/api/sale", s);
+    queue = []; store.set("queue", queue);
+  }
+  tick(); setInterval(tick, API ? 30000 : 15000);
+})();
 // Offline page copy (only on https or localhost; plain-http Wi-Fi addresses fall back to the browser cache)
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 addEventListener("online", tick);
