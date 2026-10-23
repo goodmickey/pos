@@ -207,6 +207,11 @@ body.navmini #net.off{background:#f59e0b}
     <div class="row" id="qtyQuick"><button type="button" data-q="1">1</button><button type="button" data-q="2">2</button><button type="button" data-q="3">3</button><button type="button" data-q="5">5</button><button type="button" data-q="10">10</button></div>
     <div class="row"><button class="primary" style="flex:1">Add to sale</button><button type="button" id="qtyCancel">Cancel</button></div>
   </form></dialog>
+  <dialog id="askDlg"><form method="dialog" id="askForm">
+    <div id="askText" style="font-weight:600;margin-bottom:10px"></div>
+    <input id="askInput" autocomplete="off" style="width:100%">
+    <div class="row" style="margin-top:12px"><button class="primary" value="ok" style="flex:1">OK</button><button value="" formnovalidate>Cancel</button></div>
+  </form></dialog>
   <dialog id="doneDlg">
     <div style="text-align:center"><div class="donecheck">✓</div><h2 style="margin:6px 0 2px">Sale complete</h2>
       <div class="muted" id="doneInfo"></div></div>
@@ -347,7 +352,9 @@ body.navmini #net.off{background:#f59e0b}
         <option value="serial">Bluetooth receipt printer: computer</option>
         <option value="ble">Bluetooth receipt printer: Android (direct)</option>
         <option value="rawbt">Bluetooth receipt printer: Android (RawBT app)</option>
+        <option value="app">Bluetooth receipt printer: this POS app (direct)</option>
       </select></label>
+      <label id="appPrinterBox">Printer <select id="appPrinter"></select></label>
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="autoPrint" style="width:auto"> Print automatically after each sale</label>
       <div class="row"><button id="printerConnect">Connect printer</button><button id="printerTest">Print test receipt</button></div>
     </div>
@@ -410,6 +417,18 @@ const API = /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost:
   ? window.POS_API : "";
 if (window.POS_API && !API) setTimeout(() => toast("config.js: paste your Google Apps Script Web app address there", true), 500);
 
+// Same as prompt(), which the Mac/Windows app doesn't have: resolves to the typed text, or null on Cancel
+function ask(text, value = "", type = "text") {
+  return new Promise(ok => {
+    const d = $("#askDlg"), i = $("#askInput");
+    $("#askText").textContent = text; i.type = type; i.value = value;
+    d.onclose = () => ok(d.returnValue === "ok" ? i.value : null);
+    d.returnValue = ""; d.showModal(); i.focus();
+  });
+}
+const askPassword = () => askPassword.p ||
+  (askPassword.p = ask("Enter the store password (or Tablet PIN)", "", "password").finally(() => askPassword.p = null));
+
 class Offline extends Error { get offline() { return true; } }
 // Google mode keeps its own database on this device (local.js): screens never wait, changes sync in the background
 const LOCAL = API && window.Local ? window.Local : null;
@@ -442,7 +461,7 @@ async function remoteApi(path, body, ms = API ? 30000 : 5000) {
   catch { throw new Error(API ? "Google Script didn't answer properly. Check the Web app address and that access is set to 'Anyone'." : "Bad answer from the POS program"); }
   const status = API ? j.status : r.status;
   if (status === 401) {  // ask once, remember on this device
-    const p = prompt("Enter the store password (or Tablet PIN)");
+    const p = await askPassword();
     if (p === null) throw new Offline("Password needed");
     PIN = p.trim(); store.set("pin", PIN);
     return remoteApi(path, body, ms);
@@ -733,7 +752,7 @@ $("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $(
 async function printReceipt(sale = lastSale, copies = 1) {
   if (!sale) return toast("No sale to print yet", true);
   const labels = copies > 1 ? ["", "STORE COPY"] : [""];
-  const method = store.get("printer", "browser");
+  const method = printerMethod();
   if (method !== "browser") {
     try {
       const parts = labels.map(l => receiptBytes(sale, l)), all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -825,6 +844,7 @@ function reportBytes(r) {
   return t.end();
 }
 let serialPort = null, bleChar = null;
+const printerMethod = () => store.get("printer", window.nativePrinter ? "app" : "browser");  // the installed app prints directly
 const BLE_SERVICES = [0x18f0, 0xff00, 0xfff0, 0xffe0, 0xae30, "e7810a71-73ae-499d-8c15-faa9aef0c3f2", "49535343-fe7d-4ae5-8fa9-9fafd205e455"];
 const PRINTERS = {
   // Computer (Chrome/Edge/Brave): a paired Bluetooth printer shows up as a serial port, e.g. "MTP-II"
@@ -877,6 +897,14 @@ const PRINTERS = {
       await new Promise(r => setTimeout(r, 80));
     }
   },
+  // The installed POS app (Mac, Windows, Android) prints straight to a paired Bluetooth printer
+  async app(bytes, pick = false) {
+    if (!window.nativePrinter) throw new Error("this works only in the installed POS app");
+    if (pick) return renderPrinter(true);
+    const id = store.get("appPrinter", "");
+    if (!id) throw new Error("pick the printer first: Settings → Receipt printer → Printer.");
+    await nativePrinter.print(id, Array.from(bytes));
+  },
   // Android tablet: the free RawBT app prints to any paired Bluetooth printer
   async rawbt(bytes) {
     location.href = "rawbt:base64," + btoa(String.fromCharCode(...bytes));
@@ -886,6 +914,8 @@ const PRINTER_HELP = {
   browser: "Uses the normal Print window. Works with regular printers, not with small Bluetooth receipt printers.",
   serial: "For this computer: pair the printer in Bluetooth settings first, then click Connect printer and choose it (e.g. MTP-II or PT-210).",
   ble: "For Android tablets with Chrome: click Connect printer and choose the printer. If it isn't listed or fails, use RawBT.",
+  app: "Pair the printer in this device's Bluetooth settings first, then pick it above and click Print test receipt. "
+    + "On Windows a printer gets two COM ports: if one doesn't print, pick the other. Click Find printers after pairing a new one.",
   rawbt: "For Android tablets (incl. Huawei): install the free RawBT app from Play Store / AppGallery, pick your paired printer in RawBT once. The POS sends each receipt to it.",
 };
 
@@ -1073,7 +1103,7 @@ $("#rprintSeller").onclick = run(async () => {
   if (!lastReport) await showReport();
   const list = chosenRenters(), period = lastReport.from === lastReport.to ? lastReport.from : `${lastReport.from} to ${lastReport.to}`;
   if (!list.length) return toast("No shelf renters to print", true);
-  const method = store.get("printer", "browser");
+  const method = printerMethod();
   if (method !== "browser") {
     try {
       const parts = list.map(r => renterBytes(r, period)), all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -1129,7 +1159,7 @@ $("#saleClose").onclick = () => $("#saleDlg").close();
 let lastReport = null;
 $("#rprint").onclick = run(async () => {
   if (!lastReport) await showReport();
-  const r = lastReport, method = store.get("printer", "browser");
+  const r = lastReport, method = printerMethod();
   if (method !== "browser") {
     try { await PRINTERS[method](reportBytes(r)); toast("Report printed"); } catch (e) { toast("Printer: " + (e.message || e), true); }
     return;
@@ -1182,7 +1212,7 @@ $("#oblist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   const m = S.outbox.find(m => m.id === +(b.dataset.readdress || b.dataset.delmail));
   if (b.dataset.readdress) {
-    const to = prompt(`Send "${m.subject}" to which email address?`, m.to_addr);
+    const to = await ask(`Send "${m.subject}" to which email address?`, m.to_addr, "email");
     if (!to || to.trim() === m.to_addr) return;
     await api("/api/outbox/readdress", {id: m.id, to_addr: to});
     toast("Email address changed. To fix future alerts too, edit the seller in Sellers & Shelves.");
@@ -1200,23 +1230,34 @@ $("#setform").onsubmit = $("#pinform").onsubmit = run(async e => {
   if (e.target.id === "setform") setDirty = false;
   e.target.querySelectorAll("[type=password]").forEach(i => i.value = ""); toast("Settings saved"); await load();
 });
-function renderPrinter() {
-  const m = store.get("printer", "browser");
+async function renderPrinter(refresh) {
+  const m = printerMethod();
   $("#printerMethod").value = m;
+  $("#printerMethod").querySelector("[value=app]").hidden = !window.nativePrinter;
   $("#autoPrint").checked = store.get("autoPrint", false);
-  $("#printerConnect").hidden = !(m === "serial" || m === "ble");
+  $("#printerConnect").hidden = !(m === "serial" || m === "ble" || m === "app");
+  $("#printerConnect").textContent = m === "app" ? "Find printers" : "Connect printer";
+  $("#appPrinterBox").hidden = m !== "app";
   $("#printerHelp").textContent = PRINTER_HELP[m];
+  if (m === "app" && window.nativePrinter && (refresh || !$("#appPrinter").options.length)) {
+    const list = await nativePrinter.list(), cur = store.get("appPrinter", "");
+    if (!cur && list.length === 1) store.set("appPrinter", list[0].id);
+    $("#appPrinter").innerHTML = `<option value="">${list.length ? "Choose…" : "No paired printer found"}</option>`
+      + list.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+    $("#appPrinter").value = store.get("appPrinter", "");
+  }
 }
+$("#appPrinter").onchange = e => store.set("appPrinter", e.target.value);
 $("#printerMethod").onchange = e => { store.set("printer", e.target.value); renderPrinter(); };
 $("#autoPrint").onchange = e => store.set("autoPrint", e.target.checked);
 $("#printerConnect").onclick = run(async () => {
-  const m = store.get("printer", "browser");
+  const m = printerMethod();
   await PRINTERS[m](new Uint8Array([0x1b, 0x40]), true);  // pick the printer, send a harmless reset
-  toast("Printer connected");
+  toast(m === "app" ? "Printer list updated" : "Printer connected");
 });
 $("#printerTest").onclick = () => printReceipt({id: "TEST", ts: localTime(), total: 20, cash: 50, change: 30,
   items: [{name: "Test item", qty: 2, price: 10}]});
-renderPrinter();
+renderPrinter().catch(e => toast("Printer: " + e.message, true));
 
 $("#syncNow").onclick = run(async () => {
   $("#syncNow").disabled = true;
