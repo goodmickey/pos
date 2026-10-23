@@ -58,6 +58,7 @@ const ROUTES = {
   "/api/report": report_,
   "/api/sales": salesList_,
   "/api/seller-report": sellerReport_,
+  "/api/product-report": productReport_,
   "/api/pull": pull_,
   "/api/products": saveProduct_,
   "/api/products/delete": deleteProduct_,
@@ -360,7 +361,7 @@ function report_(q) {
       const s = sellers.find(x => x.id === i.seller_id);
       return {owner: s ? s.name : "Store", shelf: s ? s.shelf : null};
     }),
-    by_item: group(i => i.product_id + "|" + i.name, i => ({name: i.name})),
+    by_item: group(i => i.product_id + "|" + i.name, i => ({id: i.product_id, name: i.name})),
   };
 }
 
@@ -384,7 +385,7 @@ function sellerReport_(q) {
     const mine = items.filter(i => i.seller_id === s.id);
     const lines = mine.map(i => {
       const x = sales.get(i.sale_id);
-      return {ts: x.ts, receipt: x.uid ? x.uid.slice(-6).toUpperCase() : String(x.id), name: i.name, qty: i.qty, price: i.price, amount: i.qty * i.price};
+      return {ts: x.ts, receipt: receiptNo_(x), name: i.name, qty: i.qty, price: i.price, amount: i.qty * i.price};
     }).sort((a, b) => b.ts.localeCompare(a.ts));
     const shelf = products.filter(p => p.seller_id === s.id).sort(byName_).map(p => {
       const sold = mine.filter(i => i.product_id === p.id);
@@ -396,6 +397,28 @@ function sellerReport_(q) {
     const pcs = lines.reduce((n, l) => n + l.qty, 0), amount = lines.reduce((n, l) => n + l.amount, 0), rent = s.rent || 0;
     return {seller: strip_(s), summary: {pcs: pcs, amount: amount, rent: rent, payout: amount - rent}, products: shelf, sales: lines, emails: mails};
   });
+}
+
+const receiptNo_ = s => s.uid ? s.uid.slice(-6).toUpperCase() : String(s.id);  // same number as on the printed receipt
+
+function productReport_(q) {
+  // Every product (or one, with q.id): stock now, price, and what sold in the period; for one product also each sale line
+  const today = today_(), from = q.from || today, to = (q.to || today) + "T99", one = q.id ? Number(q.id) : null;
+  const sales = new Map(rows_("Sales").filter(s => s.ts >= from && s.ts <= to).map(s => [s.id, s]));
+  const items = rows_("SaleItems").filter(i => sales.has(i.sale_id) && (!one || i.product_id === one));
+  const sellers = rows_("Sellers"), products = rows_("Products").filter(p => !one || p.id === one).sort(byName_);
+  if (one && !products.length) bad_("Product not found (was it deleted?)");
+  const list = products.map(p => {
+    const mine = items.filter(i => i.product_id === p.id), s = sellers.find(x => x.id === p.seller_id);
+    return {id: p.id, name: p.name, barcode: p.barcode, price: p.price, stock: p.stock, value: p.price * p.stock,
+            owner: s ? s.name : "Store", shelf: s ? s.shelf : null, expiry: p.expiry, mfg_date: p.mfg_date,
+            sold: mine.reduce((n, i) => n + i.qty, 0), amount: mine.reduce((n, i) => n + i.qty * i.price, 0), sales: new Set(mine.map(i => i.sale_id)).size};
+  });
+  const lines = !one ? [] : items.map(i => {
+    const x = sales.get(i.sale_id);
+    return {ts: x.ts, receipt: receiptNo_(x), qty: i.qty, price: i.price, amount: i.qty * i.price};
+  }).sort((a, b) => b.ts.localeCompare(a.ts));
+  return {products: list, lines: lines};
 }
 
 function pull_(q) {

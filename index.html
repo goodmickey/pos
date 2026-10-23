@@ -166,7 +166,13 @@ body.navmini #net.off{background:#f59e0b}
 .rsum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
 .rsum div{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .rsum b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
-@media(max-width:700px){.rsum{grid-template-columns:repeat(2,1fr)}}
+.rsum.six{grid-template-columns:repeat(3,1fr)}
+@media(max-width:700px){.rsum,.rsum.six{grid-template-columns:repeat(2,1fr)}}
+.linkbtn{border:0;background:none;padding:0;min-height:0;color:var(--brand);font-weight:600;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.linkbtn:hover{background:none;color:var(--brand2)}
+#rproducts tbody tr[data-pid]{cursor:pointer}
+.prodhead{display:flex;gap:14px;align-items:center}.prodhead .pimg{width:64px;height:64px}
+.totalrow td{font-weight:700;border-top:2px solid var(--line)}
 .report h2{font-size:18px;margin:0 0 4px}.report h3{font-size:14px;margin:16px 0 6px}
 .report th{background:none;position:static;color:#000;border-bottom:1px solid #000}
 .report td,.report th{padding:4px 6px}
@@ -326,6 +332,13 @@ body.navmini #net.off{background:#f59e0b}
     <div class="row"><label>From <input type="date" id="rfrom"></label><label>To <input type="date" id="rto"></label><button class="primary" id="rshow" style="align-self:end">Show</button><button id="rprint" style="align-self:end">Print report</button></div>
   </div>
   <div id="rout"></div>
+  <div class="card" id="rprodCard">
+    <div class="row" style="justify-content:space-between"><h3 style="margin:0">Products: stock and sales</h3>
+      <div class="row"><select id="rproduct" style="width:auto"><option value="">All products</option></select>
+        <button id="rprintProduct">Print</button></div></div>
+    <p class="muted">Stock and price now, and what sold in the dates above. Pick a product, or tap one in a list, to see each of its sales.</p>
+    <div id="rproducts"></div>
+  </div>
   <div class="card">
     <div class="row" style="justify-content:space-between"><h3 style="margin:0">Shelf renters</h3>
       <div class="row"><select id="rseller" style="width:auto"><option value="">All sellers</option></select>
@@ -972,19 +985,91 @@ const showReport = run(async () => {
     ${rows.map(x => `<tr>${cols.map(c => `<td class="${c[2] || ""}">${c[1](x)}</td>`).join("")}</tr>`).join("") || `<tr><td class="muted">No sales.</td></tr>`}</tbody></table>`;
   sellerRep = await api(`/api/seller-report?from=${$("#rfrom").value}&to=${$("#rto").value}`);
   renderRenters();
+  await showProducts();
   $("#rout").innerHTML = `<div class="card"><div class="muted">${r.summary.n} sale(s)</div><div class="total">${peso(r.summary.total)}</div></div>
     <div class="card"><h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner, [["Owner", x => esc(x.owner)], ["Shelf", x => esc(x.shelf)],
       ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>
-    <div class="card"><h3>By item</h3>${tbl(r.by_item, [["Item", x => esc(x.name)], ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>`;
+    <div class="card"><h3>By item</h3>${tbl(r.by_item, [["Item", x => productLink(x.id, x.name)], ["Pcs sold", x => x.qty, "num"], ["Amount", x => peso(x.amount), "num"]])}</div>`;
 });
 $("#rshow").onclick = showReport;
+$("#rout").onclick = e => { const b = e.target.closest("[data-pid]"); if (b) openProductReport(b.dataset.pid); };
+
+// One table style for the report cards and their printouts (number columns right-aligned)
+const reportTable = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount|Stock|Value|Sales/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
+  <tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table>`;
+
+// ---------- products: stock, price and sales (all products, or one with each of its sales) ----------
+let productRep = null;
+const productLink = (id, name) => S.products.some(p => p.id === id) ? `<button class="linkbtn" data-pid="${id}">${esc(name)}</button>` : esc(name);
+async function showProducts() {
+  const sel = $("#rproduct"), keep = S.products.some(p => String(p.id) === sel.value) ? sel.value : "";
+  sel.innerHTML = `<option value="">All products</option>` + S.products.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  sel.value = keep;
+  const from = $("#rfrom").value, to = $("#rto").value;
+  productRep = {...await api(`/api/product-report?from=${from}&to=${to}${keep ? "&id=" + keep : ""}`), from, to, one: !!keep};
+  $("#rproducts").innerHTML = productHTML(productRep);
+}
+function openProductReport(id) {
+  $("#rproduct").value = id;
+  run(showProducts)().then(() => $("#rprodCard").scrollIntoView({behavior: "smooth", block: "start"}));
+}
+$("#rproduct").onchange = run(showProducts);
+$("#rproducts").onclick = e => {
+  const r = e.target.closest("[data-pid]");
+  if (r) openProductReport(r.dataset.pid);
+  else if (e.target.closest("#rallProducts")) openProductReport("");
+};
+function productHTML(r) {
+  const sum = (k) => r.products.reduce((n, p) => n + p[k], 0);
+  if (!r.one) return reportTable(["Item", "Owner", "Price", "Stock", "Stock value", "Sold", "Sales"], r.products.map(p =>
+    `<tr data-pid="${p.id}"><td><div class="namecell">${photoImg(p)}<div>${esc(p.name)}<div class="muted">${esc(p.barcode)}</div></div></div></td>
+      <td>${esc(p.owner)}${p.shelf ? ` · ${esc(p.shelf)}` : ""}</td><td class="num">${peso(p.price)}</td>
+      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.stock}</td><td class="num">${peso(p.value)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td></tr>`)
+    .concat(r.products.length ? [`<tr class="totalrow"><td>Total (${r.products.length} items)</td><td></td><td></td><td class="num">${sum("stock")}</td>
+      <td class="num">${peso(sum("value"))}</td><td class="num">${sum("sold")}</td><td class="num">${peso(sum("amount"))}</td></tr>`] : []), "No products yet.");
+  const p = r.products[0];
+  return `<div class="prodhead">${photoImg(p)}<div><h3 style="margin:0">${esc(p.name)}</h3>
+      <div class="muted">Barcode ${esc(p.barcode)} · ${esc(p.owner)}${p.shelf ? ` · Shelf ${esc(p.shelf)}` : ""}${p.expiry ? ` · expires ${esc(p.expiry)}` : ""}${p.mfg_date ? ` · made ${esc(p.mfg_date)}` : ""}</div></div></div>
+    <div class="rsum six"><div><span class="muted">Price</span><b>${peso(p.price)}</b></div><div><span class="muted">Stock left</span><b class="${p.stock <= 0 ? "bad" : ""}">${p.stock}</b></div>
+      <div><span class="muted">Stock value</span><b>${peso(p.value)}</b></div><div><span class="muted">Pieces sold</span><b>${p.sold}</b></div>
+      <div><span class="muted">Sales</span><b>${peso(p.amount)}</b></div><div><span class="muted">Transactions</span><b>${p.sales}</b></div></div>
+    <h4>Sales (${r.lines.length})</h4>${reportTable(["Date & time", "Receipt #", "Qty", "Price", "Amount"], r.lines.map(l =>
+      `<tr><td>${when(l.ts)}</td><td>${esc(l.receipt)}</td><td class="num">${l.qty}</td><td class="num">${peso(l.price)}</td><td class="num">${peso(l.amount)}</td></tr>`), "No sales in these dates")}
+    <button class="linkbtn" id="rallProducts" style="margin-top:12px">← All products</button>`;
+}
+function productBytes(r) {
+  const t = ticket(), m = t.money;
+  storeHeader(t);
+  t.bold(1); t.line("PRODUCT REPORT"); t.bold(0);
+  t.line(r.from === r.to ? r.from : `${r.from} to ${r.to}`);
+  t.line("Printed " + when(localTime()));
+  t.center(0); t.rule();
+  for (const p of r.products) {
+    t.bold(1); t.text(p.name); t.bold(0);
+    t.lr(`  Price`, m(p.price)); t.lr(`  Stock left`, String(p.stock)); t.lr(`  Sold (${p.sales} sale${p.sales === 1 ? "" : "s"})`, `${p.sold} = ${m(p.amount)}`);
+  }
+  if (!r.products.length) t.line("  No products");
+  if (r.one) {
+    t.rule(); t.bold(1); t.line(`SALES (${r.lines.length})`); t.bold(0);
+    r.lines.forEach(l => { t.text(`${when(l.ts)} #${l.receipt}`); t.lr(`  ${l.qty} x ${m(l.price)}`, m(l.amount)); });
+    if (!r.lines.length) t.line("  None");
+  }
+  t.rule();
+  return t.end();
+}
+$("#rprintProduct").onclick = run(async () => {
+  if (!productRep) await showReport();
+  const r = productRep, period = r.from === r.to ? r.from : `${r.from} to ${r.to}`;
+  if (await printTickets([productBytes(r)], "Product report printed")) return;
+  printHTML([`<div class="report"><h2>${esc(storeName())}: Product report${r.one ? "" : " (all products)"}</h2>
+    <p>${period} · printed ${when(localTime())}</p>${productHTML(r).replace(/<button class="linkbtn" id="rallProducts"[^]*?<\/button>/, "")}</div>`]);
+});
 
 // ---------- shelf renters: per-seller breakdown (screen, normal printer, thermal) ----------
 const when = v => v ? String(v).replace("T", " ").slice(0, 16) : "";
 const mailStatus = m => !m.sent ? "waiting to send" : m.error ? m.error : "sent";
 function renterHTML(r) {
-  const s = r.seller, x = r.summary, tbl = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
-    <tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table>`;
+  const s = r.seller, x = r.summary, tbl = reportTable;
   return `<div class="renter"><h3 style="margin:0">${esc(s.name)}${s.shelf ? ` · Shelf ${esc(s.shelf)}` : ""}</h3>
     <div class="muted">${esc(s.email || "no email")}${s.phone ? " · " + esc(s.phone) : ""} · Rent ${peso(s.rent)} / month</div>
     <div class="rsum"><div><span class="muted">Pieces sold</span><b>${x.pcs}</b></div><div><span class="muted">Sales earned</span><b>${peso(x.amount)}</b></div>
