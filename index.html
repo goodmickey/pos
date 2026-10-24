@@ -279,6 +279,19 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
 .kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--line2)}
+.fsec{grid-column:1/-1;margin:10px 0 -4px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.fsec:first-of-type{margin-top:0}
+.fhint{grid-column:2/-1;margin:-6px 0 0;font-size:12px;align-self:start}
+.badge.good{background:var(--goodsoft);color:var(--good)}
+.rentrow{display:grid;grid-template-columns:1fr auto;align-items:start;gap:8px 10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line)}
+.rentrow .when{display:flex;flex-direction:column}
+.rentrow .when span{font-size:12px;color:var(--muted)}.rentrow .when b{font-size:15px}
+.rentrow.soon{border-color:rgba(242,184,75,.6);background:rgba(242,184,75,.08)}
+.rentrow .ans{grid-column:1/-1;display:flex;gap:8px}.rentrow .ans:empty{display:none}.rentrow .ans button{flex:1}
+.rentrow .ans .ghost{flex:none;margin-left:auto}
+.navbadge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+body.navmini nav button{position:relative}body.navmini .navbadge{position:absolute;top:8px;right:14px;margin:0}
+@media(max-width:700px){nav button{position:relative}.navbadge{position:absolute;top:2px;right:calc(50% - 22px);margin:0}.fhint{grid-column:1/-1}}
 .dayrow td{background:var(--chip);font-size:13px;font-weight:500;color:var(--muted);padding:8px 14px!important}
 @media(max-width:1100px){.kpis.four{grid-template-columns:repeat(2,minmax(0,1fr))}.lwrap{grid-template-columns:1fr}.lprev{position:static}}
 @media(max-width:700px){#products th:nth-child(2),#products td:nth-child(2),#products th:nth-child(5),#products td:nth-child(5),#labels th:nth-child(3),#labels td:nth-child(3){display:none}.toolbar select{width:100%}.search{min-width:0;flex-basis:100%}}
@@ -361,7 +374,7 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
   <nav>
     <button data-tab="sell" class="on" title="Sell"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/></svg><span>Sell</span></button>
     <button data-tab="products" title="Products"><svg class="i" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span>Products</span></button>
-    <button data-tab="sellers" title="Sellers & Shelves"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg><span>Sellers &amp; Shelves</span></button>
+    <button data-tab="sellers" title="Sellers & Shelves"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg><span>Sellers &amp; Shelves</span><b class="navbadge" id="navRent" hidden></b></button>
     <button data-tab="labels" title="Barcode Labels"><svg class="i" viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M18 5v14M21 5v14"/></svg><span>Barcode Labels</span></button>
     <button data-tab="history" title="History"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
     <button data-tab="reports" title="Reports"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-6"/></svg><span>Reports</span></button>
@@ -567,6 +580,9 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
       <div class="card setpane" id="st-email">
         <div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3 style="margin-bottom:4px">Seller emails</h3><p class="muted sethint" id="obinfo"></p></div>
           <div class="row"><button id="testMail">Send test email</button><button id="sendNow">Check alerts &amp; send now</button></div></div>
+        <div class="setrow"><div><b>Rent reminder</b><small>When renters are emailed to ask if they renew (you get a copy)</small></div>
+          <div class="ctl"><select id="rentNotice" aria-label="Rent reminder"><option value="1">1 day before rent is due</option><option value="2">2 days before rent is due</option>
+            <option value="3">3 days before rent is due</option><option value="5">5 days before rent is due</option><option value="7">7 days before rent is due</option></select></div></div>
         <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody id="oblist"></tbody></table></div>
       </div>
     </div>
@@ -616,11 +632,16 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
     <div class="dlghead"><h3 id="sformTitle">New seller</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
     <form id="sform" class="form">
       <input type="hidden" name="id">
+      <h4 class="fsec">Contact</h4>
       <label>Name <input name="name" required></label>
-      <label>Email (for alerts) <input name="email" type="email"></label>
+      <label>Email <input name="email" type="email" placeholder="for stock alerts and rent reminders"></label>
       <label>Phone <input name="phone"></label>
+      <h4 class="fsec">Shelf and rent</h4>
       <label>Shelf no. <input name="shelf" placeholder="e.g. A3"></label>
       <label>Monthly rent (₱) <input name="rent" type="number" step="0.01" min="0"></label>
+      <label>Rental started <input name="rent_start" type="date"></label>
+      <p class="muted fhint" id="rentHint">Rent is due on this day every month. A few days before, the seller is emailed to ask if they renew.</p>
+      <h4 class="fsec">Stock alerts</h4>
       <label>Low-stock alert at (pcs) <input name="low_stock" type="number" min="0" value="5"></label>
       <div class="dlgfoot"><button type="button" class="danger" id="sdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
     </form>
@@ -655,9 +676,9 @@ const today = () => localTime().slice(0, 10);
 const daysTo = d => Math.round((new Date(d) - new Date(today())) / 864e5);
 let S = {products: [], sellers: [], settings: {}, outbox: [], photos: {}}, cart = [], lastSale = null;
 
-function toast(msg, err) {
+function toast(msg, err, ms) {
   const t = $("#toast"); t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", err ? 4500 : 2500);
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = "none", ms || (err ? 4500 : 2500));
 }
 
 // Small per-device preferences (password, printer, menu). The POS data itself is in Local (local.js).
@@ -725,6 +746,7 @@ async function load() {
   if (Local.isEmpty()) await sync();  // first start on this device: download everything from Google
   if (!Local.isEmpty()) {
     S = await Local.call("/api/state");
+    if (S.settings.web_app_url !== API) await Local.call("/api/settings", {web_app_url: API});  // used in the rent reminder emails
     S.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
   }
   renderAll();
@@ -1273,12 +1295,38 @@ $("#pdel").onclick = run(async () => {
 });
 
 // ---------- sellers ----------
+// Rent of one renter: next due date (monthly on the start day, nextDue_ in engine.js), days left, and their answer for it
+function rentInfo(s) {
+  if (!s.rent_start) return null;
+  const due = nextDue_(s.rent_start, today()), left = daysTo(due);
+  return {due, left, soon: left <= (+S.settings.rent_notice_days || 3), answer: s.renew_for === due ? s.renew_answer : null};
+}
+const dayText = iso => new Date(iso + "T12:00").toLocaleDateString("en-PH", {month: "short", day: "numeric", year: "numeric"});
+function rentRow(s) {
+  const r = rentInfo(s);
+  if (!r) return `<div class="rentrow"><div class="when"><span>Rent</span><b class="muted">No rental start date</b></div><button class="sm" data-edit="${s.id}">Set it</button></div>`;
+  const status = r.answer === "yes" ? '<span class="badge good">Renewing</span>' : r.answer === "no" ? '<span class="badge bad">Not renewing</span>'
+    : r.soon ? `<span class="badge low">${s.email ? "Waiting for reply" : "Ask them (no email)"}</span>` : "";
+  const ask = r.soon && !r.answer ? `<button class="sm" data-renew="${s.id}" data-a="yes">They renew</button><button class="sm" data-renew="${s.id}" data-a="no">They end</button>`
+    : r.answer ? `<button class="sm ghost" data-renew="${s.id}" data-a="" title="Clear the answer">Change</button>` : "";
+  return `<div class="rentrow${r.soon && r.answer !== "yes" ? " soon" : ""}"><div class="when"><span>Next rent</span><b>${dayText(r.due)}</b>
+    <span>${r.left === 0 ? "today" : r.left === 1 ? "tomorrow" : `in ${r.left} days`}</span></div>${status || "<span></span>"}<div class="ans">${ask}</div></div>`;
+}
+// Renters whose rent is due soon and who haven't said yes: counted on the menu, mentioned once a day
+function rentAlerts() {
+  const due = S.sellers.map(s => [s, rentInfo(s)]).filter(([, r]) => r && r.soon && r.answer !== "yes");
+  $("#navRent").hidden = !due.length; $("#navRent").textContent = due.length;
+  if (due.length && store.get("rentNoticeDay", "") !== today()) {
+    store.set("rentNoticeDay", today());
+    toast("Rent due soon: " + due.map(([s, r]) => `${s.name}${s.shelf ? " (" + s.shelf + ")" : ""} ${r.left === 0 ? "today" : "on " + dayText(r.due)}`).join(", "), false, 8000);
+  }
+}
 // Sellers: summary tiles and one card per renter
 function renderSellers() {
-  const onShelves = S.products.filter(p => p.seller_id);
+  rentAlerts();
   $("#skpis").innerHTML = [["Shelf renters", S.sellers.length, `${S.sellers.filter(s => s.shelf).length} with a shelf no.`],
     ["Monthly rent", peso(S.sellers.reduce((n, s) => n + (s.rent || 0), 0)), "all renters together"],
-    ["Items on shelves", onShelves.length, `${onShelves.reduce((n, p) => n + Math.max(p.stock, 0), 0)} pieces`],
+    ["Rent due soon", S.sellers.filter(s => rentInfo(s)?.soon).length, `within ${+S.settings.rent_notice_days || 3} days · ${S.sellers.filter(s => rentInfo(s)?.soon && rentInfo(s).answer === "yes").length} renewing`],
     ["Need attention", S.sellers.filter(s => S.products.some(p => p.seller_id === s.id && (stockState(p)[1] || (p.stock > 0 && dueSoon(p))))).length, "low, expiring or out"]]
     .map(([k, v, x]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${x}</small></div>`).join("");
   $("#slist").innerHTML = S.sellers.map(s => {
@@ -1287,6 +1335,7 @@ function renderSellers() {
     return `<div class="scard"><div class="shead"><span class="pimg ini" style="background:${ownerColor(s.id, true)}">${esc((s.name.trim()[0] || "?").toUpperCase())}</span>
         <div><b>${esc(s.name)}</b>${s.shelf ? `<span class="badge">Shelf ${esc(s.shelf)}</span>` : ""}</div></div>
       <div class="contact"><span>${esc(s.phone) || "No phone"}</span><span>${s.email ? esc(s.email) : '<span class="warn">No email: no alerts can be sent</span>'}</span></div>
+      ${rentRow(s)}
       <div class="nums"><div><span>Items</span><b>${items.length}</b></div><div><span>Pieces left</span><b>${items.reduce((n, p) => n + Math.max(p.stock, 0), 0)}</b></div><div><span>Rent</span><b>${peso(s.rent)}</b></div></div>
       <div class="acts">${expiring ? `<button class="badge low" data-items="${s.id}" data-f="soon">${expiring} expiring</button>` : low ? `<button class="badge low" data-items="${s.id}" data-f="low">${low} low: restock</button>` : '<span class="badge">All good</span>'}
         ${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
@@ -1294,7 +1343,7 @@ function renderSellers() {
 }
 function editSeller(s) {
   const f = $("#sform"); f.reset();
-  for (const k of ["id", "name", "email", "phone", "shelf", "rent", "low_stock"]) if (s) f[k].value = s[k] ?? "";
+  for (const k of ["id", "name", "email", "phone", "shelf", "rent", "rent_start", "low_stock"]) if (s) f[k].value = s[k] ?? "";
   $("#sformTitle").textContent = s ? "Edit seller" : "New seller (shelf renter)";
   $("#sdel").hidden = !s;
   if (!$("#sDlg").open) $("#sDlg").showModal();
@@ -1303,6 +1352,10 @@ function editSeller(s) {
 $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
+  if (b.dataset.renew) {  // the renter answered by text or in person
+    await api("/api/sellers/renew", {id: b.dataset.renew, answer: b.dataset.a});
+    toast(b.dataset.a === "yes" ? "Marked as renewing" : b.dataset.a === "no" ? "Marked as not renewing" : "Answer cleared"); await load();
+  }
   if (b.dataset.items) {  // their items in Products, filtered, each with its restock button
     $("#powner").value = b.dataset.items; pFilter = b.dataset.f;
     document.querySelector('nav [data-tab="products"]').click(); renderProducts();
@@ -1604,6 +1657,7 @@ function renderSettings() {
   const f = $("#setform");
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
   if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";
+  if (document.activeElement !== $("#rentNotice")) $("#rentNotice").value = S.settings.rent_notice_days || "3";
   const failed = Local.failed();
   $("#devConn").innerHTML = online ? '<span style="color:var(--good)">Connected</span>' : '<span class="warn">Offline: sales are saved on this device</span>';
   $("#devSync").innerHTML = (Local.pending() ? `<span class="warn">${Local.pending()} waiting to sync</span>` : "All synced")
@@ -1625,6 +1679,7 @@ function showSettingsPane(name) {
 }
 $("#setnav").onclick = e => { const b = e.target.closest("button"); if (b) showSettingsPane(b.dataset.st); };
 showSettingsPane(store.get("settingsPane", "store"));
+$("#rentNotice").onchange = run(async e => { await api("/api/settings", {rent_notice_days: e.target.value}); toast("Rent reminder saved"); await load(); });
 $("#clearFailed").onclick = run(async () => { await Local.clearFailed(); renderSettings(); });
 $("#oblist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;

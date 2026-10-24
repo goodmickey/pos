@@ -10,7 +10,7 @@ const TZ = "Asia/Manila";
 const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
   Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at"],
-  Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock"],
+  Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at"],
   Sales: ["id", "uid", "ts", "total", "cash"],
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price"],
   Alerts: ["product_id", "kind", "ref"],
@@ -19,13 +19,18 @@ const SHEETS = {
   Photos: ["product_id", "photo", "photo_at"],  // small JPEG per product; Products.photo_at says which version is current
 };
 const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "sale_id", "product_id", "qty"]);
-const DATES = new Set(["expiry", "mfg_date", "notify_on"]);  // yyyy-MM-dd
-const TIMES = new Set(["ts", "created", "sent", "photo_at"]);  // yyyy-MM-ddTHH:mm:ss
+const DATES = new Set(["expiry", "mfg_date", "notify_on", "rent_start", "renew_for"]);  // yyyy-MM-dd
+const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at"]);  // yyyy-MM-ddTHH:mm:ss
 
 // ---------- web app entry ----------
 
-function doGet() {
-  return ContentService.createTextOutput("Store POS server is running.");
+// Links in the rent reminder email land here: a renter says if they renew their shelf (see rentEmail_)
+function doGet(e) {
+  const q = (e && e.parameter) || {};
+  if (q.a !== "renew") return ContentService.createTextOutput("Store POS server is running.");
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try { return renewPage_(q); } finally { lock.releaseLock(); }
 }
 
 function doPost(e) {
@@ -68,6 +73,7 @@ const ROUTES = {
   "/api/sellers": saveSeller_,
   "/api/sellers/delete": deleteSeller_,
   "/api/sellers/report": stockReport_,
+  "/api/sellers/renew": renewSeller_,
   "/api/sale": sale_,
   "/api/settings": saveSettings_,
   "/api/outbox/delete": d => removeById_("Emails", d.id),
@@ -300,13 +306,15 @@ function saveSeller_(d) {
     id: d.id ? Number(d.id) : null, name: String(d.name || "").trim(), email: String(d.email || "").trim(),
     phone: String(d.phone || ""), shelf: String(d.shelf || ""), rent: Number(d.rent) || 0,
     low_stock: d.low_stock === "" || d.low_stock == null ? 5 : num_(d.low_stock, "Low-stock alert"),
+    rent_start: d.rent_start || null,
   };
+  if (s.rent_start && !isDate_(s.rent_start)) bad_("Bad date: " + s.rent_start);
   if (!s.name) bad_("Name is required");
   if (s.email && s.email.indexOf("@") < 0) bad_("Email address looks wrong");
   const all = rows_("Sellers");
   const old = s.id && all.find(r => r.id === s.id);
-  if (old) {
-    update_("Sellers", Object.assign(s, {_row: old._row}));
+  if (old) {  // the renter's renewal answer is kept (it is changed with renewSeller_ or their email link)
+    update_("Sellers", Object.assign(s, {_row: old._row, renew_answer: old.renew_answer, renew_for: old.renew_for, renew_at: old.renew_at}));
   } else {
     s.id = s.id || uniqueId_(all);
     insert_("Sellers", s);
@@ -456,7 +464,7 @@ function productReport_(q) {
 function pull_(q) {
   // For devices keeping their own copy: everything current, plus the sales they haven't seen yet (in batches)
   const after = Number(q.after) || 0, st = settings_(), settings = {};
-  Object.keys(st).forEach(k => { if (k !== "store_password") settings[k] = st[k]; });
+  Object.keys(st).forEach(k => { if (k !== "store_password" && k !== "renew_key") settings[k] = st[k]; });  // secrets stay on Google
   const newer = rows_("Sales").filter(s => s.id > after).sort((a, b) => a.id - b.id);
   const batch = newer.slice(0, 1500), ids = new Set(batch.map(s => s.id));
   const items = rows_("SaleItems").filter(i => ids.has(i.sale_id));
@@ -525,7 +533,99 @@ function checkAlerts_(today) {
     if (lines.length) { sellerEmail_(s, items, lines); queued++; }
   });
   clear.sort((a, b) => b - a).forEach(r => sheet_("Alerts").deleteRow(r));  // bottom-up so row numbers stay valid
+  // Rent: a few days before each monthly due date the renter is asked if they renew, and the owner gets a reminder.
+  // Once per due date (the Alerts row uses the seller id); not when the renter already answered for that date.
+  const notice = Number(settings_().rent_notice_days) || 3;
+  rows_("Sellers").filter(s => s.rent_start).forEach(s => {
+    const due = nextDue_(s.rent_start, today), left = daysFrom_(today, due);
+    if (left > notice || (s.renew_for === due && s.renew_answer) || !add(s.id, "rent", due)) return;
+    if (s.email) rentEmail_(s, due, left);
+    ownerEmail_(s, "rent due " + dateText_(due), "The monthly rent for " + s.name + (s.shelf ? " (shelf " + s.shelf + ")" : "") +
+      " is due on " + dateText_(due) + " (" + daysText_(left) + "), PHP " + Number(s.rent || 0).toFixed(2) + ".\n\n" +
+      (s.email ? "We emailed " + s.name + " to ask if they renew; their answer will show in the POS (Sellers & Shelves)."
+               : s.name + " has no email address in the POS, so please ask them yourself."));
+    queued++;
+  });
   return queued;
+}
+
+// ---------- shelf rent ----------
+
+// Rent is due every month on the day the rental started (the last day of shorter months). Next due date, today or later.
+function nextDue_(start, today) {
+  if (!start) return null;
+  const p = start.split("-").map(Number);
+  for (let i = 1; i < 1200; i++) {
+    const m = p[1] - 1 + i, y = p[0] + Math.floor(m / 12), mo = m % 12, last = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    const due = y + "-" + String(mo + 1).padStart(2, "0") + "-" + String(Math.min(p[2], last)).padStart(2, "0");
+    if (due >= today) return due;
+  }
+  return null;
+}
+const dateText_ = iso => Utilities.formatDate(new Date(iso + "T12:00:00+08:00"), TZ, "MMM dd, yyyy");
+const daysText_ = n => n === 0 ? "today" : n === 1 ? "tomorrow" : "in " + n + " days";
+const htmlEsc_ = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+// A short signature in each answer link, so nobody can answer for another renter
+function renewKey_(id, due, answer) {
+  let key = settings_().renew_key;
+  if (!key) { key = Utilities.getUuid(); setSetting_("renew_key", key); }
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(id + "|" + due + "|" + answer, key)).replace(/=+$/, "").slice(0, 22);
+}
+function renewLink_(s, due, answer) {
+  const base = settings_().web_app_url || ScriptApp.getService().getUrl();
+  return base + "?a=renew&s=" + s.id + "&d=" + due + "&v=" + answer + "&k=" + renewKey_(s.id, due, answer);
+}
+
+function rentEmail_(s, due, left) {
+  const store = settings_().store_name || "Urdaneta Store", shelf = s.shelf ? " " + s.shelf : "";
+  const body = "Hi " + s.name + ",\n\nThis is " + store + ". Your current month on shelf" + shelf + " ends on " + dateText_(due) +
+    " (" + daysText_(left) + "). The monthly rent is PHP " + Number(s.rent || 0).toFixed(2) + ".\n\n" +
+    "Would you like to keep the shelf for another month? Please tap one:\n\n" +
+    "  YES, I will renew:\n  " + renewLink_(s, due, "yes") + "\n\n" +
+    "  NO, I will end my rental:\n  " + renewLink_(s, due, "no") + "\n\n" +
+    "You can also simply reply to this email.\n\nThank you!\n" + store;
+  queueEmail_(s.email, store + ": your shelf" + shelf + " rent is due " + dateText_(due) + " - will you renew?", body, s.id);
+}
+
+function ownerEmail_(s, what, body) {
+  const store = settings_().store_name || "Urdaneta Store";
+  queueEmail_(Session.getEffectiveUser().getEmail(), store + ": " + s.name + " - " + what, body + "\n\n" + store + " POS", null);
+}
+
+// The renter's answer: the link opens a page asking to confirm (so a mail scanner opening links can't answer for them)
+function renewPage_(q) {
+  const page = (title, msg, extra) => HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<div style="font:17px/1.5 Arial,sans-serif;max-width:460px;margin:48px auto;padding:0 20px;text-align:center;color:#0f0f0f">' +
+    '<h2 style="font-size:22px">' + title + "</h2><p>" + msg + "</p>" + (extra || "") + "</div>").setTitle("Shelf rent");
+  const s = rows_("Sellers").find(r => r.id === Number(q.s));
+  const valid = s && (q.v === "yes" || q.v === "no") && /^\d{4}-\d{2}-\d{2}$/.test(q.d || "") && q.k === renewKey_(s.id, q.d, q.v);
+  if (!valid) return page("Link not valid", "This link doesn't work any more. Please contact the store.");
+  const store = htmlEsc_(settings_().store_name || "Urdaneta Store"), shelf = s.shelf ? " " + htmlEsc_(s.shelf) : "";
+  const yes = q.v === "yes";
+  if (q.c !== "1") {
+    const btn = '<a target="_top" href="' + htmlEsc_(renewLink_(s, q.d, q.v) + "&c=1") + '" style="display:inline-block;margin-top:12px;padding:14px 28px;border-radius:24px;' +
+      'background:' + (yes ? "#0f0f0f" : "#cc0000") + ';color:#fff;text-decoration:none;font-weight:bold">' + (yes ? "Yes, renew my shelf" : "No, end my rental") + "</a>";
+    return page(store, htmlEsc_(s.name) + ", please confirm for shelf" + shelf + " (rent due " + dateText_(q.d) + "):", btn);
+  }
+  if (!(s.renew_for === q.d && s.renew_answer === q.v)) {
+    update_("Sellers", Object.assign(s, {renew_answer: q.v, renew_for: q.d, renew_at: now_()}));
+    ownerEmail_(s, yes ? "will RENEW" : "will NOT renew", s.name + " answered " + (yes ? "YES, they will renew" : "NO, they will end their rental") +
+      (s.shelf ? " for shelf " + s.shelf : "") + " (rent due " + dateText_(q.d) + ").");
+    flush_();
+  }
+  return page("Thank you, " + htmlEsc_(s.name) + "!", yes ? "We noted that you will keep shelf" + shelf + " for another month. See you at " + store + "."
+    : "We noted that you will end your rental of shelf" + shelf + ". " + store + " will contact you about collecting your items.");
+}
+
+// The store records an answer itself (the renter replied by text or in person); "" clears it
+function renewSeller_(d) {
+  const s = rows_("Sellers").find(r => r.id === Number(d.id));
+  if (!s) bad_("Seller not found (was it deleted?)");
+  if (!s.rent_start) bad_("Set the rental start date first");
+  const answer = String(d.answer || "");
+  if (answer && answer !== "yes" && answer !== "no") bad_("Answer must be yes or no");
+  update_("Sellers", Object.assign(s, {renew_answer: answer || null, renew_for: answer ? nextDue_(s.rent_start, today_()) : null, renew_at: answer ? now_() : null}));
 }
 
 function stockReport_(d) {
@@ -567,7 +667,7 @@ function testEmail_() {
 
 // ---------- settings / state ----------
 
-const PUBLIC_SETTINGS = ["store_name", "smtp_from", "receipt_address", "receipt_phone", "receipt_footer"];
+const PUBLIC_SETTINGS = ["store_name", "smtp_from", "receipt_address", "receipt_phone", "receipt_footer", "rent_notice_days", "web_app_url"];
 
 function saveSettings_(d) {
   PUBLIC_SETTINGS.forEach(k => { if (k in d) setSetting_(k, String(d[k] || "").trim()); });
