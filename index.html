@@ -112,7 +112,7 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .tile .tname{display:flex;gap:10px;align-items:flex-start}
 .tile b{font-size:15px;line-height:1.3;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tile .owner{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none;vertical-align:middle}
 .tfoot{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:auto}
 .tfoot .price{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
 .stock{font-size:12px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
@@ -229,6 +229,47 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .chips button{border-radius:8px}
 .chips button[aria-pressed=true]{background:var(--strong);color:var(--onstrong)}
 
+/* list screens (products, sellers, labels, history): toolbar, tiles, edit pop-ups */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar select{width:auto;min-width:150px;min-height:40px}
+.search{display:flex;align-items:center;gap:8px;flex:1;min-width:220px;border:1px solid var(--fieldline);border-radius:20px;background:var(--field);padding:0 14px}
+.search:focus-within{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.search svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2;flex:none}
+.search input{border:0;box-shadow:none;background:none;min-height:40px;padding:0}
+.kpis.four{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px}
+.formdlg{width:min(760px,94vw);padding:0}
+.formdlg .dlghead{display:flex;justify-content:space-between;align-items:center;padding:16px 16px 4px 22px}
+.formdlg .dlghead h3{margin:0;font-size:18px}
+.formdlg form{padding:12px 22px 0}
+.dlgfoot{grid-column:1/-1;display:flex;gap:8px;align-items:center;padding:16px 0 20px;border-top:1px solid var(--line);margin-top:4px}
+.dlgfoot span{flex:1}
+.thumbcell{display:flex;gap:12px;align-items:center}.thumbcell .pimg{width:40px;height:40px;font-size:15px}
+.thumbcell b{font-weight:500;display:block}.thumbcell small{color:var(--muted);font-size:12px}
+.badge{display:inline-block;font-size:12px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.badge.low{background:rgba(242,184,75,.18);color:var(--warn)}.badge.bad{background:var(--badsoft);color:var(--bad)}
+#plist tr,#hlist tr[data-i]{cursor:pointer}
+.scards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.scard .shead{display:flex;gap:12px;align-items:center}.scard .shead .pimg{width:44px;height:44px;border-radius:50%}
+.scard .shead b{display:block;font-size:16px;font-weight:500}
+.scard .contact{font-size:13px;color:var(--muted);display:grid;gap:2px}
+.scard .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.scard .nums div{background:var(--chip);border-radius:10px;padding:8px 10px}
+.scard .nums span{display:block;font-size:12px;color:var(--muted)}.scard .nums b{font-size:16px;font-variant-numeric:tabular-nums}
+.scard .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}
+.scard .acts .badge{margin-right:auto}
+.lwrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start}
+.lprev{position:sticky;top:72px}
+#lpreview{background:#fff;border-radius:8px;padding:14px;display:flex;justify-content:center;border:1px solid var(--line)}
+#lpreview .label{width:180px;border-style:solid}
+.copies{display:inline-flex;align-items:center;gap:2px;border-radius:18px;background:var(--chip)}
+.copies button{background:none;min-height:32px;min-width:32px;padding:0;border-radius:50%;font-size:16px}
+.copies button:hover{background:var(--chip2)}
+.copies input{width:48px;min-height:32px;padding:0;border:0;background:none;text-align:center;font-weight:500;-moz-appearance:textfield}
+.copies input::-webkit-inner-spin-button,.copies input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.dayrow td{background:var(--chip);font-size:13px;font-weight:500;color:var(--muted);padding:8px 14px!important}
+@media(max-width:1100px){.kpis.four{grid-template-columns:repeat(2,minmax(0,1fr))}.lwrap{grid-template-columns:1fr}.lprev{position:static}}
+@media(max-width:700px){#products th:nth-child(2),#products td:nth-child(2),#products th:nth-child(5),#products td:nth-child(5),#labels th:nth-child(3),#labels td:nth-child(3){display:none}.toolbar select{width:100%}.search{min-width:0;flex-basis:100%}}
 /* reports: period chips, summary tiles, tabs (like YouTube Studio analytics) */
 .rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .rhead button{display:flex;align-items:center;gap:8px}.rhead svg.i{width:20px;height:20px}
@@ -364,9 +405,18 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </section>
 
 <section id="products">
-  <div class="pagehead"><h2>Products</h2><p>Items you sell, with price, stock and dates. Scan a barcode in the search box to find or add it.</p></div>
+  <div class="pagehead rhead"><div><h2>Products</h2><p>Items you sell, with price, stock and dates.</p></div>
+    <button class="primary" id="pnew">+ New product</button></div>
+  <div class="kpis four" id="pkpis"></div>
   <div class="card">
-    <h3 id="pformTitle">New product</h3>
+    <div class="toolbar"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="pfilter" placeholder="Search, or scan a barcode to open or add it"></div>
+      <div class="chips" id="pchips"><button data-pf="">All</button><button data-pf="low">Low stock</button><button data-pf="soon">Expiring</button><button data-pf="out">Out of stock</button></div>
+      <select id="powner" aria-label="Owner"><option value="">All owners</option></select></div>
+    <div class="scroll"><table><thead><tr><th>Item</th><th>Owner</th><th class="num">Price</th><th class="num">Stock</th><th>Expiry</th></tr></thead>
+    <tbody id="plist"></tbody></table></div>
+  </div>
+  <dialog id="pDlg" class="formdlg">
+    <div class="dlghead"><h3 id="pformTitle">New product</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
     <form id="pform" class="form">
       <input type="hidden" name="id">
       <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
@@ -382,20 +432,18 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
         <label class="btn">🖼 Upload photo<input type="file" accept="image/*" hidden></label>
         <button type="button" id="pphotoDel" hidden>Remove photo</button>
         <span class="muted">Helps staff find the item on the Sell screen.</span></div>
-      <div class="row"><button class="primary">Save</button><button type="button" id="pnew">New</button><button type="button" class="danger" id="pdel">Delete</button></div>
+      <div class="dlgfoot"><button type="button" class="danger" id="pdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
     </form>
-  </div>
-  <div class="card">
-    <input id="pfilter" placeholder="Search, or scan a barcode to edit / add it">
-    <div class="scroll"><table><thead><tr><th>Barcode</th><th>Name</th><th class="num">Price</th><th class="num">Stock</th><th>Owner</th><th>Expiry</th></tr></thead>
-    <tbody id="plist"></tbody></table></div>
-  </div>
+  </dialog>
 </section>
 
 <section id="sellers">
-  <div class="pagehead"><h2>Sellers &amp; Shelves</h2><p>People renting your shelves. They get emails about expiring items and low stock.</p></div>
-  <div class="card">
-    <h3 id="sformTitle">New seller (shelf renter)</h3>
+  <div class="pagehead rhead"><div><h2>Sellers &amp; Shelves</h2><p>People renting your shelves. They get emails about expiring items and low stock.</p></div>
+    <div class="row"><button id="reportAll">Email stock to all</button><button class="primary" id="snew">+ New seller</button></div></div>
+  <div class="kpis four" id="skpis"></div>
+  <div class="scards" id="slist"></div>
+  <dialog id="sDlg" class="formdlg">
+    <div class="dlghead"><h3 id="sformTitle">New seller</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
     <form id="sform" class="form">
       <input type="hidden" name="id">
       <label>Name <input name="name" required></label>
@@ -404,39 +452,35 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
       <label>Shelf no. <input name="shelf" placeholder="e.g. A3"></label>
       <label>Monthly rent (₱) <input name="rent" type="number" step="0.01" min="0"></label>
       <label>Low-stock alert at (pcs) <input name="low_stock" type="number" min="0" value="5"></label>
-      <div class="row"><button class="primary">Save</button><button type="button" id="snew">New</button><button type="button" class="danger" id="sdel">Delete</button></div>
+      <div class="dlgfoot"><button type="button" class="danger" id="sdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
     </form>
-  </div>
-  <div class="card">
-    <div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="muted">Sellers get emailed automatically. You can also send a stock report now.</span>
-      <button id="reportAll">Email stock report to all sellers</button></div>
-    <table><thead><tr><th>Seller</th><th>Shelf</th><th class="num">Rent</th><th>Email</th><th class="num">Items</th><th class="num">Pcs left</th><th>Alerts</th><th></th></tr></thead>
-    <tbody id="slist"></tbody></table>
-  </div>
+  </dialog>
 </section>
 
 <section id="labels">
-  <div class="pagehead"><h2>Barcode Labels</h2><p>Print price and barcode stickers for your items.</p></div>
-  <div class="card">
-    <div class="row" style="margin-bottom:8px">
-      <input id="lfilter" placeholder="Search products" style="flex:1">
-      <button id="lstock">Copies = stock (shown items)</button><button id="lzero">Clear copies</button>
-      <button class="primary" id="lprint">Print labels</button>
+  <div class="pagehead rhead"><div><h2>Barcode Labels</h2><p>Price and barcode stickers, 4 per row on A4 or Letter paper. Any barcode scanner reads them.</p></div>
+    <button class="primary" id="lprint">Print labels</button></div>
+  <div class="lwrap">
+    <div class="card">
+      <div class="toolbar"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lfilter" placeholder="Search products"></div>
+        <button id="lstock">Copies = stock</button><button id="lzero">Clear copies</button></div>
+      <div class="scroll"><table><thead><tr><th>Item</th><th class="num">Price</th><th class="num">Stock</th><th class="num">Copies</th></tr></thead>
+      <tbody id="llist"></tbody></table></div>
     </div>
-    <p class="muted">Code 128 labels, 4 per row on A4/Letter. Any USB/Bluetooth barcode scanner reads them.</p>
-    <div class="scroll"><table><thead><tr><th>Name</th><th>Barcode</th><th class="num">Price</th><th class="num">Stock</th><th class="num">Copies</th></tr></thead>
-    <tbody id="llist"></tbody></table></div>
+    <div class="card lprev"><h3>Sticker preview</h3><div id="lpreview"></div><p class="muted" id="lcount"></p></div>
   </div>
 </section>
 
 <section id="history">
-  <div class="pagehead"><h2>History</h2><p>Every sale, with its items. Open one to see the details or print the receipt again.</p></div>
+  <div class="pagehead"><h2>History</h2><p>Every sale. Tap one to see the receipt or print it again.</p></div>
+  <div class="rbar">
+    <div class="chips" id="hperiod"><button data-p="today">Today</button><button data-p="yesterday">Yesterday</button><button data-p="week">Last 7 days</button><button data-p="month">This month</button></div>
+    <div class="rdates"><input type="date" id="hfrom" aria-label="From"><span class="muted">to</span><input type="date" id="hto" aria-label="To"></div>
+  </div>
+  <div class="kpis four" id="hkpis"></div>
   <div class="card">
-    <div class="row"><label>From <input type="date" id="hfrom"></label><label>To <input type="date" id="hto"></label>
-      <label style="flex:1;min-width:180px">Search <input id="hsearch" placeholder="Receipt # or item name"></label>
-      <button class="primary" id="hshow" style="align-self:end">Show</button></div>
-    <p class="muted" id="hsummary" style="margin:12px 0 0"></p>
-    <div class="scroll"><table><thead><tr><th>Time</th><th>Receipt #</th><th>Items</th><th class="num">Total</th><th class="num">Cash</th><th class="num">Change</th><th></th></tr></thead>
+    <div class="toolbar"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="hsearch" placeholder="Search receipt # or item"></div></div>
+    <div class="scroll"><table><thead><tr><th>Time</th><th>Receipt #</th><th>Items</th><th class="num">Total</th></tr></thead>
     <tbody id="hlist"></tbody></table></div>
   </div>
   <dialog id="saleDlg">
@@ -771,16 +815,22 @@ function renderTiles() {
   const list = S.products.filter(p => (!f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
     && (!sellOwner || (sellOwner === "store" ? !p.seller_id : String(p.seller_id) === sellOwner)));
   $("#tiles").innerHTML = list.map(p => {
-    const s = S.sellers.find(s => s.id === p.seller_id), low = s ? s.low_stock : 5;
-    const [note, cls] = isExpired(p) ? ["Expired", "bad"] : p.stock <= 0 ? ["Out of stock", "bad"] : [`${p.stock} left`, p.stock <= low ? "low" : ""];
+    const s = S.sellers.find(s => s.id === p.seller_id), [note, cls] = stockState(p);
     return `<button class="tile${cls === "bad" ? " off" : ""}" data-id="${p.id}">
-      <div class="tname">${photoImg(p) || `<span class="pimg ini" style="background:${ownerColor(p.seller_id, true)}">${esc(p.name.trim()[0] || "?").toUpperCase()}</span>`}<b>${esc(p.name)}</b></div>
+      <div class="tname">${thumb(p)}<b>${esc(p.name)}</b></div>
       <div class="owner"><i class="dot" style="background:${ownerColor(p.seller_id, true)}"></i>${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
       <div class="tfoot"><span class="price">${peso(p.price)}</span><small class="stock ${cls}">${note}</small></div></button>`;
   }).join("") || `<p class="muted">${S.products.length ? "No item matches." : "No products yet. Add them in the Products tab."}</p>`;
 }
 // The product's photo (small JPEG kept on this device), or nothing when it has none
 const photoImg = p => S.photos[p.id] ? `<img class="pimg" src="${esc(S.photos[p.id])}" alt="">` : "";
+// Photo, or the first letter in the owner's colour
+const thumb = p => photoImg(p) || `<span class="pimg ini" style="background:${ownerColor(p.seller_id, true)}">${esc((p.name.trim()[0] || "?").toUpperCase())}</span>`;
+// Stock badge: [text, "" | "low" | "bad"]; low = at or under the seller's alert level (5 for the store's own goods)
+function stockState(p) {
+  const s = S.sellers.find(s => s.id === p.seller_id), low = s ? s.low_stock : 5;
+  return isExpired(p) ? ["Expired", "bad"] : p.stock <= 0 ? ["Out of stock", "bad"] : [`${p.stock} left`, p.stock <= low ? "low" : ""];
+}
 // Each seller's items get their own colour (dot and letter), so staff can tell shelves apart at a glance; the store's own are grey
 const SELLER_COLORS = ["#2563eb", "#d97706", "#9333ea", "#db2777", "#0891b2", "#65a30d", "#dc2626", "#4f46e5"];
 const ownerColor = (id, solid) => id ? SELLER_COLORS[id % SELLER_COLORS.length] : solid ? "#8a8a8a" : "var(--line2)";
@@ -1059,30 +1109,50 @@ const addDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString().
 const notifyDate = p => p.notify_on || addDays(p.expiry, -3);
 const dueSoon = p => p.expiry && today() >= notifyDate(p);
 function expiryCell(p) {
-  const made = p.mfg_date ? `<div class="muted">made ${p.mfg_date}</div>` : "";
-  if (!p.expiry) return made;
-  const d = daysTo(p.expiry), cls = d < 0 ? "bad" : dueSoon(p) ? "warn" : "";
-  return `<span class="${cls}">${p.expiry}${d < 0 ? " · EXPIRED" : dueSoon(p) ? ` · ${d}d left` : ""}</span>
-    <div class="muted">notify ${notifyDate(p)}</div>${made}`;
+  const made = p.mfg_date ? `<small class="muted">made ${p.mfg_date}</small>` : "";
+  if (!p.expiry) return made || '<span class="muted">–</span>';
+  const d = daysTo(p.expiry);
+  const badge = d < 0 ? '<span class="badge bad">Expired</span>' : dueSoon(p) ? `<span class="badge low">${d === 0 ? "Today" : d + " day" + (d === 1 ? "" : "s") + " left"}</span>` : "";
+  return `${p.expiry} ${badge}<div><small class="muted">notify ${notifyDate(p)}</small></div>`;
 }
+// Products list: summary tiles, search, status chips (low stock, expiring, out of stock) and an owner filter
+let pFilter = "";
+const P_FILTERS = {low: p => stockState(p)[1] === "low", soon: p => p.stock > 0 && dueSoon(p), out: p => p.stock <= 0 || isExpired(p)};
 function renderProducts() {
   const sel = $("#pform").seller_id, keep = sel.value;  // the background refresh must not reset a product being edited
-  sel.innerHTML = `<option value="">Store (my own goods)</option>` +
-    S.sellers.map(s => `<option value="${s.id}">${esc(s.name)}${s.shelf ? " · shelf " + esc(s.shelf) : ""}</option>`).join("");
-  sel.value = keep;
-  const f = $("#pfilter").value.toLowerCase();
-  $("#plist").innerHTML = S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
-    .map(p => `<tr data-id="${p.id}" style="cursor:pointer"><td>${esc(p.barcode)}</td><td><div class="namecell">${photoImg(p)}${esc(p.name)}</div></td><td class="num">${peso(p.price)}</td>
-      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.stock}</td><td>${esc(owner(p.seller_id))}</td><td>${expiryCell(p)}</td></tr>`).join("")
-    || `<tr><td colspan="6" class="muted">No products yet.</td></tr>`;
+  const owners = S.sellers.map(s => `<option value="${s.id}">${esc(s.name)}${s.shelf ? " · shelf " + esc(s.shelf) : ""}</option>`).join("");
+  sel.innerHTML = `<option value="">Store (my own goods)</option>` + owners; sel.value = keep;
+  const po = $("#powner"), pk = po.value;
+  po.innerHTML = `<option value="">All owners</option><option value="store">Store</option>` + owners; po.value = pk;
+  const P = S.products;
+  $("#pkpis").innerHTML = [["Products", P.length, `${P.reduce((n, p) => n + Math.max(p.stock, 0), 0)} pieces in stock`],
+    ["Stock value", peso(P.reduce((n, p) => n + p.price * Math.max(p.stock, 0), 0)), "at selling price"],
+    ["Low stock", P.filter(P_FILTERS.low).length, "at or under the alert level"],
+    ["Expiring or expired", P.filter(p => p.stock > 0 && (dueSoon(p) || isExpired(p))).length, "past their notify date"]]
+    .map(([k, v, s]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${s}</small></div>`).join("");
+  document.querySelectorAll("#pchips button").forEach(b => b.setAttribute("aria-pressed", b.dataset.pf === pFilter));
+  const f = $("#pfilter").value.toLowerCase(), o = po.value;
+  $("#plist").innerHTML = P.filter(p => (!f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
+      && (!o || (o === "store" ? !p.seller_id : String(p.seller_id) === o)) && (!pFilter || P_FILTERS[pFilter](p)))
+    .map(p => { const [note, cls] = stockState(p); return `<tr data-id="${p.id}">
+      <td><div class="thumbcell">${thumb(p)}<div><b>${esc(p.name)}</b><small>${esc(p.barcode)}</small></div></div></td>
+      <td><span class="owner-cell"><i class="dot" style="background:${ownerColor(p.seller_id, true)}"></i> ${esc(owner(p.seller_id))}</span></td>
+      <td class="num">${peso(p.price)}</td><td class="num"><span class="badge ${cls}">${note}</span></td><td>${expiryCell(p)}</td></tr>`; }).join("")
+    || `<tr><td colspan="5" class="muted">${P.length ? "No product matches." : "No products yet. Tap New product to add one."}</td></tr>`;
 }
+$("#pchips").onclick = e => { const b = e.target.closest("button"); if (b) { pFilter = b.dataset.pf; renderProducts(); } };
+$("#powner").onchange = renderProducts;
+// Add / edit happens in a pop-up
 function editProduct(p) {
   const f = $("#pform"); f.reset();
   for (const k of ["id", "barcode", "name", "price", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
   $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
+  $("#pdel").hidden = !p?.id;
   newPhoto = undefined; showFormPhoto(p?.id && S.photos[p.id]);
+  if (!$("#pDlg").open) $("#pDlg").showModal();
   f.name.focus();
 }
+document.querySelectorAll(".formdlg [data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
 
 // ---------- product photo: shrunk on this device to a small JPEG (about 10 KB) before it is saved and synced ----------
 let newPhoto;  // undefined = unchanged, "" = remove, else the new photo, saved together with the product
@@ -1119,33 +1189,43 @@ $("#pform").onsubmit = run(async e => {
   e.preventDefault();
   const r = await api("/api/products", Object.fromEntries(new FormData(e.target)));
   if (newPhoto !== undefined) await api("/api/photo", {id: r.id, photo: newPhoto, at: localTime()});
-  toast(`Saved. Barcode ${r.barcode}`); editProduct(null); await load();
+  toast(`Saved. Barcode ${r.barcode}`); $("#pDlg").close(); await load();
 });
 $("#pnew").onclick = () => editProduct(null);
 // Suggest a notify date (3 days before expiry) the first time an expiry is entered; the seller's advised date can replace it
 $("#pform").expiry.onchange = e => { const n = $("#pform").notify_on; if (e.target.value && !n.value) n.value = addDays(e.target.value, -3); };
 $("#pdel").onclick = run(async () => {
   const f = $("#pform"); if (!f.id.value || !confirm(`Delete ${f.name.value}?`)) return;
-  await api("/api/products/delete", {id: f.id.value}); editProduct(null); await load();
+  await api("/api/products/delete", {id: f.id.value}); $("#pDlg").close(); await load();
 });
 
 // ---------- sellers ----------
+// Sellers: summary tiles and one card per renter
 function renderSellers() {
+  const onShelves = S.products.filter(p => p.seller_id);
+  $("#skpis").innerHTML = [["Shelf renters", S.sellers.length, `${S.sellers.filter(s => s.shelf).length} with a shelf no.`],
+    ["Monthly rent", peso(S.sellers.reduce((n, s) => n + (s.rent || 0), 0)), "all renters together"],
+    ["Items on shelves", onShelves.length, `${onShelves.reduce((n, p) => n + Math.max(p.stock, 0), 0)} pieces`],
+    ["Need attention", S.sellers.filter(s => S.products.some(p => p.seller_id === s.id && (stockState(p)[1] || (p.stock > 0 && dueSoon(p))))).length, "low, expiring or out"]]
+    .map(([k, v, x]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${x}</small></div>`).join("");
   $("#slist").innerHTML = S.sellers.map(s => {
     const items = S.products.filter(p => p.seller_id === s.id);
-    const expiring = items.filter(p => p.stock > 0 && dueSoon(p)).length;
-    const low = items.filter(p => p.stock <= s.low_stock).length;
-    return `<tr><td>${esc(s.name)}<div class="muted">${esc(s.phone)}</div></td><td>${esc(s.shelf)}</td><td class="num">${peso(s.rent)}</td>
-      <td>${esc(s.email) || '<span class="warn">no email</span>'}</td><td class="num">${items.length}</td>
-      <td class="num">${items.reduce((n, p) => n + p.stock, 0)}</td>
-      <td>${expiring ? `<span class="warn">${expiring} expiring</span> ` : ""}${low ? `<span class="warn">${low} low</span>` : ""}</td>
-      <td class="row"><button class="sm" data-edit="${s.id}">Edit</button>${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}</td></tr>`;
-  }).join("") || `<tr><td colspan="8" class="muted">No sellers yet. Add the people renting your shelves.</td></tr>`;
+    const expiring = items.filter(p => p.stock > 0 && dueSoon(p)).length, low = items.filter(p => p.stock <= s.low_stock).length;
+    return `<div class="scard"><div class="shead"><span class="pimg ini" style="background:${ownerColor(s.id, true)}">${esc((s.name.trim()[0] || "?").toUpperCase())}</span>
+        <div><b>${esc(s.name)}</b>${s.shelf ? `<span class="badge">Shelf ${esc(s.shelf)}</span>` : ""}</div></div>
+      <div class="contact"><span>${esc(s.phone) || "No phone"}</span><span>${s.email ? esc(s.email) : '<span class="warn">No email: no alerts can be sent</span>'}</span></div>
+      <div class="nums"><div><span>Items</span><b>${items.length}</b></div><div><span>Pieces left</span><b>${items.reduce((n, p) => n + Math.max(p.stock, 0), 0)}</b></div><div><span>Rent</span><b>${peso(s.rent)}</b></div></div>
+      <div class="acts">${expiring ? `<span class="badge low">${expiring} expiring</span>` : low ? `<span class="badge low">${low} low</span>` : '<span class="badge">All good</span>'}
+        ${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
+  }).join("") || `<div class="card muted">No shelf renters yet. Tap New seller to add the people renting your shelves.</div>`;
 }
 function editSeller(s) {
   const f = $("#sform"); f.reset();
   for (const k of ["id", "name", "email", "phone", "shelf", "rent", "low_stock"]) if (s) f[k].value = s[k] ?? "";
   $("#sformTitle").textContent = s ? "Edit seller" : "New seller (shelf renter)";
+  $("#sdel").hidden = !s;
+  if (!$("#sDlg").open) $("#sDlg").showModal();
+  f.name.focus();
 }
 $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -1155,28 +1235,45 @@ $("#slist").onclick = run(async e => {
 $("#reportAll").onclick = run(async () => { const r = await api("/api/sellers/report", {}); toast(`Sent ${r.queued} stock report(s)`); });
 $("#sform").onsubmit = run(async e => {
   e.preventDefault(); await api("/api/sellers", Object.fromEntries(new FormData(e.target)));
-  toast("Seller saved"); editSeller(null); await load();
+  toast("Seller saved"); $("#sDlg").close(); await load();
 });
 $("#snew").onclick = () => editSeller(null);
 $("#sdel").onclick = run(async () => {
   const f = $("#sform"); if (!f.id.value || !confirm(`Delete ${f.name.value}?`)) return;
-  await api("/api/sellers/delete", {id: f.id.value}); editSeller(null); await load();
+  await api("/api/sellers/delete", {id: f.id.value}); $("#sDlg").close(); await load();
 });
 
 // ---------- labels ----------
 let labelCopies = {};  // product id -> number of stickers to print
 const shownLabels = () => { const f = $("#lfilter").value.toLowerCase(); return S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f)); };
+const labelHTML = p => `<div class="label">${esc(p.name)}<b>${peso(p.price)}</b>${barcodeSVG(p.barcode)}${esc(p.barcode)}</div>`;
 function renderLabels() {
-  $("#llist").innerHTML = shownLabels().map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.barcode)}</td><td class="num">${peso(p.price)}</td>
-    <td class="num">${p.stock}</td><td class="num"><input type="number" min="0" style="width:80px" data-id="${p.id}" value="${labelCopies[p.id] || ""}"></td></tr>`).join("");
+  if (document.activeElement?.closest?.("#llist")) return renderLabelTotals();  // don't redraw under a number being typed
+  $("#llist").innerHTML = shownLabels().map(p => `<tr><td><div class="thumbcell">${thumb(p)}<div><b>${esc(p.name)}</b><small>${esc(p.barcode)}</small></div></div></td>
+    <td class="num">${peso(p.price)}</td><td class="num">${p.stock}</td>
+    <td class="num"><span class="copies"><button data-lid="${p.id}" data-ld="-1" aria-label="One less">−</button><input type="number" min="0" data-id="${p.id}" value="${labelCopies[p.id] || ""}" placeholder="0" aria-label="Copies"><button data-lid="${p.id}" data-ld="1" aria-label="One more">+</button></span></td></tr>`).join("")
+    || `<tr><td colspan="4" class="muted">${S.products.length ? "No product matches." : "No products yet."}</td></tr>`;
+  renderLabelTotals();
+}
+// Total on the Print button, and a preview of the first sticker that will print
+function renderLabelTotals() {
+  const n = Object.values(labelCopies).reduce((a, b) => a + (b || 0), 0);
+  $("#lprint").textContent = n ? `Print ${n} label${n === 1 ? "" : "s"}` : "Print labels";
+  const p = S.products.find(p => labelCopies[p.id] > 0) || shownLabels()[0];
+  $("#lpreview").innerHTML = p ? labelHTML(p) : '<span class="muted">No products yet</span>';
+  $("#lcount").textContent = n ? `${n} sticker${n === 1 ? "" : "s"} on ${Math.ceil(n / 4 / 10)} page${Math.ceil(n / 40) === 1 ? "" : "s"} (about 40 per page)` : "Set copies for the items you want stickers for.";
 }
 $("#lfilter").oninput = renderLabels;
-$("#llist").oninput = e => labelCopies[e.target.dataset.id] = +e.target.value;
+$("#llist").oninput = e => { labelCopies[e.target.dataset.id] = Math.max(0, +e.target.value || 0); renderLabelTotals(); };
+$("#llist").onclick = e => {
+  const b = e.target.closest("button[data-lid]"); if (!b) return;
+  labelCopies[b.dataset.lid] = Math.max(0, (labelCopies[b.dataset.lid] || 0) + +b.dataset.ld);
+  b.parentElement.querySelector("input").value = labelCopies[b.dataset.lid] || ""; renderLabelTotals();
+};
 $("#lstock").onclick = () => { shownLabels().forEach(p => labelCopies[p.id] = Math.max(p.stock, 0)); renderLabels(); };
 $("#lzero").onclick = () => { labelCopies = {}; renderLabels(); };
 $("#lprint").onclick = () => {
-  const html = S.products.flatMap(p => Array(labelCopies[p.id] || 0).fill(`<div class="label">${esc(p.name)}<b>${peso(p.price)}</b>
-    ${barcodeSVG(p.barcode)}${esc(p.barcode)}</div>`)).join("");
+  const html = S.products.flatMap(p => Array(labelCopies[p.id] || 0).fill(labelHTML(p))).join("");
   if (!html) return toast("Set copies for at least one product", true);
   printHTML([`<div class="labels">${html}</div>`]);
 };
@@ -1372,21 +1469,34 @@ let history = [], viewing = null;
 $("#hfrom").value = $("#hto").value = today();
 const showHistory = run(async () => {
   const from = $("#hfrom").value, to = $("#hto").value;
+  document.querySelectorAll("#hperiod button").forEach(b => b.setAttribute("aria-pressed", PERIODS[b.dataset.p]().join() === [from, to].join()));
   const sales = await api(`/api/sales?from=${from}&to=${to}`), waiting = Local.pendingSaleUids();  // not yet sent to Google
   history = sales.map(s => ({...s, id: receiptNo(s), waiting: waiting.has(s.uid), change: Math.round((s.cash - s.total) * 100) / 100}));
   renderHistory();
 });
+// Summary tiles, then the sales grouped by day (newest first)
 function renderHistory() {
   const q = $("#hsearch").value.trim().toLowerCase();
   const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q)));
-  $("#hsummary").textContent = `${list.length} sale(s) · ${peso(list.reduce((n, s) => n + s.total, 0))}`;
-  $("#hlist").innerHTML = list.map(s => `<tr data-i="${history.indexOf(s)}" style="cursor:pointer">
-    <td>${esc(s.ts.replace("T", " ").slice(0, 16))}${s.waiting ? ' <span class="warn">waiting to sync</span>' : ""}</td>
-    <td><b>${esc(s.id)}</b></td><td>${esc(s.items.map(i => `${i.name} ×${i.qty}`).join(", "))}</td>
-    <td class="num">${peso(s.total)}</td><td class="num">${peso(s.cash)}</td><td class="num">${peso(s.change)}</td>
-    <td><button class="sm">View</button></td></tr>`).join("") || `<tr><td colspan="7" class="muted">No sales in these dates.</td></tr>`;
+  const total = list.reduce((n, s) => n + s.total, 0), pcs = list.reduce((n, s) => n + s.items.reduce((m, i) => m + i.qty, 0), 0);
+  $("#hkpis").innerHTML = [["Sales", list.length, q ? "matching your search" : periodText($("#hfrom").value, $("#hto").value)], ["Total", peso(total), "cash taken"],
+    ["Average sale", list.length ? peso(total / list.length) : "–", "per customer"], ["Items sold", pcs, "pieces"]]
+    .map(([k, v, x]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${esc(x)}</small></div>`).join("");
+  let day = "";
+  $("#hlist").innerHTML = list.map(s => {
+    const d = s.ts.slice(0, 10), mine = list.filter(x => x.ts.startsWith(d)), head = d !== day;
+    day = d;
+    const items = s.items.slice(0, 2).map(i => `${esc(i.name)} ×${i.qty}`).join(", ") + (s.items.length > 2 ? ` <span class="muted">+${s.items.length - 2} more</span>` : "");
+    return (head ? `<tr class="dayrow"><td colspan="4">${new Date(d + "T12:00").toLocaleDateString("en-PH", {weekday: "short", month: "short", day: "numeric", year: "numeric"})} · ${mine.length} sale${mine.length === 1 ? "" : "s"} · ${peso(mine.reduce((n, x) => n + x.total, 0))}</td></tr>` : "")
+      + `<tr data-i="${history.indexOf(s)}"><td>${s.ts.slice(11, 16)}${s.waiting ? ' <span class="badge low">waiting to sync</span>' : ""}</td>
+        <td><b>${esc(s.id)}</b></td><td>${items}</td><td class="num">${peso(s.total)}</td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="muted">No sales in these dates.</td></tr>`;
 }
-$("#hshow").onclick = showHistory;
+$("#hperiod").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  [$("#hfrom").value, $("#hto").value] = PERIODS[b.dataset.p](); showHistory();
+};
+$("#hfrom").onchange = $("#hto").onchange = () => showHistory();
 $("#hsearch").oninput = renderHistory;
 $("#hlist").onclick = e => {
   const tr = e.target.closest("tr[data-i]"); if (!tr) return;
