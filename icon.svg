@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0e7c66"/><g fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"><path d="M96 120h48l42 196a28 28 0 0 0 28 22h150a28 28 0 0 0 27-21l33-139H170"/><circle cx="220" cy="398" r="18"/><circle cx="370" cy="398" r="18"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3d5e"/><stop offset="1" stop-color="#d1002a"/></linearGradient>
+  <linearGradient id="face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ebebf0"/></linearGradient><clipPath id="tile"><rect x="2" y="2" width="124" height="120" rx="28"/></clipPath></defs>
+  <rect x="2" y="6" width="124" height="120" rx="28" fill="#000" opacity=".16"/>
+  <rect x="2" y="2" width="124" height="120" rx="28" fill="url(#bg)"/>
+  <path d="M30 4h68a26 26 0 0 1 26 26v4H4v-4A26 26 0 0 1 30 4z" fill="#fff" opacity=".12"/>
+  <g clip-path="url(#tile)"><path d="M95 55Q113 55 106 42" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/><path d="M95 55Q113 55 106 42" fill="none" stroke="#e8dcc8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>
+  <g transform="rotate(-12 64 64) translate(7 34)">
+    <path d="M10 8a8 8 0 0 1 8-8h62l24 28-24 28H18a8 8 0 0 1-8-8z" fill="#000" opacity=".25" transform="translate(4 9)"/><path d="M10 8a8 8 0 0 1 8-8h62l24 28-24 28H18a8 8 0 0 1-8-8z" fill="#b9b9c3" transform="translate(0 5)"/><path d="M10 8a8 8 0 0 1 8-8h62l24 28-24 28H18a8 8 0 0 1-8-8z" fill="url(#face)"/>
+    <circle cx="89" cy="29" r="5" fill="#a8001d"/><circle cx="89" cy="28" r="5" fill="#d4002a"/>
+    <text x="46" y="38" text-anchor="middle" font-family="Arial, Helvetica, Roboto, sans-serif" font-size="25" font-weight="700" letter-spacing="-1" fill="#a8001d">MGC</text>
+    <text x="46" y="36.5" text-anchor="middle" font-family="Arial, Helvetica, Roboto, sans-serif" font-size="25" font-weight="700" letter-spacing="-1" fill="#ff0033">MGC</text>
+  </g>
+  <g clip-path="url(#tile)"><path d="M95 55Q101 47 106 42" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.25" transform="translate(1.5 2)"/><path d="M106 42C107 28 115 16 128 4" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.25" transform="translate(1.5 2)"/><path d="M95 55Q101 47 106 42" fill="none" stroke="#fff8ec" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M106 42C107 28 115 16 128 4" fill="none" stroke="#fff8ec" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="106" cy="42" r="3.2" fill="#fff8ec"/></g>
+</svg>

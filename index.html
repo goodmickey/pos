@@ -6,6 +6,7 @@
 <title>MGC POS</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#ffffff">
 <script>
 // Light / dark / automatic (light 6 AM to 6 PM on this device's clock): set before the page draws, so it never flashes
@@ -38,7 +39,7 @@ svg.i{width:24px;height:24px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .iconbtn{width:40px;height:40px;min-height:40px;padding:8px;border-radius:50%;border:0;background:none;color:var(--ink);display:grid;place-items:center}
 .iconbtn:hover{background:var(--chip)}
 .brand{display:flex;align-items:center;gap:8px;min-width:0}
-.logo{width:34px;height:24px;border-radius:7px;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+.logo{width:32px;height:32px;flex:none;display:block}
 .brand b{font-size:19px;font-weight:700;letter-spacing:-.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand sup{color:var(--muted);font-size:10px;align-self:flex-start;margin-top:12px}
 #net{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:6px 12px;border-radius:18px;background:var(--chip);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw}
@@ -280,7 +281,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <body>
 <header class="top">
   <button class="iconbtn" id="navToggle" title="Menu"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-  <div class="brand"><div class="logo">U</div><b id="storeName">Urdaneta Store</b><sup>POS</sup></div>
+  <div class="brand"><img class="logo" src="icon.svg" alt=""><b id="storeName">Urdaneta Store</b><sup>POS</sup></div>
   <div id="net"></div>
 </header>
 <aside class="side">
@@ -644,7 +645,6 @@ async function syncNow() {
 }
 function renderAll() {
   $("#storeName").textContent = S.settings.store_name || "Urdaneta Store";
-  $(".logo").textContent = (S.settings.store_name || "U")[0].toUpperCase();
   renderCart(); renderTiles(); renderProducts(); renderSellers(); renderLabels(); renderSettings();
 }
 
