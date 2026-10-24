@@ -258,6 +258,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .scard .nums span{display:block;font-size:12px;color:var(--muted)}.scard .nums b{font-size:16px;font-variant-numeric:tabular-nums}
 .scard .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}
 .scard .acts .badge{margin-right:auto}
+button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{filter:brightness(.95)}
 .lwrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start}
 .lprev{position:sticky;top:72px}
 #lpreview{background:#fff;border-radius:8px;padding:14px;display:flex;justify-content:center;border:1px solid var(--line)}
@@ -267,6 +268,15 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .copies button:hover{background:var(--chip2)}
 .copies input{width:48px;min-height:32px;padding:0;border:0;background:none;text-align:center;font-weight:500;-moz-appearance:textfield}
 .copies input::-webkit-inner-spin-button,.copies input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.formdlg.small{width:min(520px,94vw)}
+#rsform{padding:12px 22px 0}
+.rsadd{margin:16px 0 4px;display:grid;gap:10px}
+.copies.big{background:var(--chip)}.copies.big button{min-height:40px;min-width:40px;font-size:18px}.copies.big input{width:64px;font-size:18px;min-height:40px}
+.rsnew{margin:0;font-size:15px}.rsnew b{font-size:18px}
+.stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
+.restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
+.restock.need{background:var(--strong);color:var(--onstrong)}
+.kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--line2)}
 .dayrow td{background:var(--chip);font-size:13px;font-weight:500;color:var(--muted);padding:8px 14px!important}
 @media(max-width:1100px){.kpis.four{grid-template-columns:repeat(2,minmax(0,1fr))}.lwrap{grid-template-columns:1fr}.lprev{position:static}}
 @media(max-width:700px){#products th:nth-child(2),#products td:nth-child(2),#products th:nth-child(5),#products td:nth-child(5),#labels th:nth-child(3),#labels td:nth-child(3){display:none}.toolbar select{width:100%}.search{min-width:0;flex-basis:100%}}
@@ -415,26 +425,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div class="scroll"><table><thead><tr><th>Item</th><th>Owner</th><th class="num">Price</th><th class="num">Stock</th><th>Expiry</th></tr></thead>
     <tbody id="plist"></tbody></table></div>
   </div>
-  <dialog id="pDlg" class="formdlg">
-    <div class="dlghead"><h3 id="pformTitle">New product</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
-    <form id="pform" class="form">
-      <input type="hidden" name="id">
-      <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
-      <label>Name <input name="name" required></label>
-      <label>Price (₱) <input name="price" type="number" step="0.01" min="0" required></label>
-      <label>Stock (pcs) <input name="stock" type="number" step="1" min="0" value="0" required></label>
-      <label>Owner <select name="seller_id"></select></label>
-      <label>Manufacturing date <input name="mfg_date" type="date"></label>
-      <label>Expiry date <input name="expiry" type="date"></label>
-      <label>Notify seller on (date seller advised) <input name="notify_on" type="date"></label>
-      <div class="photofield"><img id="pphoto" class="pimg" alt="" hidden>
-        <label class="btn" id="pcamera">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden></label>
-        <label class="btn">🖼 Upload photo<input type="file" accept="image/*" hidden></label>
-        <button type="button" id="pphotoDel" hidden>Remove photo</button>
-        <span class="muted">Helps staff find the item on the Sell screen.</span></div>
-      <div class="dlgfoot"><button type="button" class="danger" id="pdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
-    </form>
-  </dialog>
+  
+
 </section>
 
 <section id="sellers">
@@ -442,19 +434,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div class="row"><button id="reportAll">Email stock to all</button><button class="primary" id="snew">+ New seller</button></div></div>
   <div class="kpis four" id="skpis"></div>
   <div class="scards" id="slist"></div>
-  <dialog id="sDlg" class="formdlg">
-    <div class="dlghead"><h3 id="sformTitle">New seller</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
-    <form id="sform" class="form">
-      <input type="hidden" name="id">
-      <label>Name <input name="name" required></label>
-      <label>Email (for alerts) <input name="email" type="email"></label>
-      <label>Phone <input name="phone"></label>
-      <label>Shelf no. <input name="shelf" placeholder="e.g. A3"></label>
-      <label>Monthly rent (₱) <input name="rent" type="number" step="0.01" min="0"></label>
-      <label>Low-stock alert at (pcs) <input name="low_stock" type="number" min="0" value="5"></label>
-      <div class="dlgfoot"><button type="button" class="danger" id="sdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
-    </form>
-  </dialog>
+  
 </section>
 
 <section id="labels">
@@ -590,6 +570,57 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </section>
 </main>
 
+<!-- Add / edit / restock pop-ups: outside the screens, so they show whichever screen is open -->
+<dialog id="pDlg" class="formdlg">
+    <div class="dlghead"><h3 id="pformTitle">New product</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+    <form id="pform" class="form">
+      <input type="hidden" name="id">
+      <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
+      <label>Name <input name="name" required></label>
+      <label>Price (₱) <input name="price" type="number" step="0.01" min="0" required></label>
+      <label>Stock (pcs) <input name="stock" type="number" step="1" min="0" value="0" required></label>
+      <label>Owner <select name="seller_id"></select></label>
+      <label>Manufacturing date <input name="mfg_date" type="date"></label>
+      <label>Expiry date <input name="expiry" type="date"></label>
+      <label>Notify seller on (date seller advised) <input name="notify_on" type="date"></label>
+      <div class="photofield"><img id="pphoto" class="pimg" alt="" hidden>
+        <label class="btn" id="pcamera">📷 Take photo<input type="file" accept="image/*" capture="environment" hidden></label>
+        <label class="btn">🖼 Upload photo<input type="file" accept="image/*" hidden></label>
+        <button type="button" id="pphotoDel" hidden>Remove photo</button>
+        <span class="muted">Helps staff find the item on the Sell screen.</span></div>
+      <div class="dlgfoot"><button type="button" class="danger" id="pdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
+    </form>
+  </dialog>
+<dialog id="rsDlg" class="formdlg small">
+  <div class="dlghead"><h3>Restock</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="rsform">
+    <input type="hidden" name="id">
+    <div class="thumbcell" id="rsItem"></div>
+    <div class="rsadd"><b>Pieces to add</b>
+      <div class="row"><span class="copies big"><button type="button" data-rd="-1" aria-label="One less">−</button><input name="add" type="number" min="1" step="1" inputmode="numeric" aria-label="Pieces to add"><button type="button" data-rd="1" aria-label="One more">+</button></span>
+        <div class="chips" id="rsQuick"><button type="button" data-rq="5">+5</button><button type="button" data-rq="10">+10</button><button type="button" data-rq="20">+20</button><button type="button" data-rq="50">+50</button></div></div>
+      <p class="rsnew" id="rsNew"></p></div>
+    <div class="form">
+      <label>Expiry date of this batch <input name="expiry" type="date"></label>
+      <label>Notify seller on <input name="notify_on" type="date"></label>
+    </div>
+    <p class="muted" style="margin:8px 0 0">For perishables, set the date printed on the new pieces. Leave it if it hasn't changed.</p>
+    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
+  </form>
+</dialog>
+<dialog id="sDlg" class="formdlg">
+    <div class="dlghead"><h3 id="sformTitle">New seller</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+    <form id="sform" class="form">
+      <input type="hidden" name="id">
+      <label>Name <input name="name" required></label>
+      <label>Email (for alerts) <input name="email" type="email"></label>
+      <label>Phone <input name="phone"></label>
+      <label>Shelf no. <input name="shelf" placeholder="e.g. A3"></label>
+      <label>Monthly rent (₱) <input name="rent" type="number" step="0.01" min="0"></label>
+      <label>Low-stock alert at (pcs) <input name="low_stock" type="number" min="0" value="5"></label>
+      <div class="dlgfoot"><button type="button" class="danger" id="sdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
+    </form>
+  </dialog>
 <!-- Password / text box: outside the screens, so it shows over whichever screen is open -->
 <dialog id="askDlg"><form method="dialog" id="askForm">
   <div id="askText" style="font-weight:600;margin-bottom:10px"></div>
@@ -1117,7 +1148,7 @@ function expiryCell(p) {
 }
 // Products list: summary tiles, search, status chips (low stock, expiring, out of stock) and an owner filter
 let pFilter = "";
-const P_FILTERS = {low: p => stockState(p)[1] === "low", soon: p => p.stock > 0 && dueSoon(p), out: p => p.stock <= 0 || isExpired(p)};
+const P_FILTERS = {low: p => stockState(p)[1] === "low" || (p.stock <= 0 && !isExpired(p)), soon: p => p.stock > 0 && dueSoon(p), out: p => p.stock <= 0 || isExpired(p)};
 function renderProducts() {
   const sel = $("#pform").seller_id, keep = sel.value;  // the background refresh must not reset a product being edited
   const owners = S.sellers.map(s => `<option value="${s.id}">${esc(s.name)}${s.shelf ? " · shelf " + esc(s.shelf) : ""}</option>`).join("");
@@ -1127,9 +1158,9 @@ function renderProducts() {
   const P = S.products;
   $("#pkpis").innerHTML = [["Products", P.length, `${P.reduce((n, p) => n + Math.max(p.stock, 0), 0)} pieces in stock`],
     ["Stock value", peso(P.reduce((n, p) => n + p.price * Math.max(p.stock, 0), 0)), "at selling price"],
-    ["Low stock", P.filter(P_FILTERS.low).length, "at or under the alert level"],
-    ["Expiring or expired", P.filter(p => p.stock > 0 && (dueSoon(p) || isExpired(p))).length, "past their notify date"]]
-    .map(([k, v, s]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${s}</small></div>`).join("");
+    ["Low stock", P.filter(p => P_FILTERS.low(p) || P_FILTERS.out(p)).length, "low or out: tap to restock", "low"],
+    ["Expiring or expired", P.filter(p => p.stock > 0 && (dueSoon(p) || isExpired(p))).length, "past their notify date", "soon"]]
+    .map(([k, v, s, f]) => `<div class="kpi${f ? " click" : ""}"${f ? ` data-pf="${f}"` : ""}><span>${k}</span><b>${v}</b><small>${s}</small></div>`).join("");
   document.querySelectorAll("#pchips button").forEach(b => b.setAttribute("aria-pressed", b.dataset.pf === pFilter));
   const f = $("#pfilter").value.toLowerCase(), o = po.value;
   $("#plist").innerHTML = P.filter(p => (!f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
@@ -1137,10 +1168,44 @@ function renderProducts() {
     .map(p => { const [note, cls] = stockState(p); return `<tr data-id="${p.id}">
       <td><div class="thumbcell">${thumb(p)}<div><b>${esc(p.name)}</b><small>${esc(p.barcode)}</small></div></div></td>
       <td><span class="owner-cell"><i class="dot" style="background:${ownerColor(p.seller_id, true)}"></i> ${esc(owner(p.seller_id))}</span></td>
-      <td class="num">${peso(p.price)}</td><td class="num"><span class="badge ${cls}">${note}</span></td><td>${expiryCell(p)}</td></tr>`; }).join("")
+      <td class="num">${peso(p.price)}</td><td class="num"><span class="stockcell"><span class="badge ${cls}">${note}</span><button class="restock${cls && note !== "Expired" ? " need" : ""}" data-restock="${p.id}" title="Restock: add pieces" aria-label="Restock ${esc(p.name)}">+</button></span></td><td>${expiryCell(p)}</td></tr>`; }).join("")
     || `<tr><td colspan="5" class="muted">${P.length ? "No product matches." : "No products yet. Tap New product to add one."}</td></tr>`;
 }
 $("#pchips").onclick = e => { const b = e.target.closest("button"); if (b) { pFilter = b.dataset.pf; renderProducts(); } };
+$("#pkpis").onclick = e => { const k = e.target.closest("[data-pf]"); if (k) { pFilter = k.dataset.pf; renderProducts(); } };
+
+// ---------- restock: add pieces to a product (Google adds them to its own count, see Code.gs restock_) ----------
+let restocking = null;
+function openRestock(p) {
+  restocking = p;
+  const f = $("#rsform"), s = S.sellers.find(s => s.id === p.seller_id), [note] = stockState(p);
+  f.reset(); f.id.value = p.id; f.add.value = 10; f.expiry.value = p.expiry || ""; f.notify_on.value = p.notify_on || "";
+  $("#rsItem").innerHTML = `${thumb(p)}<div><b>${esc(p.name)}</b><small>${note} · alert at ${s ? s.low_stock : 5} · ${esc(owner(p.seller_id))}</small></div>`;
+  showRestockTotal();
+  $("#rsDlg").showModal(); f.add.select();
+}
+function showRestockTotal() {
+  const add = parseInt($("#rsform").add.value) || 0, now = restocking.stock;
+  $("#rsNew").innerHTML = add > 0 ? `New stock: ${Math.max(now, 0)} → <b>${now + add} pcs</b>` : '<span class="bad">Enter how many pieces to add</span>';
+  $("#rsSave").textContent = add > 0 ? `Add ${add} to stock` : "Add to stock";
+}
+$("#rsform").add.oninput = showRestockTotal;
+$("#rsform").onclick = e => {
+  const b = e.target.closest("button[data-rd],button[data-rq]"); if (!b) return;
+  const f = $("#rsform"), cur = parseInt(f.add.value) || 0;
+  f.add.value = b.dataset.rq ? cur + +b.dataset.rq : Math.max(1, cur + +b.dataset.rd);
+  showRestockTotal();
+};
+$("#rsform").expiry.onchange = e => { const n = $("#rsform").notify_on; if (e.target.value && (!n.value || n.value > e.target.value)) n.value = addDays(e.target.value, -3); };
+$("#rsform").onsubmit = run(async e => {
+  e.preventDefault();
+  const f = e.target, add = parseInt(f.add.value);
+  if (!(add > 0)) return showRestockTotal();
+  const body = {id: f.id.value, add};
+  if (f.expiry.value !== (restocking.expiry || "") || f.notify_on.value !== (restocking.notify_on || "")) Object.assign(body, {expiry: f.expiry.value, notify_on: f.notify_on.value});
+  const r = await api("/api/restock", body);
+  $("#rsDlg").close(); toast(`${restocking.name}: ${r.stock} in stock now`); await load();
+});
 $("#powner").onchange = renderProducts;
 // Add / edit happens in a pop-up
 function editProduct(p) {
@@ -1174,7 +1239,11 @@ $("#pform").querySelectorAll("input[type=file]").forEach(i => i.onchange = run(a
   showFormPhoto(newPhoto);
 }));
 $("#pphotoDel").onclick = () => { newPhoto = ""; showFormPhoto(""); };
-$("#plist").onclick = e => { const tr = e.target.closest("tr[data-id]"); if (tr) editProduct(S.products.find(p => p.id === +tr.dataset.id)); };
+$("#plist").onclick = e => {
+  const r = e.target.closest("[data-restock]");
+  if (r) return openRestock(S.products.find(p => p.id === +r.dataset.restock));
+  const tr = e.target.closest("tr[data-id]"); if (tr) editProduct(S.products.find(p => p.id === +tr.dataset.id));
+};
 $("#pfilter").oninput = renderProducts;
 $("#pfilter").onkeydown = e => {
   if (e.key !== "Enter") return;
@@ -1215,7 +1284,7 @@ function renderSellers() {
         <div><b>${esc(s.name)}</b>${s.shelf ? `<span class="badge">Shelf ${esc(s.shelf)}</span>` : ""}</div></div>
       <div class="contact"><span>${esc(s.phone) || "No phone"}</span><span>${s.email ? esc(s.email) : '<span class="warn">No email: no alerts can be sent</span>'}</span></div>
       <div class="nums"><div><span>Items</span><b>${items.length}</b></div><div><span>Pieces left</span><b>${items.reduce((n, p) => n + Math.max(p.stock, 0), 0)}</b></div><div><span>Rent</span><b>${peso(s.rent)}</b></div></div>
-      <div class="acts">${expiring ? `<span class="badge low">${expiring} expiring</span>` : low ? `<span class="badge low">${low} low</span>` : '<span class="badge">All good</span>'}
+      <div class="acts">${expiring ? `<button class="badge low" data-items="${s.id}" data-f="soon">${expiring} expiring</button>` : low ? `<button class="badge low" data-items="${s.id}" data-f="low">${low} low: restock</button>` : '<span class="badge">All good</span>'}
         ${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
   }).join("") || `<div class="card muted">No shelf renters yet. Tap New seller to add the people renting your shelves.</div>`;
 }
@@ -1230,6 +1299,10 @@ function editSeller(s) {
 $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
+  if (b.dataset.items) {  // their items in Products, filtered, each with its restock button
+    $("#powner").value = b.dataset.items; pFilter = b.dataset.f;
+    document.querySelector('nav [data-tab="products"]').click(); renderProducts();
+  }
   if (b.dataset.report) { await api("/api/sellers/report", {id: b.dataset.report}); toast("Stock report sent"); }
 });
 $("#reportAll").onclick = run(async () => { const r = await api("/api/sellers/report", {}); toast(`Sent ${r.queued} stock report(s)`); });

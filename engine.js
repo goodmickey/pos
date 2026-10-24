@@ -62,6 +62,7 @@ const ROUTES = {
   "/api/pull": pull_,
   "/api/products": saveProduct_,
   "/api/products/delete": deleteProduct_,
+  "/api/restock": restock_,
   "/api/photo": savePhoto_,
   "/api/photos": photos_,
   "/api/sellers": saveSeller_,
@@ -245,6 +246,26 @@ function saveProduct_(d) {
     insert_("Products", p);
   }
   return {id: p.id, barcode: p.barcode};
+}
+
+// Restock: ADD pieces to the stock Google has now (not overwrite it), so sales made meanwhile on other devices still
+// count. A new batch can bring a new expiry date (and notify date).
+function restock_(d) {
+  const add = num_(d.add, "Pieces to add");
+  if (!Number.isInteger(add) || add <= 0) bad_("Pieces to add must be a whole number above 0");
+  const p = rows_("Products").find(r => r.id === Number(d.id));
+  if (!p) bad_("Product not found (was it deleted?)");
+  p.stock += add;
+  if ("expiry" in d) {
+    const e = d.expiry || null, n = d.notify_on || null;
+    [e, n].forEach(v => { if (v && !isDate_(v)) bad_("Bad date: " + v); });
+    if (n && !e) bad_("Set the expiry date too, or clear the notify date");
+    if (n && n > e) bad_("Notify date must be on or before the expiry date");
+    if (e && p.mfg_date && p.mfg_date > e) bad_("Manufacturing date is after the expiry date");
+    p.expiry = e; p.notify_on = n;
+  }
+  update_("Products", p);
+  return {stock: p.stock};
 }
 
 function deleteProduct_(d) {
