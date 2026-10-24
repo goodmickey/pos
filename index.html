@@ -100,37 +100,57 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .searchbar:focus-within{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .searchbar svg{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:2;flex:none}
 #scan{border:0;box-shadow:none;background:none;font-size:18px;padding:10px 4px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px;margin-top:16px;overflow:auto;align-content:start;padding:2px 2px 12px}
+.chips.owners{margin-top:12px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.owners button{flex:none;display:flex;align-items:center;gap:6px}
+.owners .dot{width:8px;height:8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px;margin-top:12px;overflow:auto;align-content:start;padding:2px 2px 12px}
 .tiles>p{grid-column:1/-1}
-.tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;min-height:132px;padding:16px 14px 12px;
-  border-radius:12px;border:1px solid var(--line);background:var(--panel);overflow:hidden;color:var(--ink)}
-.tile::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--c,var(--line2))}
+.tile{display:flex;flex-direction:column;align-items:stretch;gap:8px;text-align:left;min-height:132px;padding:12px;
+  border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:400}
 .tile:hover{background:var(--raised);border-color:var(--line2)}
 .tile:active{transform:scale(.98)}
-.tile b{font-size:16px;line-height:1.3;font-weight:500}
-.tile .owner{font-size:12px;color:var(--muted)}
-.tile span{font-size:22px;font-weight:700;margin-top:auto;font-variant-numeric:tabular-nums}
-.tile small{font-size:13px;color:var(--muted)}
-.tile.off{opacity:.5}
-.tile.off small{color:var(--bad)}
+.tile .tname{display:flex;gap:10px;align-items:flex-start}
+.tile b{font-size:15px;line-height:1.3;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .owner{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.tfoot{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:auto}
+.tfoot .price{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.stock{font-size:12px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.stock.low{background:rgba(242,184,75,.18);color:var(--warn)}
+.stock.bad{background:var(--badsoft);color:var(--bad)}
+.ini{display:grid;place-items:center;color:#fff;font-weight:700;font-size:17px;border:0}
+.tile.off{opacity:.55}
 
 .ticket{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;overflow:hidden}
-.ticket-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
-.ticket-head b{font-size:18px;font-weight:500}
+.ticket-head{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 12px 18px;border-bottom:1px solid var(--line)}
+.ticket-head b{font-size:17px;font-weight:500;margin-right:8px}
 .ticket-items{flex:1;overflow:auto;min-height:80px}
-.ticket-items td{padding:10px 18px;vertical-align:middle}
-.ticket-items td:nth-child(2){padding:10px 4px}
-.ticket-items td .muted{font-size:13px}
+.ticket-items td{padding:10px 8px;vertical-align:middle}
+.ticket-items td:first-child{padding-left:18px}.ticket-items td:last-child{padding-right:18px}
+.ticket-items td .muted{font-size:12px}
 .ticket-items tr:hover{background:none}
-.empty{color:var(--muted);text-align:center;padding:36px 18px!important;border:0}
-.ticket-foot{border-top:1px solid var(--line);padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.lname{font-weight:500;line-height:1.3}
+.stepper{display:inline-flex;align-items:center;border-radius:18px;background:var(--chip)}
+.stepper button{background:none;min-height:34px;min-width:34px;padding:0;border-radius:50%;font-size:17px}
+.stepper button:hover{background:var(--chip2)}
+.stepper span{min-width:22px;text-align:center;font-weight:500;font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);text-align:center;padding:44px 18px!important;border:0}
+.empty svg{width:40px;height:40px;stroke:var(--muted);fill:none;stroke-width:1.5;display:block;margin:0 auto 10px}
+.ticket-foot{border-top:1px solid var(--line);padding:14px 18px 16px;display:flex;flex-direction:column;gap:10px}
 .sumrow{display:flex;justify-content:space-between;align-items:baseline}
 .sumrow span{font-weight:500}
-.total{font-size:32px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
-.quickcash{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.quickcash button{min-height:44px;padding:6px 4px;border-radius:8px;font-size:15px}
-.change b{font-size:20px;font-variant-numeric:tabular-nums}
-.pay{background:var(--strong);color:var(--onstrong);font-size:18px;font-weight:500;min-height:52px;padding:14px;border-radius:26px;width:100%}
+.total{font-size:30px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.cashbox{display:flex;align-items:center;gap:4px;border:1px solid var(--fieldline);border-radius:10px;background:var(--field);padding:0 4px 0 12px}
+.cashbox:focus-within{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.cashbox span{color:var(--muted);font-size:18px}
+.cashbox input{border:0;box-shadow:none;background:none;font-size:18px;padding:10px 4px;min-height:46px}
+.cashbox .iconbtn{width:34px;height:34px;min-height:34px;font-size:14px;color:var(--muted)}
+.quickcash{display:flex;gap:6px;flex-wrap:wrap}
+.quickcash:empty{display:none}
+.quickcash button{flex:1;min-height:40px;padding:6px 8px;border-radius:8px;font-size:14px}
+.change b{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.change b.good{color:var(--good)}
+.pay{background:var(--strong);color:var(--onstrong);font-size:18px;font-weight:500;min-height:54px;padding:14px;border-radius:27px;width:100%}
 .pay:hover{background:var(--strong);opacity:.85}
 .pay:disabled{background:var(--chip);color:var(--muted);opacity:1}
 .ghost{background:none;color:var(--muted)}
@@ -303,19 +323,20 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
       <div class="searchbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="scan" placeholder="Search item or scan barcode" autocomplete="off" autofocus>
         <button class="kb" id="kb" title="Show on-screen keyboard to type a name">⌨ Type</button></div>
+      <div class="chips owners" id="owners"></div>
       <div class="tiles" id="tiles"></div>
     </div>
     <div class="ticket">
-      <div class="ticket-head"><b>Current sale</b><span class="muted" id="itemCount"></span></div>
+      <div class="ticket-head"><div><b>Current sale</b><span class="muted" id="itemCount"></span></div>
+        <button class="ghost sm" id="clear" title="Cancel this sale (Esc)">Clear</button></div>
       <div class="ticket-items"><table><tbody id="cart"></tbody></table></div>
       <div class="ticket-foot">
         <div class="sumrow"><span>Total</span><span class="total" id="total">₱0.00</span></div>
-        <label>Cash received <input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Amount the customer gave"></label>
-        <div class="quickcash" id="quickcash"><button data-cash="exact">Exact</button><button data-cash="20">₱20</button><button data-cash="50">₱50</button><button data-cash="100">₱100</button>
-          <button data-cash="200">₱200</button><button data-cash="500">₱500</button><button data-cash="1000">₱1,000</button><button data-cash="">Clear</button></div>
-        <div class="sumrow change"><span>Change</span><b id="change">₱0.00</b></div>
+        <div class="cashbox"><span>₱</span><input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash received" aria-label="Cash received">
+          <button id="cashClear" class="iconbtn" aria-label="Clear the cash amount" hidden>✕</button></div>
+        <div class="quickcash" id="quickcash"></div>
+        <div class="sumrow change"><span id="changeLabel">Change</span><b id="change">–</b></div>
         <button class="pay" id="pay">Charge</button>
-        <button class="ghost" id="clear">Cancel sale (Esc)</button>
       </div>
     </div>
   </div>
@@ -733,22 +754,36 @@ $("#scan").onkeydown = e => {
   e.target.value = v; renderTiles();  // several matches: leave them as tiles to tap
 };
 
+// Owner chips under the search: All, Store, and each seller with goods on a shelf (the choice is kept while selling)
+let sellOwner = "";  // "" = all, "store", or a seller id
+function renderOwners() {
+  const ids = new Set(S.products.map(p => p.seller_id || "store"));
+  const chips = [["", "All"], ...(ids.has("store") ? [["store", "Store"]] : []),
+    ...S.sellers.filter(s => ids.has(s.id)).map(s => [String(s.id), s.name])];
+  if (!chips.some(([v]) => v === sellOwner)) sellOwner = "";
+  $("#owners").hidden = chips.length < 3;  // only worth showing with at least one seller and the store, or two sellers
+  $("#owners").innerHTML = chips.map(([v, label]) => `<button data-owner="${v}" aria-pressed="${v === sellOwner}">${v && v !== "store" ? `<i class="dot" style="background:${ownerColor(+v)}"></i>` : ""}${esc(label)}</button>`).join("");
+}
+$("#owners").onclick = e => { const b = e.target.closest("button"); if (b) { sellOwner = b.dataset.owner; renderTiles(); $("#scan").focus(); } };
 function renderTiles() {
+  renderOwners();
   const f = $("#scan").value.trim().toLowerCase();
-  const list = S.products.filter(p => !f || p.name.toLowerCase().includes(f) || p.barcode.includes(f));
+  const list = S.products.filter(p => (!f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
+    && (!sellOwner || (sellOwner === "store" ? !p.seller_id : String(p.seller_id) === sellOwner)));
   $("#tiles").innerHTML = list.map(p => {
-    const note = isExpired(p) ? "EXPIRED" : p.stock <= 0 ? "Out of stock" : `${p.stock} left`;
-    const s = S.sellers.find(s => s.id === p.seller_id);
-    return `<button class="tile${note.endsWith("left") ? "" : " off"}" data-id="${p.id}" style="--c:${ownerColor(p.seller_id)}">
-      <div class="tname">${photoImg(p)}<b>${esc(p.name)}</b></div><div class="owner">${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
-      <span>${peso(p.price)}</span><small>${note}</small></button>`;
+    const s = S.sellers.find(s => s.id === p.seller_id), low = s ? s.low_stock : 5;
+    const [note, cls] = isExpired(p) ? ["Expired", "bad"] : p.stock <= 0 ? ["Out of stock", "bad"] : [`${p.stock} left`, p.stock <= low ? "low" : ""];
+    return `<button class="tile${cls === "bad" ? " off" : ""}" data-id="${p.id}">
+      <div class="tname">${photoImg(p) || `<span class="pimg ini" style="background:${ownerColor(p.seller_id, true)}">${esc(p.name.trim()[0] || "?").toUpperCase()}</span>`}<b>${esc(p.name)}</b></div>
+      <div class="owner"><i class="dot" style="background:${ownerColor(p.seller_id, true)}"></i>${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
+      <div class="tfoot"><span class="price">${peso(p.price)}</span><small class="stock ${cls}">${note}</small></div></button>`;
   }).join("") || `<p class="muted">${S.products.length ? "No item matches." : "No products yet. Add them in the Products tab."}</p>`;
 }
 // The product's photo (small JPEG kept on this device), or nothing when it has none
 const photoImg = p => S.photos[p.id] ? `<img class="pimg" src="${esc(S.photos[p.id])}" alt="">` : "";
-// Each seller's items get their own color strip on the tile, so staff can tell shelves apart at a glance
+// Each seller's items get their own colour (dot and letter), so staff can tell shelves apart at a glance; the store's own are grey
 const SELLER_COLORS = ["#2563eb", "#d97706", "#9333ea", "#db2777", "#0891b2", "#65a30d", "#dc2626", "#4f46e5"];
-const ownerColor = id => id ? SELLER_COLORS[id % SELLER_COLORS.length] : "var(--line2)";
+const ownerColor = (id, solid) => id ? SELLER_COLORS[id % SELLER_COLORS.length] : solid ? "#8a8a8a" : "var(--line2)";
 $("#tiles").onclick = e => { const b = e.target.closest(".tile"); if (b) askQty(S.products.find(p => p.id === +b.dataset.id)); };
 
 // Quantity pop-up after tapping an item
@@ -789,27 +824,39 @@ function addToCart(p, qty = 1) {
   return true;
 }
 
+// Cash buttons: the exact amount, then the next round amounts a customer is likely to hand over
+function cashOptions(total) {
+  const ups = new Set([20, 50, 100, 500, 1000].map(n => Math.ceil(total / n) * n).filter(v => v > total));
+  return [...ups].sort((a, b) => a - b).slice(0, 4);
+}
 function renderCart() {
-  $("#cart").innerHTML = cart.map((l, i) => `<tr><td>${esc(l.name)}<div class="muted">${peso(l.price)} × ${l.qty}</div></td>
-    <td class="num">${peso(l.price * l.qty)}</td>
-    <td class="num"><button class="sm" data-i="${i}" data-d="-1">−</button> <button class="sm" data-i="${i}" data-d="1">+</button> <button class="sm" data-i="${i}" data-d="x">✕</button></td></tr>`).join("")
-    || `<tr><td class="empty">Tap an item or scan a barcode to start.</td></tr>`;
-  const total = cart.reduce((s, l) => s + l.price * l.qty, 0), cash = parseFloat($("#cash").value);
+  $("#cart").innerHTML = cart.map((l, i) => `<tr><td><div class="lname">${esc(l.name)}</div><div class="muted">${peso(l.price)} each</div></td>
+    <td><div class="stepper"><button data-i="${i}" data-d="-1" aria-label="One less">−</button><span>${l.qty}</span><button data-i="${i}" data-d="1" aria-label="One more">+</button></div></td>
+    <td class="num">${peso(l.price * l.qty)}</td></tr>`).join("")
+    || `<tr><td class="empty"><svg viewBox="0 0 24 24"><path d="M3 5V3h4M17 3h4v2M21 19v2h-4M7 21H3v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Scan a barcode or tap an item to start</td></tr>`;
+  const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100, cash = parseFloat($("#cash").value);
   const pcs = cart.reduce((n, l) => n + l.qty, 0);
-  $("#itemCount").textContent = pcs ? `${pcs} item${pcs > 1 ? "s" : ""}` : "";  $("#pay").textContent = cart.length ? `Charge ${peso(total)}` : "Charge";
+  $("#itemCount").textContent = pcs ? `${pcs} item${pcs > 1 ? "s" : ""}` : "";
+  $("#clear").hidden = !cart.length;
+  $("#pay").textContent = cart.length ? `Charge ${peso(total)}` : "Charge";
   $("#pay").disabled = !cart.length;
   $("#total").textContent = peso(total);
-  $("#change").textContent = cash ? peso(cash - total) : "₱0.00";
-  $("#change").className = cash && cash < total ? "bad" : "";
+  $("#quickcash").innerHTML = total ? `<button data-cash="exact">Exact</button>` + cashOptions(total).map(v => `<button data-cash="${v}">${peso(v).replace(".00", "")}</button>`).join("") : "";
+  $("#cashClear").hidden = !$("#cash").value;
+  const short = cash < total;
+  $("#changeLabel").textContent = cash && short ? "Short by" : "Change";
+  $("#change").textContent = cash > 0 && total ? peso(Math.abs(cash - total)) : "–";
+  $("#change").className = !(cash > 0 && total) ? "" : short ? "bad" : "good";
 }
 $("#cart").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   const l = cart[b.dataset.i];
-  if (b.dataset.d === "x" || (l.qty === 1 && b.dataset.d === "-1")) cart.splice(b.dataset.i, 1);
+  if (l.qty === 1 && b.dataset.d === "-1") cart.splice(b.dataset.i, 1);  // − on the last one takes the item out
   else addToCart(S.products.find(p => p.id === l.id), +b.dataset.d);
   renderCart(); $("#scan").focus();
 };
 $("#cash").oninput = renderCart;
+$("#cashClear").onclick = () => { $("#cash").value = ""; renderCart(); $("#cash").focus(); };
 $("#quickcash").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   const total = cart.reduce((s, l) => s + l.price * l.qty, 0);
