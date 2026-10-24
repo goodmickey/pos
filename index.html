@@ -204,6 +204,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .setrow .ctl select{flex:1}
 .setfoot{display:flex;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--line)}
 #setform .setrow:nth-last-child(2){border-bottom:0}
+.verlist{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:8px 0 0;font-size:14px}
+.verlist dt{color:var(--muted)}.verlist dd{margin:0;font-weight:500;font-variant-numeric:tabular-nums}
 .url{font-weight:500;word-break:break-all;text-align:right}
 .switch{appearance:none;-webkit-appearance:none;width:44px;min-width:44px;height:24px;min-height:24px;padding:0;border-radius:12px;border:0;background:var(--chip2);position:relative;cursor:pointer;transition:background .15s}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
@@ -556,7 +558,9 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 
       <div class="card setpane" id="st-update">
         <h3>Software update</h3><p class="muted sethint" id="updHint">New versions of the POS install with one tap. Your data stays.</p>
-        <div class="setrow"><div><b>Version</b><small id="appVersion">The web version updates itself each time it opens.</small></div><div class="ctl"><button id="appUpdate" hidden>Software update</button></div></div>
+        <div class="setrow"><div><b>Version</b>
+          <dl class="verlist" id="verList" hidden><dt>App version</dt><dd id="verApp">–</dd><dt>Date</dt><dd id="verDate">–</dd><dt>Time</dt><dd id="verTime">–</dd></dl>
+          <small id="appVersion">The web version updates itself each time it opens.</small></div><div class="ctl"><button id="appUpdate" hidden>Software update</button></div></div>
         <div id="appNotes" hidden><b>What's new in this version</b><ul></ul></div>
       </div>
 
@@ -1731,8 +1735,12 @@ async function checkUpdate(quiet) {
 }
 if (window.APP_VERSION) {
   $("#appUpdate").hidden = false;
-  $("#appVersion").textContent = `App version: ${versionText(APP_VERSION)}`;
-  if (appShell) appShell.info().then(i => { shellInfo = i; $("#appVersion").textContent += ` · app ${i.name}`; }).catch(() => {});
+  // App version, then the date and time this version was published
+  const when = new Date(APP_VERSION * 1000);
+  $("#verList").hidden = false; $("#appVersion").hidden = true;
+  $("#verDate").textContent = when.toLocaleDateString("en-PH", {month: "long", day: "numeric", year: "numeric"});
+  $("#verTime").textContent = when.toLocaleTimeString("en-PH", {hour: "numeric", minute: "2-digit"});
+  if (appShell) appShell.info().then(i => { shellInfo = i; $("#verApp").textContent = i.name; }).catch(() => {});
   if (window.APP_NOTES?.length) {
     $("#appNotes ul").innerHTML = APP_NOTES.map(n => `<li>${esc(n)}</li>`).join("");
     $("#appNotes").hidden = false;
