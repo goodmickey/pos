@@ -9,8 +9,12 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#ffffff">
 <script>
-// Light / dark / automatic (light 6 AM to 6 PM on this device's clock): set before the page draws, so it never flashes
-window.themeFor = function (mode) { var h = new Date().getHours(); return mode === "auto" ? (h >= 6 && h < 18 ? "light" : "dark") : mode === "dark" ? "dark" : "light"; };
+// Light / dark / automatic (light 6 AM to 6 PM on this device's clock) / follow the device: set before the page draws, so it never flashes
+window.themeFor = function (mode) {
+  var h = new Date().getHours();
+  if (mode === "system") return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";  // follow this device's own setting
+  return mode === "auto" ? (h >= 6 && h < 18 ? "light" : "dark") : mode === "dark" ? "dark" : "light";
+};
 try { document.documentElement.dataset.theme = themeFor(JSON.parse(localStorage.getItem("theme"))); } catch (e) {}
 </script>
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,18 +23,20 @@ try { document.documentElement.dataset.theme = themeFor(JSON.parse(localStorage.
    Colors are tokens: :root is light, [data-theme=dark] is dark (chosen in Settings > Appearance). */
 :root{color-scheme:light;
   --page:#f9f9f9;--bg:#fff;--panel:#fff;--raised:#fff;--ink:#0f0f0f;--muted:#606060;--line:rgba(0,0,0,.1);--line2:rgba(0,0,0,.2);
-  --chip:rgba(0,0,0,.05);--chip2:rgba(0,0,0,.1);--field:#fff;--fieldline:#ccc;
-  --strong:#0f0f0f;--onstrong:#fff;--accent:#065fd4;--red:#ff0033;--good:#2ba640;--goodsoft:rgba(43,166,64,.12);
-  --warn:#b45309;--bad:#cc0000;--badsoft:rgba(204,0,0,.08);--shade:0 4px 32px rgba(0,0,0,.16)}
+  --chip:rgba(0,0,0,.05);--chip2:rgba(0,0,0,.1);--field:#fff;--fieldline:#8f8f8f;--track:#8a8a8a;
+  --strong:#0f0f0f;--onstrong:#fff;--accent:#065fd4;--red:#ff0033;--alert:#cc0000;--good:#137333;--goodsoft:rgba(19,115,51,.12);
+  --warn:#a14a07;--warnsoft:rgba(180,83,9,.12);--bad:#cc0000;--badsoft:rgba(204,0,0,.08);--shade:0 4px 32px rgba(0,0,0,.16)}
+/* Every text/background pair is at least 4.5:1 (WCAG AA), controls and borders 3:1, in both themes.
+   --red is the logo red (icons, large text only); white text sits on --alert. */
 :root[data-theme=dark]{color-scheme:dark;
   --page:#0f0f0f;--bg:#0f0f0f;--panel:#1f1f1f;--raised:#282828;--ink:#f1f1f1;--muted:#aaa;--line:rgba(255,255,255,.1);--line2:rgba(255,255,255,.2);
-  --chip:rgba(255,255,255,.1);--chip2:rgba(255,255,255,.2);--field:#121212;--fieldline:#303030;
+  --chip:rgba(255,255,255,.1);--chip2:rgba(255,255,255,.2);--field:#121212;--fieldline:#6b6b6b;--track:#777777;
   --strong:#f1f1f1;--onstrong:#0f0f0f;--accent:#3ea6ff;--red:#ff0033;--good:#4cc764;--goodsoft:rgba(76,199,100,.15);
-  --warn:#f2b84b;--bad:#ff4e45;--badsoft:rgba(255,78,69,.15);--shade:0 4px 32px rgba(0,0,0,.6)}
+  --warn:#f2b84b;--warnsoft:rgba(242,184,75,.18);--bad:#ff8a80;--badsoft:rgba(255,78,69,.15);--shade:0 4px 32px rgba(0,0,0,.6)}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{background:var(--page)}
-body{min-height:100vh;margin:0;font:15px/1.45 Roboto,Arial,system-ui,sans-serif;background:var(--page);color:var(--ink);-webkit-font-smoothing:antialiased;
+body{min-height:100vh;margin:0;font:15px/1.45 Roboto,Arial,system-ui,sans-serif;font-variant-numeric:tabular-nums;background:var(--page);color:var(--ink);-webkit-font-smoothing:antialiased;
   display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;grid-template-areas:"top top" "side main"}
 svg.i{width:24px;height:24px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
@@ -44,7 +50,7 @@ svg.i{width:24px;height:24px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .brand sup{color:var(--muted);font-size:10px;align-self:flex-start;margin-top:12px}
 #net{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:6px 12px;border-radius:18px;background:var(--chip);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw}
 #net::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
-#net.off::before{background:#f59e0b}
+#net.off::before{background:var(--warn)}
 
 /* left menu (YouTube's guide): full, or mini with the label under the icon */
 .side{grid-area:side;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;padding:12px;background:var(--bg)}
@@ -55,7 +61,7 @@ nav button.on{background:var(--chip);font-weight:500}
 nav button.on:hover{background:var(--chip2)}
 body.navmini{grid-template-columns:76px 1fr}
 body.navmini .side{padding:4px}
-body.navmini nav button{flex-direction:column;justify-content:center;gap:6px;min-height:74px;padding:14px 0;font-size:10px;text-align:center}
+body.navmini nav button{flex-direction:column;justify-content:center;gap:6px;min-height:74px;padding:14px 0;font-size:11px;text-align:center}
 body.navmini nav button span{max-width:68px;line-height:1.2}
 
 /* main */
@@ -80,9 +86,9 @@ button.danger:hover{background:var(--badsoft)}
 button.sm{min-height:36px;min-width:36px;padding:6px 12px}
 table{width:100%;border-collapse:collapse}
 th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line)}
-th{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:.3px;text-transform:uppercase;background:var(--panel);position:sticky;top:0}
+th{font-size:13px;color:var(--muted);font-weight:500;letter-spacing:.3px;text-transform:uppercase;background:var(--panel);position:sticky;top:0}
 tbody tr:hover{background:var(--chip)}
-.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.num{text-align:right;white-space:nowrap}
 .form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;align-items:end}
 .form>.row{grid-column:1/-1}
 label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--muted)}
@@ -95,7 +101,7 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 /* sell screen */
 #sell.on{display:grid;height:calc(100vh - 96px)}
 .sell{display:grid;grid-template-columns:1fr 380px;gap:20px;min-height:0}
-.catalog{display:flex;flex-direction:column;min-height:0}
+.catalog{display:flex;flex-direction:column;min-height:0;min-width:0}  /* many owner chips scroll instead of widening the page */
 .searchbar{display:flex;gap:8px;align-items:center;background:var(--field);border:1px solid var(--fieldline);border-radius:40px;padding:2px 4px 2px 18px}
 .searchbar:focus-within{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .searchbar svg{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:2;flex:none}
@@ -111,15 +117,15 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .tile:active{transform:scale(.98)}
 .tile .tname{display:flex;gap:10px;align-items:flex-start}
 .tile b{font-size:15px;line-height:1.3;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.tile .owner{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .owner{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none;vertical-align:middle}
-.tfoot{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:auto}
-.tfoot .price{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
-.stock{font-size:12px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
-.stock.low{background:rgba(242,184,75,.18);color:var(--warn)}
+.tfoot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;margin-top:auto}
+.tfoot .price{font-size:19px;font-weight:700}
+.stock{font-size:13px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.stock.low{background:var(--warnsoft);color:var(--warn)}
 .stock.bad{background:var(--badsoft);color:var(--bad)}
 .ini{display:grid;place-items:center;color:#fff;font-weight:700;font-size:17px;border:0}
-.tile.off{opacity:.55}
+.tile.off :is(.tname,.owner,.price){opacity:.55}  /* the Expired / Out badge stays readable */
 
 .ticket{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:0;overflow:hidden}
 .ticket-head{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 12px 18px;border-bottom:1px solid var(--line)}
@@ -127,19 +133,19 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .ticket-items{flex:1;overflow:auto;min-height:80px}
 .ticket-items td{padding:10px 8px;vertical-align:middle}
 .ticket-items td:first-child{padding-left:18px}.ticket-items td:last-child{padding-right:18px}
-.ticket-items td .muted{font-size:12px}
+.ticket-items td .muted{font-size:13px}
 .ticket-items tr:hover{background:none}
 .lname{font-weight:500;line-height:1.3}
 .stepper{display:inline-flex;align-items:center;border-radius:18px;background:var(--chip)}
 .stepper button{background:none;min-height:34px;min-width:34px;padding:0;border-radius:50%;font-size:17px}
 .stepper button:hover{background:var(--chip2)}
-.stepper span{min-width:22px;text-align:center;font-weight:500;font-variant-numeric:tabular-nums}
+.stepper span{min-width:22px;text-align:center;font-weight:500}
 .empty{color:var(--muted);text-align:center;padding:44px 18px!important;border:0}
 .empty svg{width:40px;height:40px;stroke:var(--muted);fill:none;stroke-width:1.5;display:block;margin:0 auto 10px}
 .ticket-foot{border-top:1px solid var(--line);padding:14px 18px 16px;display:flex;flex-direction:column;gap:10px}
 .sumrow{display:flex;justify-content:space-between;align-items:baseline}
 .sumrow span{font-weight:500}
-.total{font-size:30px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.total{font-size:30px;font-weight:700;letter-spacing:-.5px}
 .cashbox{display:flex;align-items:center;gap:4px;border:1px solid var(--fieldline);border-radius:10px;background:var(--field);padding:0 4px 0 12px}
 .cashbox:focus-within{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .cashbox span{color:var(--muted);font-size:18px}
@@ -148,7 +154,7 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .quickcash{display:flex;gap:6px;flex-wrap:wrap}
 .quickcash:empty{display:none}
 .quickcash button{flex:1;min-height:40px;padding:6px 8px;border-radius:8px;font-size:14px}
-.change b{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.change b{font-size:30px;letter-spacing:-.5px;font-weight:700}
 .change b.good{color:var(--good)}
 .pay{background:var(--strong);color:var(--onstrong);font-size:18px;font-weight:500;min-height:54px;padding:14px;border-radius:27px;width:100%}
 .pay:hover{background:var(--strong);opacity:.85}
@@ -161,19 +167,19 @@ dialog{border:0;border-radius:12px;padding:22px;width:min(380px,92vw);background
 dialog::backdrop{background:rgba(0,0,0,.5)}
 #doneDlg{width:min(400px,92vw)}
 #updDlg{width:min(480px,92vw)}
-#updDlg.major #updTitle{color:var(--red)}
-#appUpdate.major{background:var(--red);color:#fff}
+#updDlg.major #updTitle{color:var(--bad)}
+#appUpdate.major{background:var(--alert);color:#fff}
 .donecheck{width:56px;height:56px;border-radius:50%;background:var(--goodsoft);color:var(--good);font-size:30px;font-weight:700;display:grid;place-items:center;margin:0 auto}
 .donesum{background:var(--chip);border-radius:12px;padding:12px 16px;margin:16px 0 8px;display:grid;gap:6px}
 .donechange{border-top:1px solid var(--line);padding-top:8px}
-.donechange b{font-size:30px;font-weight:700;color:var(--good);font-variant-numeric:tabular-nums}
+.donechange b{font-size:30px;font-weight:700;color:var(--good)}
 .qtyrow{flex-wrap:nowrap;margin:18px 0 10px}
 .qtyrow button{font-size:26px;width:58px;height:56px;padding:0;flex:none;border-radius:50%}
 .qtyrow input{font-size:28px;font-weight:700;text-align:center;height:56px}
 #qtyQuick{margin-bottom:18px}#qtyQuick button{flex:1}
 #qtyDlg .primary{padding:12px;font-size:16px}
 #toast{position:fixed;bottom:24px;left:24px;background:var(--strong);color:var(--onstrong);padding:14px 18px;border-radius:8px;display:none;max-width:min(560px,90vw);z-index:9;box-shadow:var(--shade);font-size:14px}
-#toast.err{background:var(--bad);color:#fff}
+#toast.err{background:var(--alert);color:#fff}
 
 /* product photos */
 .pimg{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;background:var(--chip)}
@@ -205,14 +211,14 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .setfoot{display:flex;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--line)}
 #setform .setrow:nth-last-child(2){border-bottom:0}
 .verlist{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:8px 0 0;font-size:14px}
-.verlist dt{color:var(--muted)}.verlist dd{margin:0;font-weight:500;font-variant-numeric:tabular-nums}
+.verlist dt{color:var(--muted)}.verlist dd{margin:0;font-weight:500}
 .url{font-weight:500;word-break:break-all;text-align:right}
-.switch{appearance:none;-webkit-appearance:none;width:44px;min-width:44px;height:24px;min-height:24px;padding:0;border-radius:12px;border:0;background:var(--chip2);position:relative;cursor:pointer;transition:background .15s}
+.switch{appearance:none;-webkit-appearance:none;width:44px;min-width:44px;height:24px;min-height:24px;padding:0;border-radius:12px;border:0;background:var(--track);position:relative;cursor:pointer;transition:background .15s}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
 .switch:checked{background:var(--accent)}
 .switch:checked::after{transform:translateX(20px)}
-.switch:focus{box-shadow:none}
-.themeopts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:6px}
+.switch:focus{box-shadow:none}.switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.themeopts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:6px}
 .themeopts button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px;border-radius:12px;background:none;border:1px solid var(--line);text-align:left;min-height:0}
 .themeopts button:hover{background:var(--chip)}
 .themeopts button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
@@ -221,6 +227,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .tp-light{background:linear-gradient(#fff 0 22%,#f2f2f2 22% 100%)}
 .tp-dark{background:linear-gradient(#0f0f0f 0 22%,#272727 22% 100%)}
 .tp-auto{background:linear-gradient(90deg,#fff 0 50%,#0f0f0f 50% 100%)}
+.tp-system{background:linear-gradient(135deg,#fff 0 50%,#0f0f0f 50% 100%)}
+@media(max-width:1100px) and (min-width:701px){.themeopts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.setwrap{grid-template-columns:1fr}.setnav{position:static;flex-direction:row;overflow-x:auto;gap:8px}
   .setnav button{flex:none;gap:8px;background:var(--chip);border-radius:8px;min-height:40px}.setnav button.on{background:var(--strong);color:var(--onstrong)}}
 @media(max-width:700px){.setrow{grid-template-columns:1fr;gap:8px}.setrow .ctl{justify-content:flex-start}.themeopts{grid-template-columns:1fr}.url{text-align:left}}
@@ -247,8 +255,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .dlgfoot span{flex:1}
 .thumbcell{display:flex;gap:12px;align-items:center}.thumbcell .pimg{width:40px;height:40px;font-size:15px}
 .thumbcell b{font-weight:500;display:block}.thumbcell small{color:var(--muted);font-size:12px}
-.badge{display:inline-block;font-size:12px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
-.badge.low{background:rgba(242,184,75,.18);color:var(--warn)}.badge.bad{background:var(--badsoft);color:var(--bad)}
+.badge{display:inline-block;font-size:13px;font-weight:500;padding:3px 8px;border-radius:10px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.badge.low{background:var(--warnsoft);color:var(--warn)}.badge.bad{background:var(--badsoft);color:var(--bad)}
 #plist tr,#hlist tr[data-i]{cursor:pointer}
 .scards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 .scard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
@@ -257,7 +265,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .scard .contact{font-size:13px;color:var(--muted);display:grid;gap:2px}
 .scard .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .scard .nums div{background:var(--chip);border-radius:10px;padding:8px 10px}
-.scard .nums span{display:block;font-size:12px;color:var(--muted)}.scard .nums b{font-size:16px;font-variant-numeric:tabular-nums}
+.scard .nums span{display:block;font-size:12px;color:var(--muted)}.scard .nums b{font-size:16px}
 .scard .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}
 .scard .acts .badge{margin-right:auto}
 button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{filter:brightness(.95)}
@@ -286,10 +294,10 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .rentrow{display:grid;grid-template-columns:1fr auto;align-items:start;gap:8px 10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line)}
 .rentrow .when{display:flex;flex-direction:column}
 .rentrow .when span{font-size:12px;color:var(--muted)}.rentrow .when b{font-size:15px}
-.rentrow.soon{border-color:rgba(242,184,75,.6);background:rgba(242,184,75,.08)}
+.rentrow.soon{border-color:var(--warn);background:var(--warnsoft)}
 .rentrow .ans{grid-column:1/-1;display:flex;gap:8px}.rentrow .ans:empty{display:none}.rentrow .ans button{flex:1}
 .rentrow .ans .ghost{flex:none;margin-left:auto}
-.navbadge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--red);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
+.navbadge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--alert);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center}
 body.navmini nav button{position:relative}body.navmini .navbadge{position:absolute;top:8px;right:14px;margin:0}
 @media(max-width:700px){nav button{position:relative}.navbadge{position:absolute;top:2px;right:calc(50% - 22px);margin:0}.fhint{grid-column:1/-1}}
 .dayrow td{background:var(--chip);font-size:13px;font-weight:500;color:var(--muted);padding:8px 14px!important}
@@ -303,7 +311,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:8px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
 .kpi span{display:block;font-size:13px;color:var(--muted)}
-.kpi b{display:block;font-size:24px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi b{display:block;font-size:24px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi small{display:block;font-size:12px;color:var(--muted)}
 .kpi.lead b{color:var(--good)}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:8px 0 16px;overflow-x:auto}
@@ -324,7 +332,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 .renter h4{margin:18px 0 6px;font-size:15px}
 .rsum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
 .rsum div{background:var(--chip);border-radius:12px;padding:10px 12px}
-.rsum b{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.rsum b{display:block;font-size:20px;font-weight:700}
 .rsum.six{grid-template-columns:repeat(3,1fr)}
 .linkbtn{background:none;padding:0;min-height:0;border-radius:0;color:var(--accent);font-weight:500;text-align:left}
 .linkbtn:hover{background:none;text-decoration:underline}
@@ -341,12 +349,18 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
   #navToggle,.brand sup{display:none}
   .side{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;z-index:6;padding:0;border-top:1px solid var(--line);overflow-x:auto}
   nav,body.navmini nav{flex-direction:row}
-  nav button,body.navmini nav button{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;min-height:58px;padding:6px 2px;font-size:10px;text-align:center;border-radius:0}
+  nav button,body.navmini nav button{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;min-height:58px;padding:6px 2px;font-size:11px;text-align:center;border-radius:0}
   nav button.on{background:none;font-weight:700}
   main{padding:12px 12px 80px}
   #sell.on{height:auto}.sell{grid-template-columns:1fr}.tiles{max-height:45vh}
   #toast{left:12px;right:12px;bottom:76px}}
-@media(pointer:coarse){input,select{font-size:16px}button{padding:10px 18px}button.sm{padding:8px 14px}td{padding:12px 10px}.kb{display:inline-block}}
+@media(pointer:coarse){input,select{font-size:16px}button{padding:10px 18px}button.sm{padding:8px 14px}td{padding:12px 10px}.kb{display:inline-block}
+  /* tablets and phones: every tap target at least 44px (48 for the cart - / +, the most tapped) */
+  .stepper button{min-height:48px;min-width:48px}.stepper span{min-width:28px}
+  .iconbtn,.cashbox .iconbtn{width:44px;min-width:44px;height:44px;min-height:44px}
+  button.sm,.copies button,.copies input,.restock,button.badge{min-height:44px;min-width:44px}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}  /* keyboard / scanner users see where they are */
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.tile:active{transform:none}}
 
 /* printing: always black on white, whatever the screen theme */
 #print{display:none}
@@ -557,6 +571,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
           <button data-theme="light"><i class="tp tp-light"></i><b>Light</b><small>Always light</small></button>
           <button data-theme="dark"><i class="tp tp-dark"></i><b>Dark</b><small>Always dark</small></button>
           <button data-theme="auto"><i class="tp tp-auto"></i><b>Automatic</b><small>Light from 6 AM, dark from 6 PM (this device's clock)</small></button>
+          <button data-theme="system"><i class="tp tp-system"></i><b>Follow this device</b><small>Same as the device's own light / dark setting</small></button>
         </div>
       </div>
 
@@ -790,6 +805,7 @@ function applyTheme() {
 }
 $("#themePick").onclick = e => { const b = e.target.closest("button"); if (b) { store.set("theme", b.dataset.theme); applyTheme(); } };
 applyTheme(); setInterval(applyTheme, 60000);  // automatic mode switches within a minute of 6 AM / 6 PM
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", applyTheme);  // "Follow this device": at once
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button, section").forEach(e => e.classList.remove("on"));
@@ -891,8 +907,9 @@ function stockState(p) {
   return isExpired(p) ? ["Expired", "bad"] : p.stock <= 0 ? ["Out of stock", "bad"] : [`${p.stock} left`, p.stock <= low ? "low" : ""];
 }
 // Each seller's items get their own colour (dot and letter), so staff can tell shelves apart at a glance; the store's own are grey
-const SELLER_COLORS = ["#2563eb", "#d97706", "#9333ea", "#db2777", "#0891b2", "#65a30d", "#dc2626", "#4f46e5"];
-const ownerColor = (id, solid) => id ? SELLER_COLORS[id % SELLER_COLORS.length] : solid ? "#8a8a8a" : "var(--line2)";
+// White initials stay readable on every colour (4.5:1 or more)
+const SELLER_COLORS = ["#2563eb", "#b45309", "#9333ea", "#db2777", "#0e7490", "#4d7c0f", "#dc2626", "#4f46e5"];
+const ownerColor = (id, solid) => id ? SELLER_COLORS[id % SELLER_COLORS.length] : solid ? "#6b6b6b" : "var(--line2)";
 $("#tiles").onclick = e => { const b = e.target.closest(".tile"); if (b) askQty(S.products.find(p => p.id === +b.dataset.id)); };
 
 // Quantity pop-up after tapping an item
@@ -1509,7 +1526,7 @@ function productHTML(r) {
   if (!r.one) return reportTable(["Item", "Owner", "Price", "Stock", "Stock value", "Sold", "Sales"], r.products.map(p =>
     `<tr${p.deleted ? "" : ` data-pid="${p.id}"`}><td><div class="namecell">${photoImg(p)}<div>${esc(p.name)}${p.deleted ? ' <span class="muted">(deleted)</span>' : ""}<div class="muted">${esc(p.barcode)}</div></div></div></td>
       <td>${esc(p.owner)}${p.shelf ? ` · ${esc(p.shelf)}` : ""}</td><td class="num">${peso(p.price)}</td>
-      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.deleted ? "–" : p.stock}</td><td class="num">${p.deleted ? "–" : peso(p.value)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td></tr>`)
+      <td class="num ${p.stock <= 0 ? "bad" : ""}">${p.deleted ? "–" : p.stock + (p.stock <= 0 ? " (out)" : "")}</td><td class="num">${p.deleted ? "–" : peso(p.value)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td></tr>`)
     .concat(r.products.length ? [`<tr class="totalrow"><td>Total (${r.products.length} items)</td><td></td><td></td><td class="num">${sum("stock")}</td>
       <td class="num">${peso(sum("value"))}</td><td class="num">${sum("sold")}</td><td class="num">${peso(sum("amount"))}</td></tr>`] : []), "No products yet.");
   const p = r.products[0];
