@@ -11,14 +11,15 @@ const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
   Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at"],
   Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at"],
-  Sales: ["id", "uid", "ts", "total", "cash"],
+  Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref"],  // pay_via/epay: part or all paid by GCash, Maya...
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price"],
   Alerts: ["product_id", "kind", "ref"],
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],  // small JPEG per product; Products.photo_at says which version is current
 };
-const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "sale_id", "product_id", "qty"]);
+const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty"]);
+const PAY_VIA = ["GCash", "Maya", "Bank / QR"];  // paid by phone: the exact amount, checked by its reference number
 const DATES = new Set(["expiry", "mfg_date", "notify_on", "rent_start", "renew_for"]);  // yyyy-MM-dd
 const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at"]);  // yyyy-MM-ddTHH:mm:ss
 
@@ -362,13 +363,19 @@ function sale_(d) {
     lines.push(line);
   });
   total = Math.round(total * 100) / 100;
-  const cash = Number(d.cash) || total;
+  // Paid by GCash / Maya / bank QR (all, or part with the rest in cash): the amount and its reference number
+  const via = String(d.pay_via || "").trim() || null, epay = via ? Math.round(Number(d.epay) * 100) / 100 : 0;
+  const ref = via ? String(d.epay_ref || "").trim().slice(0, 40) : null;
+  if (via && PAY_VIA.indexOf(via) < 0) bad_("Unknown payment: " + via);
+  if (via && !(epay > 0 && epay <= total)) bad_(via + " amount must be more than 0 and at most the total");
+  if (via && ref.length < 4) bad_("Enter the " + via + " reference number (at least the last 4 digits)");
+  const cash = via ? Number(d.cash) || 0 : Number(d.cash) || total;  // cash received (older apps always sent it)
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   const id = nextId_(sales);
-  insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash});
+  insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash, pay_via: via, epay: epay || null, epay_ref: ref});
   insertMany_("SaleItems", lines.map(l => ({sale_id: id, product_id: l.id, name: l.name, seller_id: l.seller_id, qty: l.qty, price: l.price})));
   lines.forEach(l => { if (l.p) update_("Products", Object.assign(l.p, {stock: l.p.stock - l.qty})); });
-  return {id: id, ts: ts, total: total, cash: cash, change: Math.round((cash - total) * 100) / 100,
+  return {id: id, ts: ts, total: total, cash: cash, pay_via: via, epay: epay, epay_ref: ref, change: Math.round((cash + epay - total) * 100) / 100,
           items: lines.map(l => ({name: l.name, qty: l.qty, price: l.price}))};
 }
 
@@ -389,12 +396,24 @@ function report_(q) {
   };
   return {
     summary: {n: sales.length, total: sales.reduce((s, x) => s + x.total, 0)},
+    by_pay: payments_(sales),
     by_owner: group(i => i.seller_id || 0, i => {
       const s = sellers.find(x => x.id === i.seller_id);
       return {owner: s ? s.name : "Store", shelf: s ? s.shelf : null};
     }),
     by_item: group(i => i.product_id + "|" + i.name, i => ({id: i.product_id, name: i.name})),
   };
+}
+
+// How the money came in: cash kept (what was paid minus the e-wallet part), then each e-wallet
+function payments_(sales) {
+  const m = {Cash: {via: "Cash", n: 0, amount: 0}};
+  sales.forEach(s => {
+    const e = s.pay_via ? s.epay || 0 : 0, cash = Math.round((s.total - e) * 100) / 100;
+    if (cash > 0) { m.Cash.n++; m.Cash.amount += cash; }
+    if (e > 0) { const g = m[s.pay_via] = m[s.pay_via] || {via: s.pay_via, n: 0, amount: 0}; g.n++; g.amount += e; }
+  });
+  return Object.keys(m).map(k => m[k]).filter(g => g.n);
 }
 
 function salesList_(q) {

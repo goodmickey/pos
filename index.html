@@ -151,6 +151,12 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .cashbox span{color:var(--muted);font-size:18px}
 .cashbox input{border:0;box-shadow:none;background:none;font-size:18px;padding:10px 4px;min-height:46px}
 .cashbox .iconbtn{width:34px;height:34px;min-height:34px;font-size:14px;color:var(--muted)}
+.paywith{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:3px;border-radius:10px;background:var(--chip)}
+.paywith button{min-height:38px;padding:4px 6px;border-radius:8px;background:none;font-size:14px;color:var(--muted)}
+.paywith button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.epay{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px}
+.epay label{gap:4px;font-size:12px}
+.epay .cashbox{padding:0 4px 0 10px}.epay .cashbox input{font-size:16px;min-height:44px}
 .quickcash{display:flex;gap:6px;flex-wrap:wrap}
 .quickcash:empty{display:none}
 .quickcash button{flex:1;min-height:40px;padding:6px 8px;border-radius:8px;font-size:14px}
@@ -320,6 +326,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 .tabs button.on{color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink)}
 .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
 .cols .card{margin:0}
+.stack{display:grid;gap:16px;align-content:start}
 .rtool{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .rtool p{margin:0}.rtool select{width:auto;min-width:200px}
 .share{height:4px;border-radius:2px;background:var(--chip);margin-top:6px;overflow:hidden}
@@ -358,7 +365,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
   /* tablets and phones: every tap target at least 44px (48 for the cart - / +, the most tapped) */
   .stepper button{min-height:48px;min-width:48px}.stepper span{min-width:28px}
   .iconbtn,.cashbox .iconbtn{width:44px;min-width:44px;height:44px;min-height:44px}
-  button.sm,.copies button,.copies input,.restock,button.badge{min-height:44px;min-width:44px}}
+  button.sm,.copies button,.copies input,.restock,button.badge{min-height:44px;min-width:44px}.paywith button{min-height:44px}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}  /* keyboard / scanner users see where they are */
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.tile:active{transform:none}}
 
@@ -412,7 +419,12 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
       <div class="ticket-items"><table><tbody id="cart"></tbody></table></div>
       <div class="ticket-foot">
         <div class="sumrow"><span>Total</span><span class="total" id="total">₱0.00</span></div>
-        <div class="cashbox"><span>₱</span><input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash received" aria-label="Cash received">
+        <div class="paywith" id="paywith" role="group" aria-label="Paid by"></div>
+        <div class="epay" id="epaybox" hidden>
+          <label><span id="epayLabel">GCash amount</span><span class="cashbox"><span>₱</span><input id="epay" type="number" step="0.01" min="0" inputmode="decimal" aria-label="E-wallet amount"></span></label>
+          <label>Reference no.<span class="cashbox"><input id="eref" autocomplete="off" inputmode="numeric" placeholder="From their phone" aria-label="Reference number"></span></label>
+        </div>
+        <div class="cashbox" id="cashbox"><span>₱</span><input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash received" aria-label="Cash received">
           <button id="cashClear" class="iconbtn" aria-label="Clear the cash amount" hidden>✕</button></div>
         <div class="quickcash" id="quickcash"></div>
         <div class="sumrow change"><span id="changeLabel">Change</span><b id="change">–</b></div>
@@ -433,8 +445,9 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
       <div class="muted" id="doneInfo"></div></div>
     <div class="donesum">
       <div class="sumrow"><span>Total</span><b id="doneTotal"></b></div>
-      <div class="sumrow"><span>Cash</span><b id="doneCash"></b></div>
-      <div class="sumrow donechange"><span>Change</span><b id="doneChange"></b></div>
+      <div class="sumrow" id="doneEpayRow" hidden><span id="doneEpayLabel"></span><b id="doneEpay"></b></div>
+      <div class="sumrow" id="doneCashRow"><span>Cash</span><b id="doneCash"></b></div>
+      <div class="sumrow donechange" id="doneChangeRow"><span>Change</span><b id="doneChange"></b></div>
     </div>
     <div class="muted" id="donePrinting" style="text-align:center;min-height:18px"></div>
     <div class="row" style="flex-wrap:nowrap"><button id="donePrint" style="flex:1">Print receipt</button>
@@ -689,7 +702,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&
 const localTime = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 19);
 const today = () => localTime().slice(0, 10);
 const daysTo = d => Math.round((new Date(d) - new Date(today())) / 864e5);
-let S = {products: [], sellers: [], settings: {}, outbox: [], photos: {}}, cart = [], lastSale = null;
+let S = {products: [], sellers: [], settings: {}, outbox: [], photos: {}}, cart = [], lastSale = null, payVia = "";  // payVia: "" = cash, else the e-wallet (PAY_VIA)
 
 function toast(msg, err, ms) {
   const t = $("#toast"); t.textContent = msg; t.className = err ? "err" : ""; t.style.display = "block";
@@ -960,20 +973,45 @@ function renderCart() {
     <td><div class="stepper"><button data-i="${i}" data-d="-1" aria-label="One less">−</button><span>${l.qty}</span><button data-i="${i}" data-d="1" aria-label="One more">+</button></div></td>
     <td class="num">${peso(l.price * l.qty)}</td></tr>`).join("")
     || `<tr><td class="empty"><svg viewBox="0 0 24 24"><path d="M3 5V3h4M17 3h4v2M21 19v2h-4M7 21H3v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>Scan a barcode or tap an item to start</td></tr>`;
-  const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100, cash = parseFloat($("#cash").value);
+  const {total, epay, due} = amounts(), cash = parseFloat($("#cash").value);
   const pcs = cart.reduce((n, l) => n + l.qty, 0);
+  document.querySelectorAll("#paywith button").forEach(b => b.setAttribute("aria-pressed", b.dataset.via === payVia));
+  $("#epaybox").hidden = !payVia;
+  $("#epayLabel").textContent = `${payVia} amount`;
+  $("#epay").placeholder = total ? `All ${peso(total)}` : "";
+  const needCash = !payVia || due > 0;  // all paid by e-wallet: no cash box
+  $("#cashbox").hidden = $("#quickcash").hidden = !needCash;
+  $("#cash").placeholder = payVia ? `Rest in cash: ${peso(due)}` : "Cash received";
   $("#itemCount").textContent = pcs ? `${pcs} item${pcs > 1 ? "s" : ""}` : "";
   $("#clear").hidden = !cart.length;
   $("#pay").textContent = cart.length ? `Charge ${peso(total)}` : "Charge";
   $("#pay").disabled = !cart.length;
   $("#total").textContent = peso(total);
-  $("#quickcash").innerHTML = total ? `<button data-cash="exact">Exact</button>` + cashOptions(total).map(v => `<button data-cash="${v}">${peso(v).replace(".00", "")}</button>`).join("") : "";
+  $("#quickcash").innerHTML = due ? `<button data-cash="exact">Exact</button>` + cashOptions(due).map(v => `<button data-cash="${v}">${peso(v).replace(".00", "")}</button>`).join("") : "";
   $("#cashClear").hidden = !$("#cash").value;
-  const short = cash < total;
-  $("#changeLabel").textContent = cash && short ? "Short by" : "Change";
-  $("#change").textContent = cash > 0 && total ? peso(Math.abs(cash - total)) : "–";
-  $("#change").className = !(cash > 0 && total) ? "" : short ? "bad" : "good";
+  const short = cash < due, show = needCash && cash > 0 && due;
+  $("#changeLabel").textContent = show && short ? "Short by" : "Change";
+  $("#change").textContent = show ? peso(Math.abs(cash - due)) : "–";
+  $("#change").className = !show ? "" : short ? "bad" : "good";
 }
+// Paid by: cash, or GCash / Maya / bank QR for all of it (or part, with the rest in cash). Each sale starts as cash.
+$("#paywith").innerHTML = ["", ...PAY_VIA].map(v => `<button type="button" data-via="${v}">${v || "Cash"}</button>`).join("");
+$("#paywith").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  payVia = b.dataset.via; renderCart();
+  (payVia ? $("#eref") : $("#cash")).focus();
+};
+// What is left to pay in cash: everything, or what the e-wallet part doesn't cover (blank e-wallet amount = all of it)
+function amounts() {
+  const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
+  const typed = parseFloat($("#epay").value), epay = payVia ? (typed > 0 ? Math.round(typed * 100) / 100 : total) : 0;
+  return {total, epay, due: Math.round(Math.max(0, total - epay) * 100) / 100};
+}
+const resetPayment = () => { payVia = ""; $("#cash").value = $("#epay").value = $("#eref").value = ""; };
+$("#epay").oninput = renderCart;
+$("#epay").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#eref").focus(); } };
+// Enter after the reference moves on but never charges: a product scanned here by mistake must not finish the sale
+$("#eref").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); (amounts().due ? $("#cash") : $("#pay")).focus(); } };
 $("#cart").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   const l = cart[b.dataset.i];
@@ -985,8 +1023,8 @@ $("#cash").oninput = renderCart;
 $("#cashClear").onclick = () => { $("#cash").value = ""; renderCart(); $("#cash").focus(); };
 $("#quickcash").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
-  const total = cart.reduce((s, l) => s + l.price * l.qty, 0);
-  $("#cash").value = b.dataset.cash === "exact" ? (total ? total.toFixed(2) : "") : b.dataset.cash;
+  const {due} = amounts();
+  $("#cash").value = b.dataset.cash === "exact" ? (due ? due.toFixed(2) : "") : b.dataset.cash;
   renderCart();
 };
 $("#cash").onkeydown = e => {
@@ -1005,24 +1043,35 @@ let paying = false;  // a double F2 / double click must not record the sale twic
 const pay = run(async () => {
   if (paying) return;
   if (!cart.length) return toast("Cart is empty", true);
-  const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
+  const {total, epay, due} = amounts(), via = payVia;
+  let ref = $("#eref").value.trim();
+  if (via) {
+    if (epay > total) return toast(`The ${via} amount (${peso(epay)}) is more than the total (${peso(total)})`, true);
+    if (ref.length < 4) {  // the number on the customer's "sent" screen: proof the money arrived
+      paying = true;
+      try { ref = String(await ask(`${via} reference number of ${peso(epay)} (on the customer's confirmation screen; the last 4 digits are enough)`) ?? "").trim(); }
+      finally { paying = false; }
+      if (ref.length < 4) return toast(`Enter the ${via} reference number to finish the sale`, true);
+      $("#eref").value = ref;
+    }
+  }
   if (isBarcode($("#cash").value.trim())) { $("#cash").value = ""; renderCart(); return toast("That cash amount was a barcode, not cash. Scan the item again and enter the cash received.", true); }
-  let cash = parseFloat($("#cash").value);
-  if (!(cash > 0)) {  // never assume the exact amount: the cashier types what the customer gave (or taps a cash button)
+  let cash = due ? parseFloat($("#cash").value) : 0;  // all paid by e-wallet: no cash
+  if (due && !(cash > 0)) {  // never assume the exact amount: the cashier types what the customer gave (or taps a cash button)
     paying = true;
-    try { const a = String(await ask(`How much cash did the customer give? Total: ${peso(total)}`, "", "number") ?? "").trim();
+    try { const a = String(await ask(via ? `Rest to pay in cash: ${peso(due)}. How much cash did the customer give?` : `How much cash did the customer give? Total: ${peso(total)}`, "", "number") ?? "").trim();
           cash = isBarcode(a) ? NaN : parseFloat(a); }  // a scan into this box is not cash
     finally { paying = false; }
     if (!(cash > 0)) return toast("Enter the cash received to finish the sale", true);
     $("#cash").value = cash; renderCart();
   }
-  if (cash < total) return toast(`Cash received (${peso(cash)}) is less than the total (${peso(total)})`, true);
+  if (cash < due) return toast(`Cash received (${peso(cash)}) is less than ${via ? "the rest to pay" : "the total"} (${peso(due)})`, true);
   const sale = {uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts: localTime(), cash,
-                items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
+                ...(via ? {pay_via: via, epay, epay_ref: ref} : {}), items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
   paying = true;
   try { lastSale = {...await api("/api/sale", sale), id: receiptNo(sale)}; }  // saved on this device at once
   finally { paying = false; }
-  cart = []; $("#cash").value = "";
+  cart = []; resetPayment();
   await load();
   showDone(lastSale);
 });
@@ -1031,6 +1080,10 @@ const pay = run(async () => {
 function showDone(s) {
   $("#doneInfo").textContent = `Sale #${s.id}${online ? "" : " · no internet: it syncs when the connection is back"}`;
   $("#doneTotal").textContent = peso(s.total);
+  const e = s.epay > 0;
+  $("#doneEpayRow").hidden = !e;
+  if (e) { $("#doneEpayLabel").textContent = `${s.pay_via} · ref ${s.epay_ref}`; $("#doneEpay").textContent = peso(s.epay); }
+  $("#doneCashRow").hidden = $("#doneChangeRow").hidden = e && !(s.cash > 0);
   $("#doneCash").textContent = peso(s.cash);
   $("#doneChange").textContent = peso(s.change);
   $("#donePrinting").textContent = "";
@@ -1056,7 +1109,7 @@ $("#doneDlg").onkeydown = e => {
   }
 };
 $("#pay").onclick = pay;
-$("#clear").onclick = () => { cart = []; $("#cash").value = ""; renderCart(); $("#scan").focus(); };
+$("#clear").onclick = () => { cart = []; resetPayment(); renderCart(); $("#scan").focus(); };
 
 const storeName = () => S.settings.store_name || "Urdaneta Store";
 // Receipt printer chosen: send it the ticket(s) and return true. Regular printer chosen: return false (caller prints HTML).
@@ -1083,7 +1136,8 @@ function receiptHTML(s, label) {
     ${s.ts.replace("T", " ")} · #${s.id}${label ? `<br><b>*** ${label} ***</b>` : ""}</div><hr><table style="width:100%">
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
     </table><hr><table style="width:100%"><tr><td>TOTAL</td><td class="num"><b>${peso(s.total)}</b></td></tr>
-    <tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr></table>
+    ${s.epay > 0 ? `<tr><td>${esc(s.pay_via)}</td><td class="num">${peso(s.epay)}</td></tr><tr><td colspan="2">&nbsp;Ref ${esc(s.epay_ref)}</td></tr>` : ""}
+    ${s.epay > 0 && !(s.cash > 0) ? "" : `<tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr>`}</table>
     <hr><div style="text-align:center">${esc(st.receipt_footer || "Salamat po! Come again.")}</div></div>`;
 }
 
@@ -1130,7 +1184,8 @@ function receiptBytes(s, label = "") {
   s.items.forEach(i => { t.text(i.name); t.lr(`  ${i.qty} x ${m(i.price)}`, m(i.qty * i.price)); });
   t.rule();
   t.bold(1); t.lr("TOTAL", m(s.total)); t.bold(0);
-  t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change));
+  if (s.epay > 0) { t.lr(s.pay_via, m(s.epay)); t.text(`  Ref ${s.epay_ref}`); }
+  if (!(s.epay > 0) || s.cash > 0) { t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change)); }
   t.center(1); t.line(""); t.text(S.settings.receipt_footer || "Salamat po! Come again.");
   return t.end();
 }
@@ -1144,6 +1199,7 @@ function reportBytes(r) {
   t.center(0); t.rule();
   t.lr("Sales", String(r.summary.n));
   t.bold(1); t.lr("TOTAL", m(r.summary.total)); t.bold(0);
+  if ((r.by_pay || []).some(p => p.via !== "Cash")) r.by_pay.forEach(p => t.lr(`  ${p.via} (${p.n})`, m(p.amount)));
   t.rule(); t.bold(1); t.line("BY OWNER (pay sellers)"); t.bold(0);
   r.by_owner.forEach(o => { t.text(o.owner + (o.shelf ? ` (shelf ${o.shelf})` : "")); t.lr(`  ${o.qty} pcs`, m(o.amount)); });
   if (!r.by_owner.length) t.line("  No sales");
@@ -1481,7 +1537,7 @@ const showReport = run(async () => {
   const pcs = r.by_item.reduce((n, i) => n + i.qty, 0), renters = sellerRep.reduce((n, s) => n + s.summary.amount, 0);
   const rent = sellerRep.reduce((n, s) => n + s.summary.rent, 0), n = r.summary.n;
   $("#rkpis").innerHTML = [
-    ["lead", "Total sales", peso(r.summary.total), periodText(from, to)],
+    ["lead", "Total sales", peso(r.summary.total), r.by_pay.some(p => p.via !== "Cash") ? r.by_pay.map(p => `${p.via} ${peso(p.amount)}`).join(" · ") : periodText(from, to)],
     ["", "Transactions", n, n ? `average ${peso(r.summary.total / n)}` : "no sales yet"],
     ["", "Items sold", pcs, `${r.by_item.length} different item${r.by_item.length === 1 ? "" : "s"}`],
     ["", "Store's own sales", peso(r.summary.total - renters), "your own goods"],
@@ -1489,8 +1545,10 @@ const showReport = run(async () => {
   ].map(([c, k, v, s]) => `<div class="kpi ${c}"><span>${k}</span><b>${v}</b><small>${esc(s)}</small></div>`).join("");
   // Overview: who sold and what sold, each with its share of the total
   const share = a => r.summary.total ? `<div class="share"><i style="width:${Math.round(a / r.summary.total * 100)}%"></i></div>` : "";
-  $("#rout").innerHTML = `<div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
-      `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
+  $("#rout").innerHTML = `<div class="stack"><div class="card"><h3>By payment <span class="muted">· cash to count, e-wallet to check in the app</span></h3>${reportTable(["Paid by", "Sales", "Amount"], r.by_pay.map(x =>
+      `<tr><td>${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
+    <div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
+      `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div></div>
     <div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
       `<tr><td>${productLink(x.id, x.name)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>`;
 });
@@ -1632,15 +1690,18 @@ const showHistory = run(async () => {
   const from = $("#hfrom").value, to = $("#hto").value;
   document.querySelectorAll("#hperiod button").forEach(b => b.setAttribute("aria-pressed", PERIODS[b.dataset.p]().join() === [from, to].join()));
   const sales = await api(`/api/sales?from=${from}&to=${to}`), waiting = Local.pendingSaleUids();  // not yet sent to Google
-  history = sales.map(s => ({...s, id: receiptNo(s), waiting: waiting.has(s.uid), change: Math.round((s.cash - s.total) * 100) / 100}));
+  history = sales.map(s => ({...s, id: receiptNo(s), waiting: waiting.has(s.uid), change: Math.round((s.cash + (s.epay || 0) - s.total) * 100) / 100}));
   renderHistory();
 });
 // Summary tiles, then the sales grouped by day (newest first)
 function renderHistory() {
   const q = $("#hsearch").value.trim().toLowerCase();
-  const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q)));
+  const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q))
+    || String(s.epay_ref || "").toLowerCase().replace(/\s/g, "").includes(q.replace(/\s/g, "")));  // also find a GCash / Maya reference
   const total = list.reduce((n, s) => n + s.total, 0), pcs = list.reduce((n, s) => n + s.items.reduce((m, i) => m + i.qty, 0), 0);
-  $("#hkpis").innerHTML = [["Sales", list.length, q ? "matching your search" : periodText($("#hfrom").value, $("#hto").value)], ["Total", peso(total), "cash taken"],
+  const ewallet = list.reduce((n, s) => n + (s.epay || 0), 0);
+  $("#hkpis").innerHTML = [["Sales", list.length, q ? "matching your search" : periodText($("#hfrom").value, $("#hto").value)],
+    ["Total", peso(total), ewallet ? `cash ${peso(total - ewallet)} · e-wallet ${peso(ewallet)}` : "cash taken"],
     ["Average sale", list.length ? peso(total / list.length) : "–", "per customer"], ["Items sold", pcs, "pieces"]]
     .map(([k, v, x]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${esc(x)}</small></div>`).join("");
   let day = "";
@@ -1650,7 +1711,7 @@ function renderHistory() {
     const items = s.items.slice(0, 2).map(i => `${esc(i.name)} ×${i.qty}`).join(", ") + (s.items.length > 2 ? ` <span class="muted">+${s.items.length - 2} more</span>` : "");
     return (head ? `<tr class="dayrow"><td colspan="4">${new Date(d + "T12:00").toLocaleDateString("en-PH", {weekday: "short", month: "short", day: "numeric", year: "numeric"})} · ${mine.length} sale${mine.length === 1 ? "" : "s"} · ${peso(mine.reduce((n, x) => n + x.total, 0))}</td></tr>` : "")
       + `<tr data-i="${history.indexOf(s)}"><td>${s.ts.slice(11, 16)}${s.waiting ? ' <span class="badge low">waiting to sync</span>' : ""}</td>
-        <td><b>${esc(s.id)}</b></td><td>${items}</td><td class="num">${peso(s.total)}</td></tr>`;
+        <td><b>${esc(s.id)}</b></td><td>${items}</td><td class="num">${peso(s.total)}${s.epay > 0 ? `<div><span class="badge">${esc(s.pay_via)}${s.cash > 0 ? " + cash" : ""}</span></div>` : ""}</td></tr>`;
   }).join("") || `<tr><td colspan="4" class="muted">No sales in these dates.</td></tr>`;
 }
 $("#hperiod").onclick = e => {
