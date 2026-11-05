@@ -339,7 +339,10 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 .dlast div{background:var(--chip);border-radius:10px;padding:10px 12px}.dlast>div>span{display:block;font-size:13px;color:var(--muted)}.dlast b{font-size:18px}
 .amt-in{color:var(--good)}.amt-out{color:var(--bad)}
 .form.one{grid-template-columns:1fr}
-#cntDlg{width:min(600px,94vw)}#cntForm{display:grid;gap:12px}#cntForm p{margin:0}
+#cntDlg{width:min(600px,94vw)}#rfForm{display:grid;gap:12px}#rfForm p{margin:0}
+.rflines td{padding:8px 0;vertical-align:middle}.rflines tr:hover{background:none}
+label.check{flex-direction:row;align-items:center;gap:10px;font-size:14px;font-weight:400;color:var(--ink)}
+label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent)}#cntForm{display:grid;gap:12px}#cntForm p{margin:0}
 .dens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px}
 .den{flex-direction:row;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
 .den span{width:72px;flex:none;font-weight:500}.den input{width:80px;flex:none;text-align:center;min-height:40px;padding:6px}
@@ -539,7 +542,8 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
     <div id="saleView"></div>
     <div class="row" style="flex-wrap:nowrap;margin-top:14px"><button id="saleReprint" style="flex:1">Reprint receipt</button>
       <button id="saleReprint2" style="flex:1">Reprint + store copy</button></div>
-    <button class="ghost" id="saleClose" style="width:100%;margin-top:8px">Close</button>
+    <div class="row" style="flex-wrap:nowrap;margin-top:8px"><button class="danger" id="saleRefund" style="flex:1">Refund / void…</button>
+      <button class="ghost" id="saleClose" style="flex:1">Close</button></div>
   </dialog>
 </section>
 
@@ -682,6 +686,20 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
     <label id="cntNoteRow">Note (optional)<input name="note" maxlength="200" placeholder="For example: gave ₱20 too much change"></label>
   <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="cntOk">Open drawer</button></div>
 </form></dialog>
+<dialog id="rfDlg" class="formdlg small">
+  <div class="dlghead"><h3 id="rfTitle">Refund</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="rfForm">
+    <p class="muted">Choose how many of each item come back. The money goes back to the customer, and the sale stays in History with its refund.</p>
+    <button type="button" id="rfAll">Refund everything (void the sale)</button>
+    <table class="rflines"><tbody id="rfLines"></tbody></table>
+    <div class="cntsum"><div class="sumrow"><span>Give back</span><b class="total" id="rfTotal">₱0.00</b></div></div>
+    <label>Money back<select name="via" id="rfVia"></select></label>
+    <label class="check"><input type="checkbox" name="restock" checked><span>Put the items back in stock <span class="muted">(untick if spoiled or damaged)</span></span></label>
+    <label>Reason<input name="reason" list="rfReasons" maxlength="200" required placeholder="Why is it refunded?"></label>
+    <datalist id="rfReasons"><option value="Wrong item rung up"><option value="Customer returned the item"><option value="Damaged or expired item"><option value="Cashier mistake (void)"></datalist>
+    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rfOk">Refund</button></div>
+  </form>
+</dialog>
 <dialog id="mvDlg" class="formdlg small">
   <div class="dlghead"><h3 id="mvTitle">Money out</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
   <form id="mvForm" class="form one">
@@ -748,7 +766,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 <script src="local.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const peso = n => "₱" + Number(n || 0).toLocaleString("en-PH", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const peso = n => (n < 0 ? "−₱" : "₱") + Math.abs(Number(n || 0)).toLocaleString("en-PH", {minimumFractionDigits: 2, maximumFractionDigits: 2});  // refunds: −₱75.00
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 // Local date/time as "YYYY-MM-DDTHH:MM:SS", the same on every browser (Chrome, Huawei, Safari)
 const localTime = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 19);
@@ -1186,11 +1204,12 @@ function receiptHTML(s, label) {
   const st = S.settings;
   return `<div class="receipt"><div style="text-align:center"><b>${esc(storeName())}</b><br>
     ${st.receipt_address ? esc(st.receipt_address) + "<br>" : ""}${st.receipt_phone ? esc(st.receipt_phone) + "<br>" : ""}
-    ${s.ts.replace("T", " ")} · #${s.id}${label ? `<br><b>*** ${label} ***</b>` : ""}</div><hr><table style="width:100%">
+    ${s.ts.replace("T", " ")} · #${s.id}${s.refund_of ? "<br><b>*** REFUND ***</b>" : ""}${label ? `<br><b>*** ${label} ***</b>` : ""}</div><hr><table style="width:100%">
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
     </table><hr><table style="width:100%"><tr><td>TOTAL</td><td class="num"><b>${peso(s.total)}</b></td></tr>
     ${s.epay > 0 ? `<tr><td>${esc(s.pay_via)}</td><td class="num">${peso(s.epay)}</td></tr><tr><td colspan="2">&nbsp;Ref ${esc(s.epay_ref)}</td></tr>` : ""}
-    ${s.epay > 0 && !(s.cash > 0) ? "" : `<tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr>`}</table>
+    ${s.refund_of ? `<tr><td>${esc(s.pay_via || "Cash")} given back</td><td class="num">${peso(-s.total)}</td></tr><tr><td colspan="2">Refund of #${esc(s.refund_of.slice(-6).toUpperCase())}: ${esc(s.reason || "")}</td></tr>`
+      : s.epay > 0 && !(s.cash > 0) ? "" : `<tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr>`}</table>
     <hr><div style="text-align:center">${esc(st.receipt_footer || "Salamat po! Come again.")}</div></div>`;
 }
 
@@ -1209,7 +1228,7 @@ function ticket() {
     return lines.flatMap(l => l.match(new RegExp(`.{1,${W}}`, "g")) || [""]);
   };
   const t = {
-    money: n => "P" + Number(n || 0).toFixed(2),
+    money: n => (n < 0 ? "-P" : "P") + Math.abs(Number(n || 0)).toFixed(2),
     line: v => { for (const ch of clean(v)) out.push(ch.charCodeAt(0)); out.push(10); },
     text: v => wrap(v).forEach(t.line),
     lr: (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; t.line(gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r); },
@@ -1232,13 +1251,17 @@ function receiptBytes(s, label = "") {
   const t = ticket(), m = t.money;
   storeHeader(t);
   t.line(`${String(s.ts).replace("T", " ").slice(0, 16)}  #${s.id}`);
+  if (s.refund_of) { t.bold(1); t.line("*** REFUND ***"); t.bold(0); }
   if (label) { t.bold(1); t.line(`*** ${label} ***`); t.bold(0); }
   t.center(0); t.rule();
   s.items.forEach(i => { t.text(i.name); t.lr(`  ${i.qty} x ${m(i.price)}`, m(i.qty * i.price)); });
   t.rule();
   t.bold(1); t.lr("TOTAL", m(s.total)); t.bold(0);
-  if (s.epay > 0) { t.lr(s.pay_via, m(s.epay)); t.text(`  Ref ${s.epay_ref}`); }
-  if (!(s.epay > 0) || s.cash > 0) { t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change)); }
+  if (s.refund_of) { t.lr(`${s.pay_via || "Cash"} given back`, m(-s.total)); t.text(`Refund of #${s.refund_of.slice(-6).toUpperCase()}: ${s.reason || ""}`); }
+  else {
+    if (s.epay > 0) { t.lr(s.pay_via, m(s.epay)); t.text(`  Ref ${s.epay_ref}`); }
+    if (!(s.epay > 0) || s.cash > 0) { t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change)); }
+  }
   t.center(1); t.line(""); t.text(S.settings.receipt_footer || "Salamat po! Come again.");
   return t.end();
 }
@@ -1251,6 +1274,7 @@ function reportBytes(r) {
   t.line("Printed " + localTime().replace("T", " ").slice(0, 16));
   t.center(0); t.rule();
   t.lr("Sales", String(r.summary.n));
+  if (r.summary.refunds && r.summary.refunds.n) t.lr(`Refunds (${r.summary.refunds.n})`, t.money(-r.summary.refunds.amount));
   t.bold(1); t.lr("TOTAL", m(r.summary.total)); t.bold(0);
   if ((r.by_pay || []).some(p => p.via !== "Cash")) r.by_pay.forEach(p => t.lr(`  ${p.via} (${p.n})`, m(p.amount)));
   t.rule(); t.bold(1); t.line("BY OWNER (pay sellers)"); t.bold(0);
@@ -1591,7 +1615,7 @@ const showReport = run(async () => {
   const rent = sellerRep.reduce((n, s) => n + s.summary.rent, 0), n = r.summary.n;
   $("#rkpis").innerHTML = [
     ["lead", "Total sales", peso(r.summary.total), r.by_pay.some(p => p.via !== "Cash") ? r.by_pay.map(p => `${p.via} ${peso(p.amount)}`).join(" · ") : periodText(from, to)],
-    ["", "Transactions", n, n ? `average ${peso(r.summary.total / n)}` : "no sales yet"],
+    ["", "Transactions", n, r.summary.refunds.n ? `${r.summary.refunds.n} refund${r.summary.refunds.n === 1 ? "" : "s"}: −${peso(r.summary.refunds.amount)}` : n ? `average ${peso(r.summary.total / n)}` : "no sales yet"],
     ["", "Items sold", pcs, `${r.by_item.length} different item${r.by_item.length === 1 ? "" : "s"}`],
     ["", "Store's own sales", peso(r.summary.total - renters), "your own goods"],
     ["", "Shelf renters' sales", peso(renters), `rent ${peso(rent)} a month`],
@@ -1752,10 +1776,11 @@ function renderHistory() {
   const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q))
     || String(s.epay_ref || "").toLowerCase().replace(/\s/g, "").includes(q.replace(/\s/g, "")));  // also find a GCash / Maya reference
   const total = list.reduce((n, s) => n + s.total, 0), pcs = list.reduce((n, s) => n + s.items.reduce((m, i) => m + i.qty, 0), 0);
-  const ewallet = list.reduce((n, s) => n + (s.epay || 0), 0);
-  $("#hkpis").innerHTML = [["Sales", list.length, q ? "matching your search" : periodText($("#hfrom").value, $("#hto").value)],
+  const ewallet = list.reduce((n, s) => n + (s.epay || 0), 0), sold = list.filter(s => !s.refund_of).length;
+  const back = -list.filter(s => s.refund_of).reduce((n, s) => n + s.total, 0);
+  $("#hkpis").innerHTML = [["Sales", sold, back ? `${list.length - sold} refund${list.length - sold === 1 ? "" : "s"}: −${peso(back)}` : q ? "matching your search" : periodText($("#hfrom").value, $("#hto").value)],
     ["Total", peso(total), ewallet ? `cash ${peso(total - ewallet)} · e-wallet ${peso(ewallet)}` : "cash taken"],
-    ["Average sale", list.length ? peso(total / list.length) : "–", "per customer"], ["Items sold", pcs, "pieces"]]
+    ["Average sale", sold ? peso((total + back) / sold) : "–", "per customer"], ["Items sold", pcs, "pieces"]]
     .map(([k, v, x]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${esc(x)}</small></div>`).join("");
   let day = "";
   $("#hlist").innerHTML = list.map(s => {
@@ -1764,7 +1789,7 @@ function renderHistory() {
     const items = s.items.slice(0, 2).map(i => `${esc(i.name)} ×${i.qty}`).join(", ") + (s.items.length > 2 ? ` <span class="muted">+${s.items.length - 2} more</span>` : "");
     return (head ? `<tr class="dayrow"><td colspan="4">${new Date(d + "T12:00").toLocaleDateString("en-PH", {weekday: "short", month: "short", day: "numeric", year: "numeric"})} · ${mine.length} sale${mine.length === 1 ? "" : "s"} · ${peso(mine.reduce((n, x) => n + x.total, 0))}</td></tr>` : "")
       + `<tr data-i="${history.indexOf(s)}"><td>${s.ts.slice(11, 16)}${s.waiting ? ' <span class="badge low">waiting to sync</span>' : ""}</td>
-        <td><b>${esc(s.id)}</b></td><td>${items}</td><td class="num">${peso(s.total)}${s.epay > 0 ? `<div><span class="badge">${esc(s.pay_via)}${s.cash > 0 ? " + cash" : ""}</span></div>` : ""}</td></tr>`;
+        <td><b>${esc(s.id)}</b>${refundBadge(s)}</td><td>${items}</td><td class="num${s.refund_of ? " bad" : ""}">${peso(s.total)}${s.epay > 0 ? `<div><span class="badge">${esc(s.pay_via)}${s.cash > 0 ? " + cash" : ""}</span></div>` : ""}</td></tr>`;
   }).join("") || `<tr><td colspan="4" class="muted">No sales in these dates.</td></tr>`;
 }
 $("#hperiod").onclick = e => {
@@ -1776,12 +1801,65 @@ $("#hsearch").oninput = renderHistory;
 $("#hlist").onclick = e => {
   const tr = e.target.closest("tr[data-i]"); if (!tr) return;
   viewing = history[+tr.dataset.i];
-  $("#saleView").innerHTML = receiptHTML(viewing, "").replace('class="receipt"', 'class="receipt" style="width:auto;font-size:13px"');
-  $("#saleDlg").showModal();
+  showSale();
 };
+function showSale() {
+  $("#saleView").innerHTML = receiptHTML(viewing, "").replace('class="receipt"', 'class="receipt" style="width:auto;font-size:13px"');
+  $("#saleRefund").hidden = !viewing.uid || !!viewing.refund_of || viewing.items.every(i => (i.refunded || 0) >= i.qty);
+  $("#saleDlg").showModal();
+}
+$("#saleRefund").onclick = () => openRefund(viewing);
 $("#saleReprint").onclick = () => printReceipt(viewing, 1);
 $("#saleReprint2").onclick = () => printReceipt(viewing, 2);
 $("#saleClose").onclick = () => $("#saleDlg").close();
+
+// ---------- refunds and voids (from a sale in History): a return sale with negative quantities, see sale_ ----------
+// Sold, refunded or partly refunded: shown on both the sale and its refund
+const refundBadge = s => s.refund_of ? ` <span class="badge bad">Refund</span>`
+  : s.items.some(i => i.refunded) ? ` <span class="badge low">${s.items.every(i => i.refunded >= i.qty) ? "Refunded" : "Part refunded"}</span>` : "";
+let refunding = null;
+function openRefund(s) {
+  refunding = s; $("#rfForm").reset();
+  $("#rfTitle").textContent = `Refund sale #${s.id}`;
+  $("#rfVia").innerHTML = `<option value="">Cash from the drawer</option>` + (s.pay_via ? `<option value="${esc(s.pay_via)}">${esc(s.pay_via)}: send it back from the store's phone</option>` : "");
+  if (s.pay_via && !(s.cash > 0)) $("#rfVia").value = s.pay_via;  // paid all by e-wallet: send it back the same way
+  $("#rfLines").innerHTML = s.items.map((i, k) => {
+    const left = i.qty - (i.refunded || 0);
+    return `<tr><td><b>${esc(i.name)}</b><div class="muted">${i.qty} × ${peso(i.price)}${i.refunded ? ` · ${i.refunded} refunded already` : ""}</div></td>
+      <td class="num">${left > 0 ? `<span class="copies"><button type="button" data-d="-1" aria-label="One less">−</button><input type="number" min="0" max="${left}" value="0" data-k="${k}" aria-label="Pieces back"><button type="button" data-d="1" aria-label="One more">+</button></span>`
+        : '<span class="badge">all refunded</span>'}</td></tr>`;
+  }).join("");
+  renderRefund();
+  $("#saleDlg").close(); $("#rfDlg").showModal();
+}
+const refundQty = () => [...document.querySelectorAll("#rfLines input")].map(i => ({k: +i.dataset.k, n: Math.min(+i.max, Math.max(0, parseInt(i.value, 10) || 0))}));
+function renderRefund() {
+  const t = r2(refundQty().reduce((n, q) => n + q.n * refunding.items[q.k].price, 0));
+  $("#rfTotal").textContent = peso(t);
+  $("#rfOk").textContent = t ? `Refund ${peso(t)}` : "Refund";
+  $("#rfOk").disabled = !t;
+}
+$("#rfLines").oninput = renderRefund;
+$("#rfLines").onclick = e => {
+  const b = e.target.closest("button[data-d]"); if (!b) return;
+  const i = b.parentElement.querySelector("input");
+  i.value = Math.min(+i.max, Math.max(0, (parseInt(i.value, 10) || 0) + +b.dataset.d)); renderRefund();
+};
+$("#rfAll").onclick = () => { document.querySelectorAll("#rfLines input").forEach(i => i.value = i.max); renderRefund(); $("#rfForm").reason.focus(); };
+$("#rfForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const f = e.target, s = refunding, uid = newUid();
+  const items = refundQty().filter(q => q.n).map(q => { const i = s.items[q.k]; return {id: i.id, qty: -q.n, price: i.price, name: i.name}; });
+  if (!items.length) return toast("Choose what comes back", true);
+  const r = await api("/api/sale", {uid, ts: localTime(), refund_of: s.uid, reason: f.reason.value, restock: f.restock.checked,
+    ...(f.via.value ? {pay_via: f.via.value} : {}), items});
+  $("#rfDlg").close();
+  toast(`Refunded: give back ${peso(-r.total)}${f.via.value ? ` by ${f.via.value}` : " in cash"}`, false, 8000);
+  await load(); await showHistory();
+  // Show the refund slip, ready to print for the customer
+  viewing = history.find(x => x.uid === uid);
+  if (viewing) showSale();
+});
 
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
