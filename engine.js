@@ -16,9 +16,10 @@ const SHEETS = {
   Alerts: ["product_id", "kind", "ref"],
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
-  Photos: ["product_id", "photo", "photo_at"],  // small JPEG per product; Products.photo_at says which version is current
+  Photos: ["product_id", "photo", "photo_at"],
+  Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close  // small JPEG per product; Products.photo_at says which version is current
 };
-const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty"]);
+const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted"]);
 const PAY_VIA = ["GCash", "Maya", "Bank / QR"];  // paid by phone: the exact amount, checked by its reference number
 const DATES = new Set(["expiry", "mfg_date", "notify_on", "rent_start", "renew_for"]);  // yyyy-MM-dd
 const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at"]);  // yyyy-MM-ddTHH:mm:ss
@@ -76,6 +77,8 @@ const ROUTES = {
   "/api/sellers/report": stockReport_,
   "/api/sellers/renew": renewSeller_,
   "/api/sale": sale_,
+  "/api/drawer": drawerMove_,
+  "/api/drawer-state": drawerState_,
   "/api/settings": saveSettings_,
   "/api/outbox/delete": d => removeById_("Emails", d.id),
   "/api/outbox/readdress": readdress_,
@@ -413,7 +416,65 @@ function payments_(sales) {
     if (cash > 0) { m.Cash.n++; m.Cash.amount += cash; }
     if (e > 0) { const g = m[s.pay_via] = m[s.pay_via] || {via: s.pay_via, n: 0, amount: 0}; g.n++; g.amount += e; }
   });
-  return Object.keys(m).map(k => m[k]).filter(g => g.n);
+  return Object.keys(m).map(k => m[k]).filter(g => g.n).map(g => Object.assign(g, {amount: r2_(g.amount)}));
+}
+const r2_ = n => Math.round(n * 100) / 100;
+
+// ---------- cash drawer: starting cash, money in / out, end-of-day count ----------
+// A shift runs from "open" (starting cash counted) to "close" (cash counted). Expected cash = starting cash + the cash
+// part of every sale in between + money in - money out; e-wallet payments never reach the drawer.
+// ponytail: one drawer for the whole store (all devices' sales count); per-device drawers if a second counter opens.
+function drawerState_() {
+  const moves = rows_("Drawer").map(strip_).sort((a, b) => a.ts.localeCompare(b.ts)), shifts = [];
+  moves.forEach(m => {
+    const cur = shifts.length && !shifts[shifts.length - 1].close ? shifts[shifts.length - 1] : null;
+    if (m.kind === "open") shifts.push({open: m, moves: [], close: null});
+    else if (cur && m.kind === "close") cur.close = m;
+    else if (cur) cur.moves.push(m);
+  });
+  const sales = rows_("Sales"), last = shifts[shifts.length - 1];
+  return {
+    used: shifts.length > 0,
+    current: last && !last.close ? shiftSummary_(last, sales) : null,
+    past: shifts.filter(x => x.close).slice(-60).reverse().map(x => shiftSummary_(x, sales)),
+  };
+}
+
+function shiftSummary_(sh, sales) {
+  const to = sh.close ? sh.close.ts : "9999", mine = sales.filter(x => x.ts >= sh.open.ts && x.ts <= to);
+  const pay = payments_(mine), cashSales = (pay.filter(p => p.via === "Cash")[0] || {amount: 0}).amount;
+  const sum = kind => r2_(sh.moves.filter(m => m.kind === kind).reduce((n, m) => n + m.amount, 0));
+  const ins = sum("in"), outs = sum("out"), expected = r2_(sh.open.amount + cashSales + ins - outs);
+  const c = sh.close;
+  return {
+    opened: sh.open.ts, start: sh.open.amount, closed: c ? c.ts : null, moves: sh.moves,
+    n: mine.length, total: r2_(mine.reduce((n, x) => n + x.total, 0)), by_pay: pay, cash_sales: cashSales, ins: ins, outs: outs,
+    expected: c ? c.expected : expected,  // a closed day keeps the figure the cashier counted against
+    counted: c ? c.counted : null, diff: c ? r2_(c.counted - c.expected) : null, note: c ? c.note : null, detail: c ? c.detail : null,
+  };
+}
+
+function drawerMove_(d) {
+  const kind = String(d.kind || ""), uid = String(d.uid || "") || null;
+  if (["open", "in", "out", "close"].indexOf(kind) < 0) bad_("Unknown drawer action");
+  if (uid && rows_("Drawer").some(m => m.uid === uid)) return {duplicate: true};  // a retry: already recorded
+  const amount = r2_(Number(kind === "close" ? d.counted : d.amount));
+  if (!(amount >= 0) || ((kind === "in" || kind === "out") && !(amount > 0))) bad_("Enter the amount");
+  const note = String(d.note || "").trim().slice(0, 200) || null;
+  if ((kind === "in" || kind === "out") && !note) bad_("Say what the money is for");
+  const cur = drawerState_().current;
+  if (kind === "open" && cur) bad_("The drawer is already open (since " + cur.opened.replace("T", " ").slice(0, 16) + ")");
+  if (kind !== "open" && !cur) bad_("Open the drawer first: count the starting cash");
+  const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
+  const row = {uid: uid, ts: ts, kind: kind, amount: kind === "close" ? null : amount, note: note, expected: null, counted: null, detail: null};
+  if (kind === "close") {
+    // judged against what the cashier was shown (the device sends it), so the device and Google agree
+    row.expected = d.expected !== undefined && d.expected !== null && d.expected !== "" && isFinite(Number(d.expected)) ? r2_(Number(d.expected)) : cur.expected;
+    row.counted = amount;
+    row.detail = d.detail ? String(d.detail).slice(0, 500) : null;
+  }
+  insert_("Drawer", row);
+  return kind === "close" ? drawerState_().past[0] : {ok: true};
 }
 
 function salesList_(q) {
@@ -494,6 +555,7 @@ function pull_(q) {
     products: rows_("Products").map(strip_), sellers: rows_("Sellers").map(strip_), settings: settings,
     emails: rows_("Emails").slice(-200).map(m => { const c = strip_(m); delete c.body; return c; }),
     sales: batch.map(s => Object.assign(strip_(s), {items: items.filter(i => i.sale_id === s.id).map(strip_)})),
+    drawer: rows_("Drawer").slice(-500).map(strip_),
     more: newer.length > batch.length, quota: MailApp.getRemainingDailyQuota(),
   };
 }

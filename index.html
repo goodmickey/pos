@@ -327,6 +327,26 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
 .cols .card{margin:0}
 .stack{display:grid;gap:16px;align-content:start}
+/* cash drawer */
+.dnote{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 8px 8px 14px;border-radius:10px;background:var(--warnsoft);color:var(--warn);font-size:14px;font-weight:500}
+.dnote span{flex:1}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.dhead p{margin:0}
+.dacts{display:flex;gap:8px;flex-wrap:wrap}
+.dclosed{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.dclosed h3{margin:0 0 4px}.dclosed p{margin:0}
+.dlast{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.dlast div{background:var(--chip);border-radius:10px;padding:10px 12px}.dlast>div>span{display:block;font-size:13px;color:var(--muted)}.dlast b{font-size:18px}
+.amt-in{color:var(--good)}.amt-out{color:var(--bad)}
+.form.one{grid-template-columns:1fr}
+#cntDlg{width:min(600px,94vw)}#cntForm{display:grid;gap:12px}#cntForm p{margin:0}
+.dens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px}
+.den{flex-direction:row;align-items:center;gap:8px;font-size:15px;color:var(--ink)}
+.den span{width:72px;flex:none;font-weight:500}.den input{width:80px;flex:none;text-align:center;min-height:40px;padding:6px}
+.den b{flex:1;text-align:right;font-weight:500;color:var(--muted)}
+.cntsum{background:var(--chip);border-radius:12px;padding:12px 16px;display:grid;gap:6px}
+.cntsum .total{font-size:26px}
+@media(max-width:700px){.dens{grid-template-columns:1fr}.dlast{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rtool{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .rtool p{margin:0}.rtool select{width:auto;min-width:200px}
 .share{height:4px;border-radius:2px;background:var(--chip);margin-top:6px;overflow:hidden}
@@ -394,6 +414,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 <aside class="side">
   <nav>
     <button data-tab="sell" class="on" title="Sell"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/></svg><span>Sell</span></button>
+    <button data-tab="drawer" title="Cash drawer"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg><span>Cash drawer</span><b class="navbadge" id="navDrawer" hidden>!</b></button>
     <button data-tab="products" title="Products"><svg class="i" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><span>Products</span></button>
     <button data-tab="sellers" title="Sellers & Shelves"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18"/></svg><span>Sellers &amp; Shelves</span><b class="navbadge" id="navRent" hidden></b></button>
     <button data-tab="labels" title="Barcode Labels"><svg class="i" viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M18 5v14M21 5v14"/></svg><span>Barcode Labels</span></button>
@@ -410,6 +431,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
       <div class="searchbar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="scan" placeholder="Search item or scan barcode" autocomplete="off" autofocus>
         <button class="kb" id="kb" title="Show on-screen keyboard to type a name">⌨ Type</button></div>
+      <div class="dnote" id="drawerNote" hidden><span></span><button class="sm" id="drawerGo"></button></div>
       <div class="chips owners" id="owners"></div>
       <div class="tiles" id="tiles"></div>
     </div>
@@ -454,6 +476,14 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
       <button id="donePrint2" style="flex:1">Print + store copy</button></div>
     <button class="pay" id="doneNew" style="margin-top:10px" autofocus>New sale (Enter)</button>
   </dialog>
+</section>
+
+<section id="drawer">
+  <div class="pagehead"><h2>Cash drawer</h2><p>Count the starting cash, note money put in or taken out, and count again at the end of the day.</p></div>
+  <div id="dnow"></div>
+  <div class="card"><h3>Past counts</h3>
+    <div class="scroll" style="margin-top:0"><table><thead><tr><th>Day</th><th class="num">Sales</th><th class="num">Expected</th><th class="num">Counted</th><th class="num">Difference</th><th></th></tr></thead>
+      <tbody id="dpast"></tbody></table></div></div>
 </section>
 
 <section id="products">
@@ -639,6 +669,28 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
       <div class="dlgfoot"><button type="button" class="danger" id="pdel">Delete</button><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
     </form>
   </dialog>
+<dialog id="cntDlg" class="formdlg small">
+  <div class="dlghead"><h3 id="cntTitle">Open the drawer</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="cntForm">
+    <p class="muted" id="cntHint"></p>
+    <div class="dens" id="dens"></div>
+    <div class="cntsum">
+      <div class="sumrow"><span>Counted</span><b id="cntTotal" class="total">₱0.00</b></div>
+      <div class="sumrow" id="cntExpRow"><span>Expected</span><b id="cntExp"></b></div>
+      <div class="sumrow" id="cntDiffRow"><span id="cntDiffLabel">Difference</span><b id="cntDiff"></b></div>
+    </div>
+    <label id="cntNoteRow">Note (optional)<input name="note" maxlength="200" placeholder="For example: gave ₱20 too much change"></label>
+  <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="cntOk">Open drawer</button></div>
+</form></dialog>
+<dialog id="mvDlg" class="formdlg small">
+  <div class="dlghead"><h3 id="mvTitle">Money out</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="mvForm" class="form one">
+  <p class="muted" id="mvHint" style="margin:0"></p>
+  <label>Amount (₱)<input name="amount" type="number" step="0.01" min="0.01" inputmode="decimal" required></label>
+  <label>What for<input name="note" list="mvReasons" maxlength="200" required></label>
+  <datalist id="mvReasons"></datalist>
+  <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary">Save</button></div>
+</form></dialog>
 <dialog id="rsDlg" class="formdlg small">
   <div class="dlghead"><h3>Restock</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
   <form id="rsform">
@@ -777,6 +829,7 @@ async function load() {
     const s = await Local.call("/api/state");  // swapped in only when complete: screens may draw while this waits
     if (s.settings.web_app_url !== API) await Local.call("/api/settings", {web_app_url: API});  // used in the rent reminder emails
     s.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
+    s.drawer = await Local.call("/api/drawer-state");
     S = s;
   }
   renderAll();
@@ -797,7 +850,7 @@ async function syncNow() {
 }
 function renderAll() {
   $("#storeName").textContent = S.settings.store_name || "Urdaneta Store";
-  renderCart(); renderTiles(); renderProducts(); renderSellers(); renderLabels(); renderSettings();
+  renderCart(); renderTiles(); renderProducts(); renderSellers(); renderLabels(); renderSettings(); renderDrawer();
 }
 
 // ---------- tabs ----------
@@ -1066,7 +1119,7 @@ const pay = run(async () => {
     $("#cash").value = cash; renderCart();
   }
   if (cash < due) return toast(`Cash received (${peso(cash)}) is less than ${via ? "the rest to pay" : "the total"} (${peso(due)})`, true);
-  const sale = {uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), ts: localTime(), cash,
+  const sale = {uid: newUid(), ts: localTime(), cash,
                 ...(via ? {pay_via: via, epay, epay_ref: ref} : {}), items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
   paying = true;
   try { lastSale = {...await api("/api/sale", sale), id: receiptNo(sale)}; }  // saved on this device at once
@@ -1730,6 +1783,154 @@ $("#saleReprint").onclick = () => printReceipt(viewing, 1);
 $("#saleReprint2").onclick = () => printReceipt(viewing, 2);
 $("#saleClose").onclick = () => $("#saleDlg").close();
 
+// ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
+const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
+const r2 = n => Math.round(n * 100) / 100;
+const newUid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const diffBadge = d => d === null ? "" : d === 0 ? '<span class="badge good">✓ Exact</span>'
+  : d < 0 ? `<span class="badge bad">Short ${peso(-d)}</span>` : `<span class="badge low">Over ${peso(d)}</span>`;
+let counting = "";  // the count pop-up is for "open" or "close"
+
+function renderDrawer() {
+  const D = S.drawer || {used: false, current: null, past: []}, cur = D.current, last = D.past[0];
+  const stale = !!cur && cur.opened.slice(0, 10) < today();  // left open since an earlier day
+  $("#navDrawer").hidden = !stale;
+  // Reminder on Sell, once the store uses the drawer: open it in the morning, close yesterday's
+  $("#drawerNote").hidden = !(D.used && (!cur || stale));
+  $("#drawerNote span").textContent = stale ? `The cash drawer is still open since ${dayText(cur.opened.slice(0, 10))}. Close and count it.` : "Cash drawer not opened yet: count the starting cash first.";
+  $("#drawerGo").textContent = stale ? "Close and count" : "Open drawer";
+  if (!cur) {
+    $("#dnow").innerHTML = `<div class="card"><div class="dclosed"><div><h3>The drawer is closed</h3>
+      <p class="muted">At the start of the day, count the cash in the drawer and open it. Cash sales then add up here until you count again.</p></div>
+      <button class="primary" data-d="open">Open drawer</button></div>
+      ${last ? `<div class="dlast"><div><span>Last count · ${esc(dayText(last.closed.slice(0, 10)))}</span><b>${peso(last.counted)}</b></div><div><span>Expected</span><b>${peso(last.expected)}</b></div>
+        <div><span>Result</span><b>${diffBadge(last.diff)}</b></div><div><span>Printout</span><button class="sm" data-d="print" data-i="0">Print count</button></div></div>` : ""}</div>`;
+  } else {
+    const ew = cur.by_pay.filter(p => p.via !== "Cash");
+    $("#dnow").innerHTML = `<div class="dhead"><p class="muted">Open since ${esc(dayText(cur.opened.slice(0, 10)))}, ${cur.opened.slice(11, 16)}${stale ? ' · <span class="bad">not closed yet</span>' : ""}</p>
+        <div class="dacts"><button data-d="in">+ Money in</button><button data-d="out">− Money out</button><button class="primary" data-d="close">Close and count</button></div></div>
+      <div class="kpis">${[["lead", "Expected in drawer", peso(cur.expected), "cash that should be there now"],
+        ["", "Starting cash", peso(cur.start), "counted when opened"],
+        ["", "Cash sales", peso(cur.cash_sales), `${cur.n} sale${cur.n === 1 ? "" : "s"}${ew.length ? " · e-wallet not included" : ""}`],
+        ["", "Money in", peso(cur.ins), "added to the drawer"], ["", "Money out", peso(cur.outs), "taken from the drawer"]]
+        .map(([c, k, v, x]) => `<div class="kpi ${c}"><span>${k}</span><b>${v}</b><small>${esc(x)}</small></div>`).join("")}</div>
+      ${ew.length ? `<p class="muted" style="margin:4px 0 12px">Paid by e-wallet (not in the drawer): ${ew.map(p => `${esc(p.via)} ${peso(p.amount)}`).join(" · ")}</p>` : ""}
+      <div class="card"><h3>Money in and out</h3>${reportTable(["Time", "What", "Amount"], [`<tr><td>${cur.opened.slice(11, 16)}</td><td>Starting cash</td><td class="num">${peso(cur.start)}</td></tr>`]
+        .concat(cur.moves.map(m => `<tr><td>${m.ts.slice(11, 16)}</td><td>${esc(m.note || "")}</td><td class="num ${m.kind === "in" ? "amt-in" : "amt-out"}">${m.kind === "in" ? "+" : "−"}${peso(m.amount)}</td></tr>`)), "")}</div>`;
+  }
+  $("#dpast").innerHTML = D.past.map((p, i) => `<tr><td>${esc(dayText(p.opened.slice(0, 10)))}${p.closed.slice(0, 10) !== p.opened.slice(0, 10) ? ` – ${esc(dayText(p.closed.slice(0, 10)))}` : ""}
+      <div class="muted">${p.opened.slice(11, 16)} to ${p.closed.slice(11, 16)}${p.note ? " · " + esc(p.note) : ""}</div></td>
+      <td class="num">${p.n}<div class="muted">${peso(p.total)}</div></td><td class="num">${peso(p.expected)}</td><td class="num">${peso(p.counted)}</td>
+      <td class="num">${diffBadge(p.diff)}</td><td class="num"><button class="sm" data-d="print" data-i="${i}">Print</button></td></tr>`).join("")
+    || `<tr><td colspan="6" class="muted">No counts yet. Close the drawer at the end of the day to see it here.</td></tr>`;
+}
+$("#drawer").onclick = e => {
+  const b = e.target.closest("[data-d]"); if (!b) return;
+  const d = b.dataset.d;
+  if (d === "open" || d === "close") openCount(d);
+  else if (d === "in" || d === "out") openMove(d);
+  else if (d === "print") printCount(S.drawer.past[+b.dataset.i]);
+};
+$("#drawerGo").onclick = () => {
+  document.querySelector('nav [data-tab="drawer"]').click();
+  openCount(S.drawer.current ? "close" : "open");
+};
+
+// Count the cash: bills and coins, or just the loose-coin box for an amount
+$("#dens").innerHTML = DENS.map(v => `<label class="den"><span>₱${v.toLocaleString()}</span><input type="number" min="0" step="1" inputmode="numeric" placeholder="0" data-den="${v}" aria-label="Number of ₱${v}"><b></b></label>`).join("")
+  + `<label class="den"><span>Centavos / other ₱</span><input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" data-den="other" aria-label="Other amount"><b></b></label>`;
+function countTotal() {
+  let t = 0;
+  document.querySelectorAll("#dens input").forEach(i => {
+    const n = parseFloat(i.value) || 0, amt = i.dataset.den === "other" ? n : n * +i.dataset.den;
+    t += amt;
+    i.nextElementSibling.textContent = n && i.dataset.den !== "other" ? peso(amt) : "";
+  });
+  return r2(t);
+}
+function renderCount() {
+  const t = countTotal(), closing = counting === "close";
+  $("#cntTotal").textContent = peso(t);
+  $("#cntExpRow").hidden = $("#cntDiffRow").hidden = $("#cntNoteRow").hidden = !closing;
+  if (!closing) return;
+  const d = r2(t - S.drawer.current.expected);
+  $("#cntExp").textContent = peso(S.drawer.current.expected);
+  $("#cntDiffLabel").textContent = d < 0 ? "Short by" : d > 0 ? "Over by" : "Difference";
+  $("#cntDiff").textContent = d ? peso(Math.abs(d)) : "✓ Exact";
+  $("#cntDiff").className = d < 0 ? "bad" : d > 0 ? "warn" : "good";
+}
+$("#dens").oninput = renderCount;
+function openCount(kind) {
+  if (kind === "close" && !S.drawer.current) return toast("The drawer is not open", true);
+  counting = kind; $("#cntForm").reset();
+  $("#cntTitle").textContent = kind === "open" ? "Open the drawer" : "Close and count";
+  $("#cntHint").textContent = kind === "open" ? "Count the cash in the drawer before the first sale: how many of each bill and coin."
+    : "Count all the cash in the drawer: how many of each bill and coin.";
+  $("#cntOk").textContent = kind === "open" ? "Open drawer" : "Close drawer";
+  renderCount(); $("#cntDlg").showModal(); $("#dens input").focus();
+}
+$("#cntForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const counted = countTotal(), cur = S.drawer.current;
+  const detail = [...document.querySelectorAll("#dens input")].filter(i => +i.value).map(i => i.dataset.den === "other" ? `other ${i.value}` : `${i.dataset.den}x${i.value}`).join(", ");
+  if (counting === "open") {
+    await api("/api/drawer", {uid: newUid(), ts: localTime(), kind: "open", amount: counted, detail});
+    $("#cntDlg").close(); await load(); toast(`Drawer opened with ${peso(counted)}`);
+  } else {
+    const r = await api("/api/drawer", {uid: newUid(), ts: localTime(), kind: "close", counted, expected: cur.expected, note: e.target.note.value, detail});
+    $("#cntDlg").close(); await load();
+    toast(`Drawer closed: ${r.diff === 0 ? "exact" : r.diff < 0 ? "short by " + peso(-r.diff) : "over by " + peso(r.diff)}`, r.diff < 0, 8000);
+  }
+});
+
+// Money put in (change fund) or taken out (supplier, owner): always with what it was for
+const MOVE_REASONS = {in: ["Change fund (barya)", "Owner added cash"], out: ["Paid supplier", "Owner took cash", "Bought supplies", "Paid shelf renter", "Deposit to bank"]};
+let moving = "";
+function openMove(kind) {
+  moving = kind; $("#mvForm").reset();
+  $("#mvTitle").textContent = kind === "in" ? "Money in" : "Money out";
+  $("#mvHint").textContent = kind === "in" ? "Cash added to the drawer that isn't a sale." : "Cash taken from the drawer that isn't change for a sale.";
+  $("#mvReasons").innerHTML = MOVE_REASONS[kind].map(r => `<option value="${esc(r)}">`).join("");
+  $("#mvDlg").showModal(); $("#mvForm").amount.focus();
+}
+$("#mvForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const f = e.target;
+  await api("/api/drawer", {uid: newUid(), ts: localTime(), kind: moving, amount: f.amount.value, note: f.note.value});
+  $("#mvDlg").close(); await load(); toast(`${moving === "in" ? "Money in" : "Money out"} saved`);
+});
+
+// End-of-day printout: receipt printer, or a normal printer
+function countBytes(p) {
+  const t = ticket(), m = t.money;
+  storeHeader(t);
+  t.bold(1); t.line("CASH DRAWER COUNT"); t.bold(0);
+  t.center(0); t.lr("Opened", when(p.opened)); t.lr("Closed", when(p.closed)); t.rule();
+  t.lr(`Sales (${p.n})`, m(p.total));
+  p.by_pay.forEach(x => t.lr(`  ${x.via}`, m(x.amount)));
+  t.rule();
+  t.lr("Starting cash", m(p.start)); t.lr("Cash sales", m(p.cash_sales)); t.lr("Money in", m(p.ins)); t.lr("Money out", "-" + m(p.outs));
+  p.moves.forEach(x => t.text(`  ${x.ts.slice(11, 16)} ${x.kind === "in" ? "+" : "-"}${m(x.amount)} ${x.note || ""}`));
+  t.bold(1); t.lr("EXPECTED", m(p.expected)); t.lr("COUNTED", m(p.counted));
+  t.lr(p.diff === 0 ? "EXACT" : p.diff < 0 ? "SHORT" : "OVER", m(Math.abs(p.diff))); t.bold(0);
+  if (p.detail) t.text("Count: " + p.detail);
+  if (p.note) t.text("Note: " + p.note);
+  t.rule(); t.line(""); t.line("Counted by: ______________"); t.line(""); t.line("Checked by: ______________");
+  return t.end();
+}
+const printCount = run(async p => {
+  if (await printTickets([countBytes(p)], "Count printed")) return;
+  const row = (k, v) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`;
+  printHTML([`<div class="report"><h2>${esc(storeName())}: Cash drawer count</h2><p>Opened ${when(p.opened)} · closed ${when(p.closed)}</p><table>
+    ${row(`Sales (${p.n})`, peso(p.total))}${p.by_pay.map(x => row("&nbsp;&nbsp;" + esc(x.via), peso(x.amount))).join("")}
+    ${row("Starting cash", peso(p.start))}${row("Cash sales", peso(p.cash_sales))}${row("Money in", peso(p.ins))}${row("Money out", "−" + peso(p.outs))}
+    ${p.moves.map(x => row(`&nbsp;&nbsp;${x.ts.slice(11, 16)} ${esc(x.note || "")}`, (x.kind === "in" ? "+" : "−") + peso(x.amount))).join("")}
+    ${row("<b>Expected</b>", `<b>${peso(p.expected)}</b>`)}${row("<b>Counted</b>", `<b>${peso(p.counted)}</b>`)}
+    ${row(`<b>${p.diff === 0 ? "Exact" : p.diff < 0 ? "Short" : "Over"}</b>`, `<b>${peso(Math.abs(p.diff))}</b>`)}</table>
+    ${p.detail ? `<p>Count: ${esc(p.detail)}</p>` : ""}${p.note ? `<p>Note: ${esc(p.note)}</p>` : ""}
+    <p style="margin-top:40px">Counted by: ____________________ &nbsp; Checked by: ____________________</p></div>`]);
+});
+
 // ---------- print the report (thermal or normal printer, like receipts): the tab that is open ----------
 $("#rprint").onclick = () => ({overview: printOverview, products: printProducts, renters: printRenters})[reportTab]();
 const printOverview = run(async () => {
@@ -1739,7 +1940,7 @@ const printOverview = run(async () => {
   const tbl = (rows, head) => `<table><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows || '<tr><td colspan="3">No sales</td></tr>'}</tbody></table>`;
   printHTML([`<div class="report"><h2>${esc(storeName())}: Sales report</h2>
     <p>${r.from === r.to ? r.from : `${r.from} to ${r.to}`} · printed ${localTime().replace("T", " ").slice(0, 16)}</p>
-    <p><b>${r.summary.n} sale(s) · Total ${peso(r.summary.total)}</b></p>
+    <p><b>${r.summary.n} sale(s) · Total ${peso(r.summary.total)}</b>${r.by_pay.some(p => p.via !== "Cash") ? "<br>" + r.by_pay.map(p => `${esc(p.via)} ${peso(p.amount)}`).join(" · ") : ""}</p>
     <h3>By owner (what you owe each seller)</h3>${tbl(r.by_owner.map(o => `<tr><td>${esc(o.owner)}${o.shelf ? ` (shelf ${esc(o.shelf)})` : ""}</td><td>${o.qty} pcs</td><td>${peso(o.amount)}</td></tr>`).join(""), ["Owner", "Sold", "Amount"])}
     <h3>By item</h3>${tbl(r.by_item.map(i => `<tr><td>${esc(i.name)}</td><td>${i.qty} pcs</td><td>${peso(i.amount)}</td></tr>`).join(""), ["Item", "Sold", "Amount"])}</div>`]);
 });
