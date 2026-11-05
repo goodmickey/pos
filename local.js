@@ -8,7 +8,7 @@
 
   // Requests that only Google can do (they send email)
   const CLOUD = new Set(["/api/send-now", "/api/outbox/test", "/api/sellers/report", "/api/outbox/delete", "/api/outbox/readdress"]);
-  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer"]);
+  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust"]);
 
   let data = {}, ops = [], meta = {}, failed = [];
 
@@ -92,6 +92,7 @@
     replace("Emails", r.emails);
     replace("Settings", Object.keys(r.settings).map(k => ({key: k, value: r.settings[k]})));
     if (r.drawer) replace("Drawer", r.drawer);  // cash drawer: opened, money in / out, counts (any device)
+    if (r.adjustments) replace("Adjustments", r.adjustments);  // stock removed (spoiled, damaged...) for the reports
     if (!data.Sales) replace("Sales", []);
     if (!data.SaleItems) replace("SaleItems", []);
     meta.quota = r.quota;

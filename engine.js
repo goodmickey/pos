@@ -17,7 +17,8 @@ const SHEETS = {
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
-  Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close  // small JPEG per product; Products.photo_at says which version is current
+  Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
+  Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
 };
 const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted"]);
 const PAY_VIA = ["GCash", "Maya", "Bank / QR"];  // paid by phone: the exact amount, checked by its reference number
@@ -70,6 +71,7 @@ const ROUTES = {
   "/api/products": saveProduct_,
   "/api/products/delete": deleteProduct_,
   "/api/restock": restock_,
+  "/api/adjust": adjust_,
   "/api/photo": savePhoto_,
   "/api/photos": photos_,
   "/api/sellers": saveSeller_,
@@ -281,6 +283,37 @@ function restock_(d) {
   return {stock: p.stock};
 }
 
+// Stock taken off without a sale: spoiled, damaged, lost... Like restock it is a change (-n), so sales made at the same
+// time on other devices still count; each one is kept (with the price then) for the "Stock removed" report.
+const ADJUST_REASONS = ["Spoiled / expired", "Damaged", "Lost / stolen", "Store use", "Returned to renter", "Count correction"];
+function adjust_(d) {
+  const uid = d.uid ? String(d.uid) : null;
+  if (uid && rows_("Adjustments").some(a => a.uid === uid)) return {duplicate: true};  // a retry: already recorded
+  const qty = num_(d.remove, "Pieces to remove");
+  if (!Number.isInteger(qty) || qty <= 0) bad_("Pieces to remove must be a whole number above 0");
+  const reason = String(d.reason || "");
+  if (ADJUST_REASONS.indexOf(reason) < 0) bad_("Choose why the stock is removed");
+  const p = rows_("Products").find(r => r.id === Number(d.id));
+  if (!p) bad_("Product not found (was it deleted?)");
+  p.stock -= qty;
+  update_("Products", p);
+  const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
+  insert_("Adjustments", {uid: uid, ts: ts, product_id: p.id, name: p.name, seller_id: p.seller_id, qty: -qty, price: p.price,
+    reason: reason, note: String(d.note || "").trim().slice(0, 200) || null});
+  return {stock: p.stock};
+}
+
+// Stock removed in a period: by reason, and every removal (value at the selling price then)
+function removed_(from, to, sellers) {
+  const lines = rows_("Adjustments").filter(a => a.ts >= from && a.ts <= to).sort((a, b) => b.ts.localeCompare(a.ts)).map(a => {
+    const s = sellers.find(x => x.id === a.seller_id);
+    return {ts: a.ts, id: a.product_id, name: a.name, owner: s ? s.name : "Store", qty: -a.qty, reason: a.reason, note: a.note, value: r2_(-a.qty * a.price)};
+  });
+  const m = {};
+  lines.forEach(l => { const g = m[l.reason] = m[l.reason] || {reason: l.reason, qty: 0, value: 0}; g.qty += l.qty; g.value = r2_(g.value + l.value); });
+  return {by_reason: Object.keys(m).map(k => m[k]).sort((a, b) => b.value - a.value), lines: lines.slice(0, 300)};
+}
+
 function deleteProduct_(d) {
   removeById_("Products", d.id);
   const ph = rows_("Photos").find(r => r.product_id === Number(d.id));
@@ -427,6 +460,7 @@ function report_(q) {
     summary: {n: sales.filter(x => !x.refund_of).length, total: r2_(sales.reduce((s, x) => s + x.total, 0)),  // total is after refunds
               refunds: {n: sales.filter(x => x.refund_of).length, amount: r2_(-sales.filter(x => x.refund_of).reduce((s, x) => s + x.total, 0))}},
     by_pay: payments_(sales),
+    removed: removed_(from, to, sellers),
     by_owner: group(i => i.seller_id || 0, i => {
       const s = sellers.find(x => x.id === i.seller_id);
       return {owner: s ? s.name : "Store", shelf: s ? s.shelf : null};
@@ -590,6 +624,7 @@ function pull_(q) {
     emails: rows_("Emails").slice(-200).map(m => { const c = strip_(m); delete c.body; return c; }),
     sales: batch.map(s => Object.assign(strip_(s), {items: items.filter(i => i.sale_id === s.id).map(strip_)})),
     drawer: rows_("Drawer").slice(-500).map(strip_),
+    adjustments: rows_("Adjustments").slice(-2000).map(strip_),
     more: newer.length > batch.length, quota: MailApp.getRemainingDailyQuota(),
   };
 }

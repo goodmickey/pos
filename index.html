@@ -292,6 +292,7 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
+#adjForm{display:grid;gap:4px}#adjForm label{margin-top:8px}
 .kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--line2)}
 .fsec{grid-column:1/-1;margin:10px 0 -4px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .fsec:first-of-type{margin-top:0}
@@ -724,6 +725,19 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     </div>
     <p class="muted" style="margin:8px 0 0">For perishables, set the date printed on the new pieces. Leave it if it hasn't changed.</p>
     <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
+  </form>
+</dialog>
+<dialog id="adjDlg" class="formdlg small">
+  <div class="dlghead"><h3>Remove from stock</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="adjForm">
+    <div class="thumbcell" id="adjItem"></div>
+    <div class="rsadd"><b>Pieces to remove</b>
+      <div class="row"><span class="copies big"><button type="button" data-ad="-1" aria-label="One less">−</button><input name="qty" type="number" min="1" step="1" inputmode="numeric" aria-label="Pieces to remove"><button type="button" data-ad="1" aria-label="One more">+</button></span>
+        <div class="chips"><button type="button" id="adjAll">All of it</button></div></div>
+      <p class="rsnew" id="adjNew"></p></div>
+    <div class="rsadd"><b>Why</b><div class="chips" id="adjWhy"></div></div>
+    <label>Note (optional)<input name="note" maxlength="200" placeholder="For example: moldy, dropped, rats"></label>
+    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="adjSave">Remove</button></div>
   </form>
 </dialog>
 <dialog id="sDlg" class="formdlg">
@@ -1280,6 +1294,10 @@ function reportBytes(r) {
   t.rule(); t.bold(1); t.line("BY OWNER (pay sellers)"); t.bold(0);
   r.by_owner.forEach(o => { t.text(o.owner + (o.shelf ? ` (shelf ${o.shelf})` : "")); t.lr(`  ${o.qty} pcs`, m(o.amount)); });
   if (!r.by_owner.length) t.line("  No sales");
+  if (r.removed && r.removed.by_reason.length) {
+    t.rule(); t.bold(1); t.line("STOCK REMOVED (not sold)"); t.bold(0);
+    r.removed.by_reason.forEach(x => t.lr(`  ${x.reason} (${x.qty})`, m(x.value)));
+  }
   t.rule(); t.bold(1); t.line("BY ITEM"); t.bold(0);
   r.by_item.forEach(i => { t.text(i.name); t.lr(`  ${i.qty} pcs`, m(i.amount)); });
   if (!r.by_item.length) t.line("  No sales");
@@ -1357,7 +1375,7 @@ function renderProducts() {
     .map(p => { const [note, cls] = stockState(p); return `<tr data-id="${p.id}">
       <td><div class="thumbcell">${thumb(p)}<div><b>${esc(p.name)}</b><small>${esc(p.barcode)}</small></div></div></td>
       <td><span class="owner-cell"><i class="dot" style="background:${ownerColor(p.seller_id, true)}"></i> ${esc(owner(p.seller_id))}</span></td>
-      <td class="num">${peso(p.price)}</td><td class="num"><span class="stockcell"><span class="badge ${cls}">${note}</span><button class="restock${cls && note !== "Expired" ? " need" : ""}" data-restock="${p.id}" title="Restock: add pieces" aria-label="Restock ${esc(p.name)}">+</button></span></td><td>${expiryCell(p)}</td></tr>`; }).join("")
+      <td class="num">${peso(p.price)}</td><td class="num"><span class="stockcell"><span class="badge ${cls}">${note}</span><button class="restock${note === "Expired" ? " need" : ""}" data-remove="${p.id}" title="Remove from stock: spoiled, damaged…" aria-label="Remove stock of ${esc(p.name)}">−</button><button class="restock${cls && note !== "Expired" ? " need" : ""}" data-restock="${p.id}" title="Restock: add pieces" aria-label="Restock ${esc(p.name)}">+</button></span></td><td>${expiryCell(p)}</td></tr>`; }).join("")
     || `<tr><td colspan="5" class="muted">${P.length ? "No product matches." : "No products yet. Tap New product to add one."}</td></tr>`;
 }
 $("#pchips").onclick = e => { const b = e.target.closest("button"); if (b) { pFilter = b.dataset.pf; renderProducts(); } };
@@ -1395,6 +1413,42 @@ $("#rsform").onsubmit = run(async e => {
   const r = await api("/api/restock", body);
   $("#rsDlg").close(); toast(`${restocking.name}: ${r.stock} in stock now`); await load();
 });
+// ---------- remove from stock without a sale: spoiled, damaged, lost... (Google takes them off its own count, see adjust_) ----------
+let removing = null, removeWhy = "";
+function openRemove(p) {
+  removing = p; removeWhy = isExpired(p) ? "Spoiled / expired" : "";
+  const f = $("#adjForm"); f.reset(); f.qty.value = isExpired(p) ? Math.max(p.stock, 1) : 1;
+  $("#adjItem").innerHTML = `${thumb(p)}<div><b>${esc(p.name)}</b><small>${stockState(p)[0]} · ${esc(owner(p.seller_id))}</small></div>`;
+  // "Returned to renter" only for a renter's goods
+  $("#adjWhy").innerHTML = ADJUST_REASONS.filter(r => r !== "Returned to renter" || p.seller_id).map(r => `<button type="button" data-why="${esc(r)}">${esc(r)}</button>`).join("");
+  showRemove();
+  $("#adjDlg").showModal(); f.qty.select();
+}
+function showRemove() {
+  const n = parseInt($("#adjForm").qty.value, 10) || 0, now = removing.stock;
+  document.querySelectorAll("#adjWhy button").forEach(b => b.setAttribute("aria-pressed", b.dataset.why === removeWhy));
+  $("#adjNew").innerHTML = n > 0 ? `New stock: ${now} → <b>${now - n} pcs</b> · worth ${peso(n * removing.price)}${n > now ? ' <span class="bad">(more than the stock shown)</span>' : ""}`
+    : '<span class="bad">Enter how many pieces to remove</span>';
+  $("#adjSave").textContent = n > 0 ? `Remove ${n}` : "Remove";
+  $("#adjSave").disabled = !(n > 0 && removeWhy);
+}
+$("#adjForm").qty.oninput = showRemove;
+$("#adjForm").onclick = e => {
+  const b = e.target.closest("button[data-ad],button[data-why],#adjAll"); if (!b) return;
+  const f = $("#adjForm");
+  if (b.dataset.why) removeWhy = b.dataset.why;
+  else if (b.id === "adjAll") f.qty.value = Math.max(removing.stock, 1);
+  else f.qty.value = Math.max(1, (parseInt(f.qty.value, 10) || 0) + +b.dataset.ad);
+  showRemove();
+};
+$("#adjForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const f = e.target, n = parseInt(f.qty.value, 10);
+  if (!(n > 0) || !removeWhy) return showRemove();
+  const r = await api("/api/adjust", {uid: newUid(), ts: localTime(), id: removing.id, remove: n, reason: removeWhy, note: f.note.value});
+  $("#adjDlg").close(); toast(`${removing.name}: ${n} removed (${removeWhy}), ${r.stock} left`); await load();
+});
+
 $("#powner").onchange = renderProducts;
 // Add / edit happens in a pop-up
 function editProduct(p) {
@@ -1432,6 +1486,8 @@ $("#pphotoDel").onclick = () => { newPhoto = ""; showFormPhoto(""); };
 $("#plist").onclick = e => {
   const r = e.target.closest("[data-restock]");
   if (r) return openRestock(S.products.find(p => p.id === +r.dataset.restock));
+  const m = e.target.closest("[data-remove]");
+  if (m) return openRemove(S.products.find(p => p.id === +m.dataset.remove));
   const tr = e.target.closest("tr[data-id]"); if (tr) editProduct(S.products.find(p => p.id === +tr.dataset.id));
 };
 $("#pfilter").oninput = renderProducts;
@@ -1625,12 +1681,18 @@ const showReport = run(async () => {
   $("#rout").innerHTML = `<div class="stack"><div class="card"><h3>By payment <span class="muted">· cash to count, e-wallet to check in the app</span></h3>${reportTable(["Paid by", "Sales", "Amount"], r.by_pay.map(x =>
       `<tr><td>${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
     <div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
-      `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div></div>
+      `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>${removedCard(r.removed)}</div>
     <div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
       `<tr><td>${productLink(x.id, x.name)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>`;
 });
 $("#rout").onclick = e => { const b = e.target.closest("[data-pid]"); if (b) openProductReport(b.dataset.pid); };
 
+// Stock taken off without a sale in the period (Products → −): by reason, then each removal
+const removedCard = rm => !rm || !rm.lines.length ? "" : `<div class="card"><h3>Stock removed <span class="muted">· not sold: spoiled, damaged, lost…</span></h3>
+  ${reportTable(["Why", "Qty", "Value"], rm.by_reason.map(x => `<tr><td>${esc(x.reason)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.value)}</td></tr>`), "")}
+  <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Each removal (${rm.lines.length})</summary>
+  ${reportTable(["When", "Item", "Qty", "Value"], rm.lines.map(l => `<tr><td>${l.ts.slice(5, 16).replace("T", " ")}</td><td>${productLink(l.id, l.name)}<div class="muted">${esc(l.reason)}${l.owner !== "Store" ? " · " + esc(l.owner) : ""}${l.note ? " · " + esc(l.note) : ""}</div></td><td class="num">${l.qty}</td><td class="num">${peso(l.value)}</td></tr>`), "")}</details>
+  <p class="muted" style="margin:8px 0 0">Value at the selling price.</p></div>`;
 // One table style for the report cards and their printouts (number columns right-aligned)
 const reportTable = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount|Stock|Value|Sales/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
   <tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table>`;
