@@ -292,7 +292,7 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
-#adjForm{display:grid;gap:4px}#adjForm label{margin-top:8px}
+#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#adjForm{display:grid;gap:4px}#adjForm label{margin-top:8px}
 .kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--line2)}
 .fsec{grid-column:1/-1;margin:10px 0 -4px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .fsec:first-of-type{margin-top:0}
@@ -661,6 +661,8 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
       <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
       <label>Name <input name="name" required></label>
       <label>Price (₱) <input name="price" type="number" step="0.01" min="0" required></label>
+      <label>Cost per piece (₱) <input name="cost" type="number" step="0.01" min="0" placeholder="What the store paid"></label>
+      <p class="muted fhint" id="pmargin"></p>
       <label>Stock (pcs) <input name="stock" type="number" step="1" min="0" value="0" required></label>
       <label>Owner <select name="seller_id"></select></label>
       <label>Manufacturing date <input name="mfg_date" type="date"></label>
@@ -1364,7 +1366,8 @@ function renderProducts() {
   po.innerHTML = `<option value="">All owners</option><option value="store">Store</option>` + owners; po.value = pk;
   const P = S.products;
   $("#pkpis").innerHTML = [["Products", P.length, `${P.reduce((n, p) => n + Math.max(p.stock, 0), 0)} pieces in stock`],
-    ["Stock value", peso(P.reduce((n, p) => n + p.price * Math.max(p.stock, 0), 0)), "at selling price"],
+    ["Stock value", peso(P.reduce((n, p) => n + p.price * Math.max(p.stock, 0), 0)), P.some(p => p.cost !== null && p.cost !== undefined && !p.seller_id)
+      ? `at selling price · store goods cost ${peso(P.filter(p => !p.seller_id && p.cost != null).reduce((n, p) => n + p.cost * Math.max(p.stock, 0), 0))}` : "at selling price"],
     ["Low stock", P.filter(p => P_FILTERS.low(p) || P_FILTERS.out(p)).length, "low or out: tap to restock", "low"],
     ["Expiring or expired", P.filter(p => p.stock > 0 && (dueSoon(p) || isExpired(p))).length, "past their notify date", "soon"]]
     .map(([k, v, s, f]) => `<div class="kpi${f ? " click" : ""}"${f ? ` data-pf="${f}"` : ""}><span>${k}</span><b>${v}</b><small>${s}</small></div>`).join("");
@@ -1449,13 +1452,26 @@ $("#adjForm").onsubmit = run(async e => {
   $("#adjDlg").close(); toast(`${removing.name}: ${n} removed (${removeWhy}), ${r.stock} left`); await load();
 });
 
+// Product form: profit per piece as price / cost are typed (only the store's own goods have a cost)
+function showMargin() {
+  const f = $("#pform"), price = parseFloat(f.price.value), cost = parseFloat(f.cost.value), renter = !!f.seller_id.value;
+  f.cost.closest("label").hidden = renter;
+  $("#pmargin").hidden = renter;
+  $("#pmargin").innerHTML = renter ? "" : !(cost >= 0) || !(price >= 0) ? "Add the cost to see the profit on each piece."
+    : `Profit per piece: <b class="${price - cost < 0 ? "bad" : ""}">${peso(price - cost)}</b>${price ? ` (${Math.round((price - cost) / price * 100)}% of the price)` : ""}`;
+}
+$("#pform").price.addEventListener("input", showMargin);
+$("#pform").cost.addEventListener("input", showMargin);
+$("#pform").seller_id.addEventListener("change", showMargin);
+
 $("#powner").onchange = renderProducts;
 // Add / edit happens in a pop-up
 function editProduct(p) {
   const f = $("#pform"); f.reset();
-  for (const k of ["id", "barcode", "name", "price", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
+  for (const k of ["id", "barcode", "name", "price", "cost", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
   f.stock_was.value = p?.id ? p.stock : "";  // saving applies only the change typed, never overwrites newer sales
   $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
+  showMargin();
   $("#pdel").hidden = !p?.id;
   newPhoto = undefined; showFormPhoto(p?.id && S.photos[p.id]);
   if (!$("#pDlg").open) $("#pDlg").showModal();
@@ -1673,7 +1689,7 @@ const showReport = run(async () => {
     ["lead", "Total sales", peso(r.summary.total), r.by_pay.some(p => p.via !== "Cash") ? r.by_pay.map(p => `${p.via} ${peso(p.amount)}`).join(" · ") : periodText(from, to)],
     ["", "Transactions", n, r.summary.refunds.n ? `${r.summary.refunds.n} refund${r.summary.refunds.n === 1 ? "" : "s"}: −${peso(r.summary.refunds.amount)}` : n ? `average ${peso(r.summary.total / n)}` : "no sales yet"],
     ["", "Items sold", pcs, `${r.by_item.length} different item${r.by_item.length === 1 ? "" : "s"}`],
-    ["", "Store's own sales", peso(r.summary.total - renters), "your own goods"],
+    ["", "Store's own sales", peso(r.summary.total - renters), r.profit.cost ? `profit ${peso(r.profit.profit)}${r.profit.sales ? ` · ${Math.round(r.profit.profit / r.profit.sales * 100)}%` : ""}` : "your own goods"],
     ["", "Shelf renters' sales", peso(renters), `rent ${peso(rent)} a month`],
   ].map(([c, k, v, s]) => `<div class="kpi ${c}"><span>${k}</span><b>${v}</b><small>${esc(s)}</small></div>`).join("");
   // Overview: who sold and what sold, each with its share of the total
@@ -1682,19 +1698,28 @@ const showReport = run(async () => {
       `<tr><td>${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
     <div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
       `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>${removedCard(r.removed)}</div>
-    <div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
-      `<tr><td>${productLink(x.id, x.name)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>`;
+    <div class="stack"><div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
+      `<tr><td>${productLink(x.id, x.name)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
+    ${profitCard(r.profit)}</div>`;
 });
 $("#rout").onclick = e => { const b = e.target.closest("[data-pid]"); if (b) openProductReport(b.dataset.pid); };
 
+// Gross profit on the store's own goods: sales - cost (renters' goods earn rent instead)
+const profitCard = pf => `<div class="card"><h3>Profit <span class="muted">· store's own goods: sales − cost</span></h3>
+  ${pf.items.length ? `<div class="rsum" style="margin:0 0 12px"><div><span class="muted">Sales</span><b>${peso(pf.sales)}</b></div><div><span class="muted">Cost</span><b>${peso(pf.cost)}</b></div>
+    <div><span class="muted">Profit</span><b class="${pf.profit < 0 ? "bad" : ""}">${peso(pf.profit)}</b></div><div><span class="muted">Margin</span><b>${pf.sales ? Math.round(pf.profit / pf.sales * 100) + "%" : "–"}</b></div></div>
+  ${reportTable(["Item", "Sold", "Profit"], pf.items.map(x => `<tr><td>${productLink(x.id, x.name)}<div class="muted">sales ${peso(x.sales)} · cost ${peso(x.cost)}</div></td><td class="num">${x.qty}</td>
+    <td class="num ${x.profit < 0 ? "bad" : ""}">${peso(x.profit)}</td></tr>`), "")}` : ""}
+  ${pf.missing.length ? `<p class="muted" style="margin:${pf.items.length ? "10px" : "0"} 0 0">${pf.items.length ? "Not counted, no cost yet" : "Enter the cost per piece in Products to see profit. Sold without a cost"}: ${pf.missing.slice(0, 8).map(esc).join(", ")}${pf.missing.length > 8 ? ` and ${pf.missing.length - 8} more` : ""}.</p>` : ""}
+  ${!pf.items.length && !pf.missing.length ? '<p class="muted" style="margin:0">No store goods sold in this period.</p>' : ""}</div>`;
 // Stock taken off without a sale in the period (Products → −): by reason, then each removal
 const removedCard = rm => !rm || !rm.lines.length ? "" : `<div class="card"><h3>Stock removed <span class="muted">· not sold: spoiled, damaged, lost…</span></h3>
-  ${reportTable(["Why", "Qty", "Value"], rm.by_reason.map(x => `<tr><td>${esc(x.reason)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.value)}</td></tr>`), "")}
+  ${reportTable(["Why", "Qty", "Value"], rm.by_reason.map(x => `<tr><td>${esc(x.reason)}</td><td class="num">${x.qty}</td><td class="num">${peso(x.value)}${x.cost ? `<div class="muted">cost ${peso(x.cost)}</div>` : ""}</td></tr>`), "")}
   <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Each removal (${rm.lines.length})</summary>
   ${reportTable(["When", "Item", "Qty", "Value"], rm.lines.map(l => `<tr><td>${l.ts.slice(5, 16).replace("T", " ")}</td><td>${productLink(l.id, l.name)}<div class="muted">${esc(l.reason)}${l.owner !== "Store" ? " · " + esc(l.owner) : ""}${l.note ? " · " + esc(l.note) : ""}</div></td><td class="num">${l.qty}</td><td class="num">${peso(l.value)}</td></tr>`), "")}</details>
-  <p class="muted" style="margin:8px 0 0">Value at the selling price.</p></div>`;
+  <p class="muted" style="margin:8px 0 0">Value at the selling price${rm.by_reason.some(x => x.cost) ? "; cost is what the store paid" : ""}.</p></div>`;
 // One table style for the report cards and their printouts (number columns right-aligned)
-const reportTable = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount|Stock|Value|Sales/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
+const reportTable = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount|Stock|Value|Sales|Profit/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
   <tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table>`;
 
 // ---------- products: stock, price and sales (all products, or one with each of its sales) ----------

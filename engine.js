@@ -9,18 +9,18 @@
 const TZ = "Asia/Manila";
 const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
-  Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at"],
+  Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost"],  // cost: what the store paid per piece
   Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at"],
   Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason"],  // pay_via/epay: GCash, Maya...; refund_of: uid
-  SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price"],
+  SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price", "cost"],  // cost at the time of the sale
   Alerts: ["product_id", "kind", "ref"],
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
   Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
-  Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
+  Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note", "cost"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
 };
-const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted"]);
+const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted", "cost"]);
 const PAY_VIA = ["GCash", "Maya", "Bank / QR"];  // paid by phone: the exact amount, checked by its reference number
 const DATES = new Set(["expiry", "mfg_date", "notify_on", "rent_start", "renew_for"]);  // yyyy-MM-dd
 const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at"]);  // yyyy-MM-ddTHH:mm:ss
@@ -241,6 +241,8 @@ function saveProduct_(d) {
   if (!p.name) bad_("Name is required");
   if (!Number.isInteger(p.stock)) bad_("Stock must be a whole number");
   if (p.price < 0 || p.stock < 0) bad_("Price and stock cannot be negative");
+  const cost = d.cost === undefined || d.cost === null || d.cost === "" ? null : num_(d.cost, "Cost");
+  if (cost !== null && cost < 0) bad_("Cost cannot be negative");
   ["expiry", "mfg_date", "notify_on"].forEach(k => { if (p[k] && !isDate_(p[k])) bad_("Bad date: " + p[k]); });
   if (p.mfg_date && p.mfg_date > today_()) bad_("Manufacturing date cannot be in the future");
   if (p.mfg_date && p.expiry && p.mfg_date > p.expiry) bad_("Manufacturing date is after the expiry date");
@@ -255,9 +257,10 @@ function saveProduct_(d) {
     // The edit form sends the stock it showed when opened (stock_was): only the change typed there is applied, so
     // sales made meanwhile on this or another device still count. (Old app versions send no stock_was: stock as typed.)
     if (d.stock_was !== undefined && d.stock_was !== "") p.stock = (Number(old.stock) || 0) + p.stock - num_(d.stock_was, "Stock");
-    update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at}));  // the photo is saved separately
+    update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at, cost: "cost" in d ? cost : old.cost}));  // the photo is saved separately
   } else {
     p.id = p.id || uniqueId_(all);  // a device that made it offline already chose its id
+    p.cost = cost;
     insert_("Products", p);
   }
   return {id: p.id, barcode: p.barcode};
@@ -299,7 +302,7 @@ function adjust_(d) {
   update_("Products", p);
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   insert_("Adjustments", {uid: uid, ts: ts, product_id: p.id, name: p.name, seller_id: p.seller_id, qty: -qty, price: p.price,
-    reason: reason, note: String(d.note || "").trim().slice(0, 200) || null});
+    reason: reason, note: String(d.note || "").trim().slice(0, 200) || null, cost: p.cost === undefined ? null : p.cost});
   return {stock: p.stock};
 }
 
@@ -307,10 +310,14 @@ function adjust_(d) {
 function removed_(from, to, sellers) {
   const lines = rows_("Adjustments").filter(a => a.ts >= from && a.ts <= to).sort((a, b) => b.ts.localeCompare(a.ts)).map(a => {
     const s = sellers.find(x => x.id === a.seller_id);
-    return {ts: a.ts, id: a.product_id, name: a.name, owner: s ? s.name : "Store", qty: -a.qty, reason: a.reason, note: a.note, value: r2_(-a.qty * a.price)};
+    return {ts: a.ts, id: a.product_id, name: a.name, owner: s ? s.name : "Store", qty: -a.qty, reason: a.reason, note: a.note, value: r2_(-a.qty * a.price),
+            cost: a.cost === null || a.cost === undefined ? null : r2_(-a.qty * a.cost)};
   });
   const m = {};
-  lines.forEach(l => { const g = m[l.reason] = m[l.reason] || {reason: l.reason, qty: 0, value: 0}; g.qty += l.qty; g.value = r2_(g.value + l.value); });
+  lines.forEach(l => {
+    const g = m[l.reason] = m[l.reason] || {reason: l.reason, qty: 0, value: 0, cost: 0};
+    g.qty += l.qty; g.value = r2_(g.value + l.value); g.cost = r2_(g.cost + (l.cost || 0));
+  });
   return {by_reason: Object.keys(m).map(k => m[k]).sort((a, b) => b.value - a.value), lines: lines.slice(0, 300)};
 }
 
@@ -408,13 +415,14 @@ function sale_(d) {
   byId.forEach((it, pid) => {
     const p = products.find(r => r.id === pid);  // may be gone if it was deleted meanwhile
     if (refundOf ? !(it.qty < 0) : !(it.qty > 0)) bad_("Bad quantity");
-    const line = {p: p, id: pid, name: it.name || (p && p.name) || "?", price: Number(it.price), seller_id: p ? p.seller_id : null, qty: it.qty};
+    const line = {p: p, id: pid, name: it.name || (p && p.name) || "?", price: Number(it.price), seller_id: p ? p.seller_id : null, qty: it.qty,
+                  cost: p && p.cost !== null && p.cost !== undefined ? p.cost : null};
     if (refundOf) {
       const o = origItems.filter(i => i.product_id === pid)[0];
       if (!o) bad_("That item is not on the sale being refunded");
       const left = o.qty - (already.get(pid) || 0);
       if (-it.qty > left) bad_("Only " + left + " of " + o.name + " can still be refunded");
-      Object.assign(line, {name: o.name, price: o.price, seller_id: o.seller_id});  // as it was sold (the renter it was sold for)
+      Object.assign(line, {name: o.name, price: o.price, seller_id: o.seller_id, cost: o.cost === undefined ? null : o.cost});  // as it was sold (the renter it was sold for)
     }
     if (!isFinite(line.price)) bad_("Bad price");
     total += line.price * it.qty;
@@ -433,7 +441,7 @@ function sale_(d) {
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   const id = nextId_(sales);
   insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash, pay_via: via, epay: epay || null, epay_ref: ref || null, refund_of: refundOf, reason: reason});
-  insertMany_("SaleItems", lines.map(l => ({sale_id: id, product_id: l.id, name: l.name, seller_id: l.seller_id, qty: l.qty, price: l.price})));
+  insertMany_("SaleItems", lines.map(l => ({sale_id: id, product_id: l.id, name: l.name, seller_id: l.seller_id, qty: l.qty, price: l.price, cost: l.cost})));
   const restock = !refundOf || d.restock !== false;  // refunded goods go back on the shelf unless spoiled / damaged
   lines.forEach(l => { if (l.p && restock) update_("Products", Object.assign(l.p, {stock: l.p.stock - l.qty})); });
   return {id: id, ts: ts, total: total, cash: cash, pay_via: via, epay: epay, epay_ref: ref, refund_of: refundOf, reason: reason,
@@ -466,7 +474,27 @@ function report_(q) {
       return {owner: s ? s.name : "Store", shelf: s ? s.shelf : null};
     }),
     by_item: group(i => i.product_id + "|" + i.name, i => ({id: i.product_id, name: i.name})),
+    profit: profit_(items, rows_("Products")),
   };
+}
+
+// Gross profit on the store's own goods (renters' goods earn the store their rent instead): sales - cost.
+// Each line uses its cost at the time of the sale, or the product's cost now for sales made before costs were entered.
+function profit_(items, products) {
+  const m = new Map(), missing = new Set();
+  let sales = 0, cost = 0;
+  items.filter(i => !i.seller_id).forEach(i => {
+    const p = products.find(x => x.id === i.product_id);
+    const c = i.cost !== null && i.cost !== undefined ? i.cost : p && p.cost !== null && p.cost !== undefined ? p.cost : null;
+    if (c === null) { missing.add(i.name); return; }
+    const g = m.get(i.product_id) || {id: i.product_id, name: i.name, qty: 0, sales: 0, cost: 0};
+    g.qty += i.qty; g.sales += i.qty * i.price; g.cost += i.qty * c;
+    m.set(i.product_id, g);
+    sales += i.qty * i.price; cost += i.qty * c;
+  });
+  const list = Array.from(m.values()).map(g => Object.assign(g, {sales: r2_(g.sales), cost: r2_(g.cost), profit: r2_(g.sales - g.cost)}))
+    .sort((a, b) => b.profit - a.profit);
+  return {sales: r2_(sales), cost: r2_(cost), profit: r2_(sales - cost), items: list, missing: Array.from(missing).sort()};
 }
 
 // How the money came in: cash kept (what was paid minus the e-wallet part), then each e-wallet
