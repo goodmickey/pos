@@ -112,8 +112,10 @@
       try {
         await remote(ops[0].path, ops[0].body);
       } catch (e) {
-        if (e.offline || !(e.status >= 400 && e.status < 500)) throw e;  // no internet or Google busy: try again later
-        // Google refused this change (e.g. a barcode another device already used): keep it aside and carry on
+        // Only a change Google checked and refused (400, e.g. a barcode another device already used) is set aside.
+        // Anything else (no internet, Google busy, password not set up, a Google script older than this app) keeps
+        // the change, and every change after it, waiting here to try again: nothing is ever dropped.
+        if (e.offline || e.status !== 400) throw e;
         failed.push({...ops[0], error: e.message});
       }
       ops.shift();

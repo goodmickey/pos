@@ -594,7 +594,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 <dialog id="pDlg" class="formdlg">
     <div class="dlghead"><h3 id="pformTitle">New product</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
     <form id="pform" class="form">
-      <input type="hidden" name="id">
+      <input type="hidden" name="id"><input type="hidden" name="stock_was">
       <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
       <label>Name <input name="name" required></label>
       <label>Price (₱) <input name="price" type="number" step="0.01" min="0" required></label>
@@ -736,6 +736,7 @@ async function remoteApi(path, body, ms = 30000) {
     PIN = p.trim(); store.set("pin", PIN);
     return remoteApi(path, body, ms);
   }
+  if (j.status === 404) throw Object.assign(new Error("The Google script is older than this app: update it in Apps Script (Deploy → Manage deployments → New version). Changes stay saved on this device."), {status: 404});
   if (j.status >= 400) throw Object.assign(new Error(j.error), {status: j.status});
   return j.data;
 }
@@ -745,9 +746,10 @@ const setOnline = v => { online = v; netStatus(); };
 async function load() {
   if (Local.isEmpty()) await sync();  // first start on this device: download everything from Google
   if (!Local.isEmpty()) {
-    S = await Local.call("/api/state");
-    if (S.settings.web_app_url !== API) await Local.call("/api/settings", {web_app_url: API});  // used in the rent reminder emails
-    S.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
+    const s = await Local.call("/api/state");  // swapped in only when complete: screens may draw while this waits
+    if (s.settings.web_app_url !== API) await Local.call("/api/settings", {web_app_url: API});  // used in the rent reminder emails
+    s.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
+    S = s;
   }
   renderAll();
 }
@@ -970,7 +972,16 @@ $("#quickcash").onclick = e => {
   $("#cash").value = b.dataset.cash === "exact" ? (total ? total.toFixed(2) : "") : b.dataset.cash;
   renderCart();
 };
-$("#cash").onkeydown = e => { if (e.key === "Enter") pay(); };
+$("#cash").onkeydown = e => {
+  if (e.key !== "Enter") return;
+  const v = e.target.value.trim();
+  if (isBarcode(v)) {  // a scan while the cash box was selected: add the product instead of charging
+    e.preventDefault(); e.target.value = ""; renderCart();
+    const s = $("#scan"); s.value = v; s.focus(); s.onkeydown({key: "Enter", target: s});
+  } else pay();
+};
+// Cash is never 7+ digits (₱1,000,000); barcodes are (in-store 8, EAN-8, UPC 12, EAN 13)
+const isBarcode = v => /^\d{7,}$/.test(v);
 
 const receiptNo = s => s.uid ? s.uid.slice(-6).toUpperCase() : String(s.id);  // printed on the receipt
 let paying = false;  // a double F2 / double click must not record the sale twice
@@ -978,10 +989,12 @@ const pay = run(async () => {
   if (paying) return;
   if (!cart.length) return toast("Cart is empty", true);
   const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
+  if (isBarcode($("#cash").value.trim())) { $("#cash").value = ""; renderCart(); return toast("That cash amount was a barcode, not cash. Scan the item again and enter the cash received.", true); }
   let cash = parseFloat($("#cash").value);
   if (!(cash > 0)) {  // never assume the exact amount: the cashier types what the customer gave (or taps a cash button)
     paying = true;
-    try { cash = parseFloat(await ask(`How much cash did the customer give? Total: ${peso(total)}`, "", "number")); }
+    try { const a = String(await ask(`How much cash did the customer give? Total: ${peso(total)}`, "", "number") ?? "").trim();
+          cash = isBarcode(a) ? NaN : parseFloat(a); }  // a scan into this box is not cash
     finally { paying = false; }
     if (!(cash > 0)) return toast("Enter the cash received to finish the sale", true);
     $("#cash").value = cash; renderCart();
@@ -1237,6 +1250,7 @@ $("#powner").onchange = renderProducts;
 function editProduct(p) {
   const f = $("#pform"); f.reset();
   for (const k of ["id", "barcode", "name", "price", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
+  f.stock_was.value = p?.id ? p.stock : "";  // saving applies only the change typed, never overwrites newer sales
   $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
   $("#pdel").hidden = !p?.id;
   newPhoto = undefined; showFormPhoto(p?.id && S.photos[p.id]);

@@ -246,6 +246,9 @@ function saveProduct_(d) {
   if (all.some(r => r.barcode === p.barcode && r.id !== p.id)) bad_("That barcode is already used by another product");
   const old = p.id && all.find(r => r.id === p.id);
   if (old) {
+    // The edit form sends the stock it showed when opened (stock_was): only the change typed there is applied, so
+    // sales made meanwhile on this or another device still count. (Old app versions send no stock_was: stock as typed.)
+    if (d.stock_was !== undefined && d.stock_was !== "") p.stock = (Number(old.stock) || 0) + p.stock - num_(d.stock_was, "Stock");
     update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at}));  // the photo is saved separately
   } else {
     p.id = p.id || uniqueId_(all);  // a device that made it offline already chose its id
