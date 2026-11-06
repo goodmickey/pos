@@ -293,6 +293,8 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
 #pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm{display:grid;gap:12px}
+.scandevs{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
+.scanres{padding:10px 12px;margin:4px 0;border-radius:10px;background:var(--chip);font-size:14px}
 .smswrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px;margin-top:14px;align-items:start}
 .smsedit{display:grid;gap:10px}.smsedit p{margin:0}
 .smsvars{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.smsvars .chips button{min-height:32px;padding:4px 10px;font-size:13px}
@@ -605,6 +607,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <div class="setnav" id="setnav">
       <button data-st="store"><svg class="i" viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></svg><span>Store</span></button>
       <button data-st="printer"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg><span>Receipt printer</span></button>
+      <button data-st="scanner"><svg class="i" viewBox="0 0 24 24"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M17 8v8"/></svg><span>Barcode scanner</span></button>
       <button data-st="receipt"><svg class="i" viewBox="0 0 24 24"><path d="M5 3v18l2.5-1.5L10 21l2-1.5 2 1.5 2.5-1.5L19 21V3l-2.5 1.5L14 3l-2 1.5L10 3 7.5 4.5z"/><path d="M9 9h6M9 13h6"/></svg><span>Receipt preview</span></button>
       <button data-st="sms"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-3A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12.5 12h.01M16.5 12h.01"/></svg><span>Text messages</span></button>
       <button data-st="look"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></svg><span>Appearance</span></button>
@@ -636,7 +639,20 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
           <div class="ctl"><select id="appPrinter"></select><button id="printerFind">Find printers</button></div></div>
         <div class="setrow"><div><b>Print after each sale</b><small>Prints the receipt as soon as you charge</small></div>
           <div class="ctl"><input type="checkbox" class="switch" id="autoPrint" aria-label="Print automatically after each sale"></div></div>
+        <div class="setrow" id="kickRow"><div><b>Open cash drawer</b><small>After the receipt of a cash sale or cash refund. The drawer must be plugged into the printer's drawer port.</small></div>
+          <div class="ctl"><button id="kickNow">Open now</button><input type="checkbox" class="switch" id="cashKick" aria-label="Open the cash drawer after a cash sale"></div></div>
         <div class="setrow"><div><b>Test</b><small>Prints a short sample receipt</small></div><div class="ctl"><button id="printerTest">Print test receipt</button></div></div>
+      </div>
+
+      <div class="card setpane" id="st-scanner">
+        <h3>Barcode scanner</h3><p class="muted sethint">For this device only. A scanner works like a keyboard: it types the barcode, so nothing needs installing.</p>
+        <div class="setrow"><div><b>Connect a scanner</b><small><b style="display:inline;font-weight:500">USB:</b> plug it in. <b style="display:inline;font-weight:500">Bluetooth:</b> put the scanner in pairing mode (see its manual), then pair it in this device's Bluetooth settings.</small></div>
+          <div class="ctl" id="scanNative" hidden><button id="scanBtSettings">Bluetooth settings</button><button id="scanFind">Find paired devices</button></div></div>
+        <div id="scanDevices" class="scandevs" hidden></div>
+        <div class="setrow"><div><b>Test the scanner</b><small>Tap the box, then scan any barcode</small></div><div class="ctl"><input id="scanTest" autocomplete="off" placeholder="Scan here" aria-label="Test the scanner"></div></div>
+        <div class="scanres" id="scanResult" hidden></div>
+        <div class="setrow"><div><b>Beep on scan</b><small>One beep when the item is found, a low beep when it isn't</small></div><div class="ctl"><input type="checkbox" class="switch" id="scanBeep" aria-label="Beep on scan"></div></div>
+        <div class="setrow"><div><b>Scanner sends no Enter</b><small>Turn on if items stay in the search box after scanning</small></div><div class="ctl"><input type="checkbox" class="switch" id="scanNoEnter" aria-label="Scanner sends no Enter"></div></div>
       </div>
 
       <div class="card setpane" id="st-receipt">
@@ -1039,7 +1055,7 @@ $("#kb").onclick = () => {
 };
 
 // Scanner (barcode + Enter) adds 1 straight away. Typing filters the tiles; Enter on a single match asks the quantity.
-$("#scan").oninput = renderTiles;
+$("#scan").oninput = () => { renderTiles(); scanNoEnter(); };
 $("#scan").onkeydown = e => {
   if (e.key !== "Enter") return;
   let v = e.target.value.trim(), qty = 1;
@@ -1048,9 +1064,9 @@ $("#scan").onkeydown = e => {
   const m = v.match(/^(\d+)\*(.+)$/);
   if (m) { qty = +m[1]; v = m[2].trim(); }
   const p = byCode(v);
-  if (p) { renderTiles(); return addToCart(p, qty); }
+  if (p) { renderTiles(); scanBeep(true); return addToCart(p, qty); }
   const hits = S.products.filter(p => p.name.toLowerCase().includes(v.toLowerCase()));
-  if (!hits.length) { renderTiles(); return toast(`Not found: "${v}". Add it in Products.`, true); }
+  if (!hits.length) { renderTiles(); scanBeep(false); return toast(`Not found: "${v}". Add it in Products.`, true); }
   if (hits.length === 1) { renderTiles(); return m ? addToCart(hits[0], qty) : askQty(hits[0]); }
   e.target.value = v; renderTiles();  // several matches: leave them as tiles to tap
 };
@@ -1258,11 +1274,12 @@ function showDone(s) {
   $("#donePrinting").textContent = "";
   $("#doneDlg").showModal();
   $("#doneNew").focus();
-  if (store.get("autoPrint", false)) donePrint(1);
+  const kick = store.get("cashKick", false) && s.cash > 0;  // change to give
+  if (store.get("autoPrint", false)) donePrint(1, kick); else if (kick) openDrawer();
 }
-async function donePrint(copies) {
+async function donePrint(copies, kick = false) {
   $("#donePrinting").textContent = copies > 1 ? "Printing receipt + store copy…" : "Printing receipt…";
-  await printReceipt(lastSale, copies);
+  await printReceipt(lastSale, copies, kick);
   $("#donePrinting").textContent = "";
 }
 $("#donePrint").onclick = () => donePrint(1);
@@ -1303,14 +1320,17 @@ async function printTickets(parts, done) {
   if (method === "browser") return false;
   const all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
-  try { await PRINTERS[method](all); toast(done); } catch (e) { toast("Printer: " + (e.message || e), true); }
+  try { await PRINTERS[method](all); if (done) toast(done); } catch (e) { toast("Printer: " + (e.message || e), true); }
   return true;
 }
 const printHTML = pages => { $("#print").innerHTML = pages.join('<div style="break-after:page"></div>'); print(); };
 
-async function printReceipt(sale, copies = 1) {
-  const labels = copies > 1 ? ["", "STORE COPY"] : [""];
-  if (await printTickets(labels.map(l => receiptBytes(sale, l)), copies > 1 ? "Receipt and store copy printed" : "Receipt printed")) return;
+// Sent to the printer, whose port opens the cash drawer: ESC p 0, a 50 ms pulse then a 500 ms pause
+const DRAWER_PULSE = new Uint8Array([0x1b, 0x70, 0, 25, 250]);
+const openDrawer = () => printTickets([DRAWER_PULSE], "");
+async function printReceipt(sale, copies = 1, kick = false) {
+  const labels = copies > 1 ? ["", "STORE COPY"] : [""], parts = labels.map(l => receiptBytes(sale, l));
+  if (await printTickets(kick ? parts.concat([DRAWER_PULSE]) : parts, copies > 1 ? "Receipt and store copy printed" : "Receipt printed")) return;
   printHTML(labels.map(l => receiptHTML(sale, l)));
 }
 
@@ -2057,6 +2077,7 @@ $("#rfForm").onsubmit = run(async e => {
   // Show the refund slip, ready to print for the customer
   viewing = history.find(x => x.uid === uid);
   if (viewing) showSale();
+  if (!f.via.value && store.get("cashKick", false)) openDrawer();  // cash to give back
 });
 
 // ---------- renter payouts: what the store owes since the last payout (the engine does the sums: payoutState_) ----------
@@ -2298,6 +2319,51 @@ $("#smsSave").onclick = run(async () => {
 });
 $("#smsReset").onclick = run(async () => { $("#smsBody").value = SMS_DEFAULTS[smsKind]; await api("/api/settings", {[smsKind]: ""}); smsDirty = false; await load(); toast("Original wording back"); });
 
+// ---------- Settings > Barcode scanner: a scanner types very fast and usually ends with Enter ----------
+const SCAN_GAP = 50;  // ms between characters: faster than any person
+let scanKeys = [], scanWait = null;
+function scanBeep(found) {
+  if (!store.get("scanBeep", false)) return;
+  try {
+    const a = scanBeep.a || (scanBeep.a = new AudioContext()), o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = found ? 1800 : 300; g.gain.value = .15;
+    o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + (found ? .07 : .25));
+  } catch {}
+}
+// "Scanner sends no Enter": a burst of fast typing that stops counts as a finished scan
+function scanNoEnter() {
+  if (!store.get("scanNoEnter", false)) return;
+  const now = performance.now();
+  scanKeys = scanKeys.length && now - scanKeys[scanKeys.length - 1] > 100 ? [now] : scanKeys.concat(now);
+  clearTimeout(scanWait);
+  scanWait = setTimeout(() => {
+    const n = scanKeys.length, fast = n >= 4 && (scanKeys[n - 1] - scanKeys[0]) / (n - 1) < SCAN_GAP;
+    scanKeys = [];
+    if (fast) { const s = $("#scan"); s.onkeydown({key: "Enter", target: s}); }
+  }, 150);
+}
+function showScanTest(ended) {
+  const v = $("#scanTest").value.trim(), n = testKeys.length, gap = n > 1 ? (testKeys[n - 1] - testKeys[0]) / (n - 1) : 999, scanner = n >= 4 && gap < SCAN_GAP;
+  if (!v) return;
+  const p = byCode(v), box = $("#scanResult");
+  box.hidden = false;
+  box.innerHTML = `<b>${scanner ? '<span style="color:var(--good)">✓ Scanner working</span>' : "That looked typed by hand"}</b> · code ${esc(v)}<br>${p ? `In your products: ${esc(p.name)}, ${peso(p.price)}` : "Not in your products yet"}`
+    + (scanner && !ended ? '<br><span class="warn">It sends no Enter: turn on "Scanner sends no Enter" below.</span>' : "");
+  scanBeep(!!p);
+  $("#scanTest").value = ""; testKeys = [];
+}
+let testKeys = [], testWait = null;
+$("#scanTest").oninput = () => { testKeys.push(performance.now()); clearTimeout(testWait); testWait = setTimeout(() => { if (testKeys.length >= 4 && (testKeys[testKeys.length - 1] - testKeys[0]) / (testKeys.length - 1) < SCAN_GAP) showScanTest(false); }, 300); };
+$("#scanTest").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); clearTimeout(testWait); showScanTest(true); } };
+$("#scanBeep").onchange = e => { store.set("scanBeep", e.target.checked); scanBeep(true); };
+$("#scanNoEnter").onchange = e => store.set("scanNoEnter", e.target.checked);
+$("#scanBtSettings").onclick = run(async () => { await Capacitor.Plugins.BtPrinter.bluetoothSettings(); });
+$("#scanFind").onclick = run(async () => {
+  const list = await nativePrinter.list(), box = $("#scanDevices");
+  box.hidden = false;
+  box.innerHTML = list.length ? list.map(d => `<span class="badge">${esc(d.name)}</span>`).join("") : '<span class="muted">Nothing paired yet. Tap Bluetooth settings to pair the scanner.</span>';
+});
+
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
 const r2 = n => Math.round(n * 100) / 100;
@@ -2323,7 +2389,7 @@ function renderDrawer() {
   } else {
     const ew = cur.by_pay.filter(p => p.via !== "Cash");
     $("#dnow").innerHTML = `<div class="dhead"><p class="muted">Open since ${esc(dayText(cur.opened.slice(0, 10)))}, ${cur.opened.slice(11, 16)}${stale ? ' · <span class="bad">not closed yet</span>' : ""}</p>
-        <div class="dacts"><button data-d="in">+ Money in</button><button data-d="out">− Money out</button><button class="primary" data-d="close">Close and count</button></div></div>
+        <div class="dacts"><button data-d="in">+ Money in</button><button data-d="out">− Money out</button>${store.get("cashKick", false) ? '<button data-d="kick">Open drawer</button>' : ""}<button class="primary" data-d="close">Close and count</button></div></div>
       <div class="kpis">${[["lead", "Expected in drawer", peso(cur.expected), "cash that should be there now"],
         ["", "Starting cash", peso(cur.start), "counted when opened"],
         ["", "Cash sales", peso(cur.cash_sales), `${cur.n} sale${cur.n === 1 ? "" : "s"}${ew.length ? " · e-wallet not included" : ""}`],
@@ -2345,6 +2411,7 @@ $("#drawer").onclick = e => {
   if (d === "open" || d === "close") openCount(d);
   else if (d === "in" || d === "out") openMove(d);
   else if (d === "print") printCount(S.drawer.past[+b.dataset.i]);
+  else if (d === "kick") openDrawer();
 };
 $("#drawerGo").onclick = () => {
   document.querySelector('nav [data-tab="drawer"]').click();
@@ -2467,6 +2534,8 @@ function renderSettings() {
   if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";
   if (document.activeElement !== $("#rentNotice")) $("#rentNotice").value = S.settings.rent_notice_days || "3";
   renderReceiptPreview(); renderSmsEditor();
+  $("#scanBeep").checked = store.get("scanBeep", false); $("#scanNoEnter").checked = store.get("scanNoEnter", false);
+  $("#scanNative").hidden = !window.nativePrinter;
   const failed = Local.failed();
   $("#devConn").innerHTML = online ? '<span style="color:var(--good)">Connected</span>' : '<span class="warn">Offline: sales are saved on this device</span>';
   $("#devSync").innerHTML = (Local.pending() ? `<span class="warn">${Local.pending()} waiting to sync</span>` : "All synced")
@@ -2522,6 +2591,8 @@ async function renderPrinter(refresh) {
   $("#printerMethod").value = m;
   $("#printerMethod").querySelector("[value=app]").hidden = !window.nativePrinter;
   $("#autoPrint").checked = store.get("autoPrint", false);
+  $("#cashKick").checked = store.get("cashKick", false);
+  $("#kickRow").hidden = printerMethod() === "browser";  // a regular printer can't open a drawer
   $("#printerFind").hidden = $("#appPrinterBox").hidden = m !== "app";
   $("#printerHelp").textContent = PRINTER_HELP[m];
   if (m === "app" && window.nativePrinter && (refresh || !$("#appPrinter").options.length)) {
@@ -2535,6 +2606,8 @@ async function renderPrinter(refresh) {
 $("#appPrinter").onchange = e => store.set("appPrinter", e.target.value);
 $("#printerMethod").onchange = e => { store.set("printer", e.target.value); renderPrinter(); };
 $("#autoPrint").onchange = e => store.set("autoPrint", e.target.checked);
+$("#cashKick").onchange = e => { store.set("cashKick", e.target.checked); renderDrawer(); };
+$("#kickNow").onclick = run(async () => { await openDrawer(); toast("Sent. If the drawer stays shut, check its cable in the printer's drawer port."); });
 $("#printerFind").onclick = run(async () => { await renderPrinter(true); toast("Printer list updated"); });
 $("#printerTest").onclick = () => printReceipt({id: "TEST", ts: localTime(), total: 20, cash: 50, change: 30,
   items: [{name: "Test item", qty: 2, price: 10}]});
