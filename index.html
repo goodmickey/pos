@@ -293,6 +293,13 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
 #pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm{display:grid;gap:12px}
+#rcptPick{margin-top:12px}
+.paperwrap{display:flex;justify-content:center;padding:20px 12px;margin:14px 0;border-radius:12px;background:var(--chip);overflow-x:auto}
+/* 58 mm paper: always black on white, whatever the theme */
+.paper{flex:none;width:calc(32ch + 32px);padding:16px;background:#fff;color:#000;font:13px/1.35 ui-monospace,Menlo,Consolas,"Roboto Mono",monospace;font-variant-numeric:normal;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.paper.page{width:min(58mm + 32px,100%);font:12px/1.35 ui-monospace,monospace}
+.paper .pl{white-space:pre;min-height:1.35em}
+.paper hr{border:0;border-top:1px dashed #000}.paper .receipt{width:auto}.paper td{border:0;padding:0}
 .payrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line)}
 .payrow span{display:block;font-size:12px;color:var(--muted)}.payrow b{font-size:15px}.payrow button{flex:none;white-space:nowrap}
 #adjForm{display:grid;gap:4px}#adjForm label{margin-top:8px}
@@ -584,6 +591,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <div class="setnav" id="setnav">
       <button data-st="store"><svg class="i" viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></svg><span>Store</span></button>
       <button data-st="printer"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg><span>Receipt printer</span></button>
+      <button data-st="receipt"><svg class="i" viewBox="0 0 24 24"><path d="M5 3v18l2.5-1.5L10 21l2-1.5 2 1.5 2.5-1.5L19 21V3l-2.5 1.5L14 3l-2 1.5L10 3 7.5 4.5z"/><path d="M9 9h6M9 13h6"/></svg><span>Receipt preview</span></button>
       <button data-st="look"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></svg><span>Appearance</span></button>
       <button data-st="device"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg><span>This device</span></button>
       <button data-st="update"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg><span>Software update</span></button>
@@ -614,6 +622,14 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
         <div class="setrow"><div><b>Print after each sale</b><small>Prints the receipt as soon as you charge</small></div>
           <div class="ctl"><input type="checkbox" class="switch" id="autoPrint" aria-label="Print automatically after each sale"></div></div>
         <div class="setrow"><div><b>Test</b><small>Prints a short sample receipt</small></div><div class="ctl"><button id="printerTest">Print test receipt</button></div></div>
+      </div>
+
+      <div class="card setpane" id="st-receipt">
+        <h3>Receipt preview</h3>
+        <p class="muted sethint">How a receipt comes out of this device's printer. The store name, address, phone and thank-you message come from Settings → Store.</p>
+        <div class="chips" id="rcptPick"></div>
+        <div class="paperwrap"><div class="paper" id="rcptPaper"></div></div>
+        <div class="setfoot"><button class="sm" id="rcptStore">Edit store details</button><span style="flex:1"></span><button id="rcptPrint">Print this sample</button></div>
       </div>
 
       <div class="card setpane" id="st-look">
@@ -2039,6 +2055,50 @@ const printPayout = run(async p => {
     ${p.note ? `<p>Note: ${esc(p.note)}</p>` : ""}<p style="margin-top:40px">Received by: ____________________</p></div>`]);
 });
 
+// ---------- Settings > Receipt preview: the same receipt code that prints, shown on 58 mm paper ----------
+// Receipt printer: the printer's own bytes are drawn (32 columns, bold, centred), so what shows is what prints.
+const RCPT_SAMPLES = {
+  "Cash sale": {cash: 300, epay: 0},
+  "GCash": {cash: 0, epay: 225, pay_via: "GCash", epay_ref: "1009 8765 43210"},
+  "GCash + cash": {cash: 200, epay: 100, pay_via: "GCash", epay_ref: "4321"},
+  "Refund": {refund: true},
+};
+let rcptSample = "Cash sale";
+function sampleReceipt(name) {
+  const items = [{name: "Coca-Cola 1.5L", qty: 2, price: 75}, {name: "Chicharon Special Spicy Vinegar Flavor 100g", qty: 3, price: 25}];
+  const base = {id: "A1B2C3", ts: localTime(), total: 225, items};
+  if (name === "Refund") return {...base, total: -75, cash: 0, epay: 0, change: 75, refund_of: "xxxxa1b2c3", reason: "Customer returned the item", items: [{name: "Coca-Cola 1.5L", qty: -1, price: 75}]};
+  const x = RCPT_SAMPLES[name];
+  return {...base, ...x, change: r2(x.cash + x.epay - 225)};
+}
+function bytesToPaper(bytes) {  // reads the printer commands the POS uses: reset, bold, centre, new line
+  let html = "", run = "", line = "", bold = false, center = false;
+  const flushRun = () => { if (run) line += bold ? `<b>${esc(run)}</b>` : esc(run); run = ""; };
+  for (let i = 0; i < bytes.length; i++) {
+    const c = bytes[i];
+    if (c === 0x1b) {
+      const k = String.fromCharCode(bytes[++i]);
+      if (k === "@") { flushRun(); bold = center = false; }
+      else if (k === "E") { flushRun(); bold = !!bytes[++i]; }
+      else if (k === "a") center = !!bytes[++i];
+    } else if (c === 10) {
+      flushRun();
+      html += `<div class="pl"${center ? ' style="text-align:center"' : ""}>${line}</div>`;
+      line = "";
+    } else run += String.fromCharCode(c);
+  }
+  return html;
+}
+function renderReceiptPreview() {
+  $("#rcptPick").innerHTML = Object.keys(RCPT_SAMPLES).map(k => `<button data-s="${esc(k)}" aria-pressed="${k === rcptSample}">${esc(k)}</button>`).join("");
+  const sale = sampleReceipt(rcptSample), page = printerMethod() === "browser", p = $("#rcptPaper");
+  p.classList.toggle("page", page);
+  p.innerHTML = page ? receiptHTML(sale, "") : bytesToPaper(receiptBytes(sale));
+}
+$("#rcptPick").onclick = e => { const b = e.target.closest("button"); if (b) { rcptSample = b.dataset.s; renderReceiptPreview(); } };
+$("#rcptPrint").onclick = () => printReceipt(sampleReceipt(rcptSample));
+$("#rcptStore").onclick = () => showSettingsPane("store");
+
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
 const r2 = n => Math.round(n * 100) / 100;
@@ -2207,6 +2267,7 @@ function renderSettings() {
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
   if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";
   if (document.activeElement !== $("#rentNotice")) $("#rentNotice").value = S.settings.rent_notice_days || "3";
+  renderReceiptPreview();
   const failed = Local.failed();
   $("#devConn").innerHTML = online ? '<span style="color:var(--good)">Connected</span>' : '<span class="warn">Offline: sales are saved on this device</span>';
   $("#devSync").innerHTML = (Local.pending() ? `<span class="warn">${Local.pending()} waiting to sync</span>` : "All synced")
