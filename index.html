@@ -647,6 +647,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
         <div class="setrow"><div><b>Connection</b><small id="devConn"></small></div><div class="ctl"><button id="syncNow">Sync now</button></div></div>
         <div class="setrow"><div><b>Changes</b><small id="devSync"></small></div><div class="ctl"></div></div>
         <div class="setrow" id="devFailedRow" hidden><div><b class="warn">Refused by Google</b><small id="devFailed"></small></div><div class="ctl"><button id="clearFailed">OK, clear</button></div></div>
+        <div class="setrow" id="smsRow" hidden><div><b>Send texts from this device</b><small id="smsInfo"></small></div><div class="ctl"><button id="smsTest">Send test text</button><input type="checkbox" class="switch" id="smsOn" aria-label="Send texts from this device"></div></div>
         <div class="setrow"><div><b>Store password</b><small>Saved on this device</small></div><div class="ctl"><button id="changePw">Change password</button></div></div>
         <div class="setrow"><div><b>Web version</b><small>Any phone, tablet or computer can open the POS in its browser (same password)</small></div><div class="ctl"><b id="webUrl" class="url"></b></div></div>
       </div>
@@ -666,6 +667,8 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
           <div class="ctl"><select id="rentNotice" aria-label="Rent reminder"><option value="1">1 day before rent is due</option><option value="2">2 days before rent is due</option>
             <option value="3">3 days before rent is due</option><option value="5">5 days before rent is due</option><option value="7">7 days before rent is due</option></select></div></div>
         <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody id="oblist"></tbody></table></div>
+        <h3 style="margin:20px 0 4px">Text messages</h3><p class="muted sethint">Rent reminders and payout statements for renters with a phone number. They are sent from the tablet with the SIM, using its load, when the POS is open there.</p>
+        <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Message</th><th>Status</th></tr></thead><tbody id="txlist"></tbody></table></div>
       </div>
     </div>
   </div>
@@ -912,6 +915,7 @@ async function syncNow() {
   const sales = Local.pendingSaleUids().size, wasOffline = !online, before = Local.failed().length;
   try {
     await Local.sync(remoteApi); setOnline(true);
+    sendTexts();
     if (sales && wasOffline) toast("Offline sales are now saved to your Google Sheet");
     const f = Local.failed();
     if (f.length > before) toast(`Google refused a change made on this device: ${f[f.length - 1].error}`, true);
@@ -2099,6 +2103,43 @@ $("#rcptPick").onclick = e => { const b = e.target.closest("button"); if (b) { r
 $("#rcptPrint").onclick = () => printReceipt(sampleReceipt(rcptSample));
 $("#rcptStore").onclick = () => showSettingsPane("store");
 
+// ---------- text messages: Google queues them, the one tablet with the SIM sends them after each sync ----------
+let texting = false;
+async function sendTexts() {
+  const sms = window.Capacitor?.isPluginAvailable?.("Sms") && Capacitor.Plugins.Sms;
+  // Only with nothing left to send to Google: then every text on this device is Google's own, with Google's number
+  if (!sms || !store.get("smsOn", false) || texting || Local.pending()) return;
+  texting = true;
+  try {
+    for (const t of await Local.call("/api/texts", {})) {
+      let error = "";
+      try { await sms.send({to: t.to_phone, body: t.body}); } catch (e) { error = e.message || "Not sent"; }
+      await Local.call("/api/text-sent", {id: t.id, error});
+    }
+  } finally { texting = false; }
+  if (Local.pending()) syncSoon();
+}
+$("#smsOn").onchange = run(async e => {
+  const on = e.target.checked;
+  if (on) {
+    const r = await Capacitor.Plugins.Sms.allow();
+    if (!r.granted) { e.target.checked = false; return toast("Allow SMS for MGC POS in the tablet's settings, then turn this on again", true); }
+  }
+  store.set("smsOn", on); renderSettings(); if (on) syncSoon();
+});
+$("#smsTest").onclick = run(async () => {
+  const to = (await ask("Send a test text to which number? (09xxxxxxxxx)", "", "tel") ?? "").replace(/\D/g, "");
+  if (!to) return;
+  const r = await Capacitor.Plugins.Sms.allow();
+  if (!r.granted) return toast("Allow SMS for MGC POS first", true);
+  await Capacitor.Plugins.Sms.send({to, body: `${storeName()}: test message from MGC POS.`});
+  toast("Test text sent");
+});
+$("#txlist").onclick = run(async e => {
+  const b = e.target.closest("[data-retext]"); if (!b) return;
+  await api("/api/text-sent", {id: +b.dataset.retext, retry: true}); await load(); syncSoon();
+});
+
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
 const r2 = n => Math.round(n * 100) / 100;
@@ -2274,6 +2315,13 @@ function renderSettings() {
     + (Local.lastSync() ? ` · last sync ${new Date(Local.lastSync()).toLocaleString()}` : "");
   $("#devFailedRow").hidden = !failed.length;
   $("#devFailed").textContent = failed.map(f => f.error).join("; ");
+  const smsOk = !!window.Capacitor?.isPluginAvailable?.("Sms"), waitingTexts = (S.texts || []).filter(t => !t.sent && !t.error).length;
+  $("#smsRow").hidden = !smsOk;
+  $("#smsOn").checked = store.get("smsOn", false);
+  $("#smsInfo").textContent = (store.get("smsOn", false) ? "On: renters' texts go through this device's SIM and load" : "Turn on for the one tablet with the SIM") + (waitingTexts ? ` · ${waitingTexts} waiting` : "");
+  $("#txlist").innerHTML = (S.texts || []).map(t => `<tr><td>${when(t.created)}</td><td>${esc(t.to_phone)}</td><td>${esc(t.body)}</td>
+    <td>${t.sent ? "sent" : t.error ? `<span class="bad">${esc(t.error)}</span> <button class="sm" data-retext="${t.id}">Try again</button>` : '<span class="warn">waiting</span>'}</td></tr>`).join("")
+    || '<tr><td colspan="4" class="muted">No text messages yet.</td></tr>';
   $("#obinfo").textContent = `Emails are sent from your Gmail${S.quota != null ? ` (${S.quota} more allowed today)` : ""}. Alerts are checked every hour.`;
   $("#oblist").innerHTML = S.outbox.map(m => `<tr><td>${m.created.replace("T", " ")}</td><td>${esc(m.to_addr)}</td><td>${esc(m.subject)}</td>
     <td>${!m.sent ? `<span class="warn">waiting</span><div class="muted">${esc(m.error)}</div>` : m.error ? `<span class="bad">${esc(m.error)}</span>` : "sent"}</td>

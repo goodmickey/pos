@@ -18,6 +18,7 @@ const SHEETS = {
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
   Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
+  Texts: ["id", "to_phone", "body", "created", "sent", "error", "seller_id"],  // SMS: sent by the tablet with the SIM (Google can't)
   Payouts: ["uid", "ts", "seller_id", "name", "from_ts", "to_ts", "sales", "commission", "rent", "paid", "via", "note"],  // money settled with a renter
   Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note", "cost"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
 };
@@ -81,6 +82,8 @@ const ROUTES = {
   "/api/sellers/renew": renewSeller_,
   "/api/payouts": payoutState_,
   "/api/payout": payout_,
+  "/api/texts": () => rows_("Texts").filter(t => !t.sent && !t.error).map(strip_),
+  "/api/text-sent": textSent_,
   "/api/sale": sale_,
   "/api/drawer": drawerMove_,
   "/api/drawer-state": drawerState_,
@@ -665,11 +668,26 @@ function pull_(q) {
     drawer: rows_("Drawer").slice(-500).map(strip_),
     adjustments: rows_("Adjustments").slice(-2000).map(strip_),
     payouts: rows_("Payouts").slice(-1000).map(strip_),
+    texts: rows_("Texts").slice(-300).map(strip_),
     more: newer.length > batch.length, quota: MailApp.getRemainingDailyQuota(),
   };
 }
 
 // ---------- seller emails ----------
+
+// Text messages wait here for the tablet that sends them (Settings > This device). No links: the networks block them.
+function queueText_(phone, body, sellerId) {
+  const d = String(phone || "").replace(/\D/g, ""), to = d.indexOf("63") === 0 && d.length === 12 ? "0" + d.slice(2) : d;
+  insert_("Texts", {id: nextId_(rows_("Texts")), to_phone: to, body: body, created: now_(), seller_id: sellerId || null,
+    error: /^09\d{9}$/.test(to) ? null : "Phone number looks wrong"});
+}
+
+function textSent_(d) {  // the tablet's result; with `retry` the text goes back in the queue
+  const t = rows_("Texts").find(x => x.id === Number(d.id));
+  if (!t) return {ok: true};  // cleared from the Sheet by hand
+  update_("Texts", Object.assign(t, d.retry ? {sent: null, error: null} : {sent: d.error ? null : now_(), error: d.error ? String(d.error).slice(0, 200) : null}));
+  return {ok: true};
+}
 
 function queueEmail_(to, subject, body, sellerId) {
   insert_("Emails", {id: nextId_(rows_("Emails")), to_addr: to, subject: subject, body: body, created: now_(), seller_id: sellerId || null});
@@ -733,6 +751,8 @@ function checkAlerts_(today) {
     const due = nextDue_(s.rent_start, today), left = daysFrom_(today, due);
     if (left > notice || (s.renew_for === due && s.renew_answer) || !add(s.id, "rent", due)) return;
     if (s.email) rentEmail_(s, due, left);
+    if (s.phone) queueText_(s.phone, (settings_().store_name || "Urdaneta Store") + ": Hi " + s.name + ", your shelf" + (s.shelf ? " " + s.shelf : "") + " rent of PHP " +
+      Number(s.rent || 0).toFixed(2) + " is due " + dateText_(due) + ". Will you renew for another month? Please reply YES or NO to this number.", s.id);
     ownerEmail_(s, "rent due " + dateText_(due), "The monthly rent for " + s.name + (s.shelf ? " (shelf " + s.shelf + ")" : "") +
       " is due on " + dateText_(due) + " (" + daysText_(left) + "), PHP " + Number(s.rent || 0).toFixed(2) + ".\n\n" +
       (s.email ? "We emailed " + s.name + " to ask if they renew; their answer will show in the POS (Sellers & Shelves)."
@@ -868,6 +888,8 @@ function payout_(d) {
       (paid >= 0 ? "Paid to you (" + via + "): " + php(paid) : "You paid the store (" + via + "): " + php(-paid)) + "\n" +
       (note ? "\nNote: " + note + "\n" : "") + "\nThank you!\n" + store, s.id);
   }
+  if (s.phone) queueText_(s.phone, (settings_().store_name || "Urdaneta Store") + ": Hi " + s.name + ", your statement to " + dateText_(ts.slice(0, 10)) + ": sales PHP " + sales.toFixed(2) +
+    ", commission PHP " + commission.toFixed(2) + ", rent PHP " + rent.toFixed(2) + ". " + (paid >= 0 ? "Paid to you" : "You paid the store") + " (" + via + "): PHP " + Math.abs(paid).toFixed(2) + ".", s.id);
   return strip_(row);
 }
 
@@ -932,6 +954,7 @@ function state_() {
     sellers: rows_("Sellers").sort(byName_).map(strip_),
     settings: PUBLIC_SETTINGS.reduce((o, k) => { o[k] = st[k] || ""; return o; }, {}),  // never the password
     outbox: rows_("Emails").slice(-20).reverse().map(m => { const c = strip_(m); delete c.body; return c; }),
+    texts: rows_("Texts").slice(-20).reverse().map(strip_),
     quota: MailApp.getRemainingDailyQuota(),
   };
 }
