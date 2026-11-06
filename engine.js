@@ -85,6 +85,7 @@ const ROUTES = {
   "/api/texts": () => rows_("Texts").filter(t => !t.sent && !t.error).map(strip_),
   "/api/text-sent": textSent_,
   "/api/status-text": statusText_,
+  "/api/sms-preview": smsPreview_,
   "/api/text": sendText_,
   "/api/sale": sale_,
   "/api/drawer": drawerMove_,
@@ -691,6 +692,31 @@ function smsChars_(t) {
     .replace(/[^\x0a\x20-\x7e\u00f1\u00d1\u00e9]/g, c => c.normalize("NFD").replace(/[^\x20-\x7e]/g, ""));
 }
 
+// The wording of each text: editable in Settings > Text messages. {words} are filled in for each seller.
+const SMS_LINK = /(https?:|www\.|\.com\b|\.ph\b)/i;
+const SMS_DEFAULTS = {
+  sms_status: "{from}: Hi {name}. {items} {sales} {payout} {rent} {request} {call}",
+  sms_rent: "{from}: Hi {name}, your rent of {amount} is due {date}. Will you renew for another month? Please reply YES or NO to this number.",
+  sms_payout: "{from}: Hi {name}, your statement to {date}: sales {sales}, commission {commission}, rent {rent}. {result}",
+};
+function smsFill_(key, vals, template) {
+  const t = template || settings_()[key] || SMS_DEFAULTS[key];
+  return smsChars_(t.replace(/\{(\w+)\}/g, (m, k) => k in vals ? vals[k] : m)).replace(/[ \t]{2,}/g, " ").trim();
+}
+const smsFrom_ = s => (settings_().store_name || "Urdaneta Store") + (s.shelf ? ", Shelf " + s.shelf : "");
+const smsName_ = s => s.name.trim().split(/\s+/)[0];
+
+function smsPreview_(q) {  // sample data, so the page can show a text before any seller gets it
+  const from = (settings_().store_name || "Urdaneta Store") + ", Shelf 12";
+  const samples = {
+    sms_status: {from: from, name: "Nena", items: "Polvoron expires Nov 12, 9 left. Low stock: Banana Chips 2, Peanut Brittle 3. 14 other items OK.", sales: "Nov sales: 48 pcs.",
+      payout: "For payout: P2,592 after commission.", rent: "Rent P1,500 due Nov 15.", request: "Please pull out the Polvoron by Nov 12.", call: settings_().receipt_phone ? "Questions? Call " + settings_().receipt_phone + "." : ""},
+    sms_rent: {from: from, name: "Nena", amount: "P1,500", date: "Nov 15, 2026"},
+    sms_payout: {from: from, name: "Nena", date: "Nov 06, 2026", sales: "P2,880", commission: "P288", rent: "P1,500", result: "Paid to you (GCash): P1,092."},
+  };
+  return {text: smsFill_(q.key, samples[q.key] || {}, q.template || SMS_DEFAULTS[q.key])};
+}
+
 function smsMoney_(n) {  // P2,592 or P2,592.50
   const v = Math.abs(n), t = v % 1 ? v.toFixed(2) : String(v), p = t.split(".");
   return "P" + p[0].replace(/\B(?=(\d{3})+$)/g, ",") + (p[1] ? "." + p[1] : "");
@@ -709,7 +735,7 @@ function statusText_(q) {
   const pay = payoutState_({id: s.id})[0], month = now_().slice(0, 8) + "01T00:00:00", sold = renterSales_(s.id, month, now_()).reduce((n, i) => n + i.qty, 0);
   const due = nextDue_(s.rent_start, today), rentSoon = s.rent && due && due <= addDays_(today, 7);
   const parts = named => {
-    const out = [], first = s.name.trim().split(/\s+/)[0], left = named, ds = dated.slice(0, left);
+    const out = [], first = smsName_(s), left = named, ds = dated.slice(0, left);
     ds.forEach(p => out.push(short(p.name) + (p.expiry < today ? " expired " : " expires ") + day(p.expiry) + ", " + p.stock + " left."));
     if (dated.length > ds.length) out.push("+" + (dated.length - ds.length) + " more expiring.");
     const ls = low.slice(0, Math.max(left - ds.length, 0));
@@ -725,14 +751,15 @@ function statusText_(q) {
   const ask = expired.length + soon.length ? (expired.length ? "Please pull out expired items." : "Please pull out the " + short(soon[0].name) + " by " + day(soon[0].expiry) + ".")
     : low.length ? "Please restock soon." : "";
   const call = st.receipt_phone ? "Questions? Call " + st.receipt_phone + "." : "";
-  const head = (st.store_name || "Urdaneta Store") + (s.shelf ? ", Shelf " + s.shelf : "") + ": Hi ";
   const write = (named, withSales) => {
     const p = parts(named), okAll = !dated.length && !low.length;
-    const line = okAll ? [items.length === 1 ? "your 1 item is OK." : items.length ? "all " + items.length + " items OK." : "no items on your shelf."] : p.list.concat(p.fine ? [p.fine + (p.fine === 1 ? " other item OK." : " other items OK.")] : []);
-    return head + p.first + (okAll ? ", " : ". ") + line.concat(withSales && sold ? [day(today).slice(0, 3) + " sales: " + sold + " pcs."] : [], money, ask ? [ask] : [], call ? [call] : []).join(" ");
+    const line = okAll ? [items.length === 1 ? "Your 1 item is OK." : items.length ? "All " + items.length + " items OK." : "No items on your shelf."]
+      : p.list.concat(p.fine ? [p.fine + (p.fine === 1 ? " other item OK." : " other items OK.")] : []);
+    return smsFill_("sms_status", {from: smsFrom_(s), name: p.first, items: line.join(" "), sales: withSales && sold ? day(today).slice(0, 3) + " sales: " + sold + " pcs." : "",
+      payout: money.filter(m => m.indexOf("Rent ") !== 0).join(" "), rent: money.filter(m => m.indexOf("Rent ") === 0).join(" "), request: ask, call: call});
   };
   let text = "";
-  for (const [n, sales] of [[3, true], [2, true], [2, false], [1, false], [0, false]]) { text = smsChars_(write(n, sales)); if (text.length <= 306) break; }
+  for (const [n, sales] of [[3, true], [2, true], [2, false], [1, false], [0, false]]) { text = write(n, sales); if (text.length <= 306) break; }
   return {to: s.phone || "", text: text};
 }
 
@@ -744,7 +771,7 @@ function sendText_(d) {  // a text written by staff, checked on screen first
   if (!s.phone) bad_("Add the seller's phone number first");
   const body = String(d.body || "").trim();
   if (!body) bad_("The message is empty");
-  if (/(https?:|www\.|\.com\b|\.ph\b)/i.test(body)) bad_("Take out the web link: the phone networks block texts with links");
+  if (SMS_LINK.test(body)) bad_("Take out the web link: the phone networks block texts with links");
   queueText_(s.phone, body.slice(0, 480), s.id, uid);
   return {ok: true};
 }
@@ -818,8 +845,7 @@ function checkAlerts_(today) {
     const due = nextDue_(s.rent_start, today), left = daysFrom_(today, due);
     if (left > notice || (s.renew_for === due && s.renew_answer) || !add(s.id, "rent", due)) return;
     if (s.email) rentEmail_(s, due, left);
-    if (s.phone) queueText_(s.phone, (settings_().store_name || "Urdaneta Store") + ": Hi " + s.name + ", your shelf" + (s.shelf ? " " + s.shelf : "") + " rent of PHP " +
-      Number(s.rent || 0).toFixed(2) + " is due " + dateText_(due) + ". Will you renew for another month? Please reply YES or NO to this number.", s.id);
+    if (s.phone) queueText_(s.phone, smsFill_("sms_rent", {from: smsFrom_(s), name: smsName_(s), amount: smsMoney_(s.rent || 0), date: dateText_(due)}), s.id);
     ownerEmail_(s, "rent due " + dateText_(due), "The monthly rent for " + s.name + (s.shelf ? " (shelf " + s.shelf + ")" : "") +
       " is due on " + dateText_(due) + " (" + daysText_(left) + "), PHP " + Number(s.rent || 0).toFixed(2) + ".\n\n" +
       (s.email ? "We emailed " + s.name + " to ask if they renew; their answer will show in the POS (Sellers & Shelves)."
@@ -955,8 +981,8 @@ function payout_(d) {
       (paid >= 0 ? "Paid to you (" + via + "): " + php(paid) : "You paid the store (" + via + "): " + php(-paid)) + "\n" +
       (note ? "\nNote: " + note + "\n" : "") + "\nThank you!\n" + store, s.id);
   }
-  if (s.phone) queueText_(s.phone, (settings_().store_name || "Urdaneta Store") + ": Hi " + s.name + ", your statement to " + dateText_(ts.slice(0, 10)) + ": sales PHP " + sales.toFixed(2) +
-    ", commission PHP " + commission.toFixed(2) + ", rent PHP " + rent.toFixed(2) + ". " + (paid >= 0 ? "Paid to you" : "You paid the store") + " (" + via + "): PHP " + Math.abs(paid).toFixed(2) + ".", s.id);
+  if (s.phone) queueText_(s.phone, smsFill_("sms_payout", {from: smsFrom_(s), name: smsName_(s), date: dateText_(ts.slice(0, 10)), sales: smsMoney_(sales), commission: smsMoney_(commission), rent: smsMoney_(rent),
+    result: (paid >= 0 ? "Paid to you" : "You paid the store") + " (" + via + "): " + smsMoney_(paid) + "."}), s.id);
   return strip_(row);
 }
 
@@ -1008,10 +1034,14 @@ function testEmail_() {
 
 // ---------- settings / state ----------
 
-const PUBLIC_SETTINGS = ["store_name", "smtp_from", "receipt_address", "receipt_phone", "receipt_footer", "rent_notice_days", "web_app_url", "receipt_logo"];  // receipt_logo: "width,height,base64" 1-bit picture
+const PUBLIC_SETTINGS = ["store_name", "smtp_from", "receipt_address", "receipt_phone", "receipt_footer", "rent_notice_days", "web_app_url", "receipt_logo", "sms_status", "sms_rent", "sms_payout"];  // receipt_logo: "width,height,base64" 1-bit picture
 
 function saveSettings_(d) {
   if (String(d.receipt_logo || "").length > 20000) bad_("The logo is too big");  // a Sheet cell holds 50,000 characters
+  ["sms_status", "sms_rent", "sms_payout"].forEach(k => {
+    if (String(d[k] || "").length > 480) bad_("The message is too long");
+    if (SMS_LINK.test(d[k] || "")) bad_("Take out the web link: the phone networks block texts with links");
+  });
   PUBLIC_SETTINGS.forEach(k => { if (k in d) setSetting_(k, String(d[k] || "").trim()); });
 }
 

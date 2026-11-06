@@ -292,7 +292,16 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
-#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm{display:grid;gap:12px}#txForm p{margin:0}
+#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm{display:grid;gap:12px}
+.smswrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px;margin-top:14px;align-items:start}
+.smsedit{display:grid;gap:10px}.smsedit p{margin:0}
+.smsvars{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.smsvars .chips button{min-height:32px;padding:4px 10px;font-size:13px}
+.phone{background:var(--chip);border-radius:18px;padding:12px;min-width:0}
+.phonehead{text-align:center;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.phonehead b{display:block;font-size:14px}.phonehead span{font-size:12px;color:var(--muted)}
+.bubble{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 12px;font-size:14px;line-height:1.4;overflow-wrap:anywhere;white-space:pre-wrap}
+.phone p{margin:8px 2px 0;font-size:12px}
+@media(max-width:1000px){.smswrap{grid-template-columns:1fr}}#txForm p{margin:0}
 textarea{font:inherit;color:var(--ink);padding:9px 12px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);width:100%;resize:vertical}
 textarea:focus{outline:0;border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 #rcptPick{margin-top:12px}
@@ -597,6 +606,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
       <button data-st="store"><svg class="i" viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></svg><span>Store</span></button>
       <button data-st="printer"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg><span>Receipt printer</span></button>
       <button data-st="receipt"><svg class="i" viewBox="0 0 24 24"><path d="M5 3v18l2.5-1.5L10 21l2-1.5 2 1.5 2.5-1.5L19 21V3l-2.5 1.5L14 3l-2 1.5L10 3 7.5 4.5z"/><path d="M9 9h6M9 13h6"/></svg><span>Receipt preview</span></button>
+      <button data-st="sms"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-3A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12.5 12h.01M16.5 12h.01"/></svg><span>Text messages</span></button>
       <button data-st="look"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></svg><span>Appearance</span></button>
       <button data-st="device"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg><span>This device</span></button>
       <button data-st="update"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg><span>Software update</span></button>
@@ -639,6 +649,24 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
         <div class="setfoot"><button class="sm" id="rcptStore">Edit store details</button><span style="flex:1"></span><button id="rcptPrint">Print this sample</button></div>
       </div>
 
+      <div class="card setpane" id="st-sms">
+        <h3>Text messages</h3>
+        <p class="muted sethint">How texts to shelf renters look, with sample details. Change the wording here for every renter and every device.</p>
+        <div class="chips" id="smsPick"></div>
+        <div class="smswrap">
+          <div class="smsedit">
+            <label>Wording<textarea id="smsBody" rows="7" maxlength="480"></textarea></label>
+            <div class="smsvars"><span class="muted">Add a detail:</span><span class="chips" id="smsVars"></span></div>
+            <p class="muted" id="smsHelp"></p>
+            <div class="row"><button class="primary" id="smsSave">Save wording</button><button id="smsReset">Use the original</button></div>
+          </div>
+          <div class="phone"><div class="phonehead"><b id="smsSender"></b><span>Text message</span></div>
+            <div class="bubble" id="smsBubble"></div><p class="muted" id="smsCount"></p></div>
+        </div>
+        <h3 style="margin:20px 0 4px">Sent texts</h3><p class="muted sethint">Sent from the tablet with the SIM, using its load, when the POS is open there.</p>
+        <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Message</th><th>Status</th></tr></thead><tbody id="txlist"></tbody></table></div>
+      </div>
+
       <div class="card setpane" id="st-look">
         <h3>Appearance</h3><p class="muted sethint">For this device only.</p>
         <div class="themeopts" id="themePick">
@@ -674,8 +702,6 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
           <div class="ctl"><select id="rentNotice" aria-label="Rent reminder"><option value="1">1 day before rent is due</option><option value="2">2 days before rent is due</option>
             <option value="3">3 days before rent is due</option><option value="5">5 days before rent is due</option><option value="7">7 days before rent is due</option></select></div></div>
         <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead><tbody id="oblist"></tbody></table></div>
-        <h3 style="margin:20px 0 4px">Text messages</h3><p class="muted sethint">Rent reminders and payout statements for renters with a phone number. They are sent from the tablet with the SIM, using its load, when the POS is open there.</p>
-        <div class="scroll"><table><thead><tr><th>Created</th><th>To</th><th>Message</th><th>Status</th></tr></thead><tbody id="txlist"></tbody></table></div>
       </div>
     </div>
   </div>
@@ -2209,7 +2235,7 @@ $("#txForm").body.oninput = showTextCount;
 $("#txForm").onsubmit = run(async e => {
   e.preventDefault();
   await api("/api/text", {uid: newUid(), id: textingTo.id, body: e.target.body.value});
-  $("#txDlg").close(); toast(`Text to ${textingTo.name} is on its way. See Settings → Seller emails.`); await load(); syncSoon();
+  $("#txDlg").close(); toast(`Text to ${textingTo.name} is on its way. See Settings → Text messages.`); await load(); syncSoon();
 });
 $("#smsOn").onchange = run(async e => {
   const on = e.target.checked;
@@ -2231,6 +2257,46 @@ $("#txlist").onclick = run(async e => {
   const b = e.target.closest("[data-retext]"); if (!b) return;
   await api("/api/text-sent", {id: +b.dataset.retext, retry: true}); await load(); syncSoon();
 });
+
+// ---------- Settings > Text messages: edit each text's wording, with a preview made by the same code that sends it ----------
+const SMS_KINDS = {
+  sms_status: {label: "Item status", help: "From the Text status button on a seller's card. The details are left out by themselves when there is nothing to say.",
+    vars: {from: "Store and shelf", name: "Seller's name", items: "Item list", sales: "Sales this month", payout: "Payout", rent: "Rent due", request: "What to do", call: "Call number"}},
+  sms_rent: {label: "Rent reminder", help: "Sent by itself before rent is due, when the renter has a phone number.",
+    vars: {from: "Store and shelf", name: "Seller's name", amount: "Rent amount", date: "Due date"}},
+  sms_payout: {label: "Payout statement", help: "Sent by itself after each payout.",
+    vars: {from: "Store and shelf", name: "Seller's name", date: "Date", sales: "Sales", commission: "Commission", rent: "Rent", result: "Amount paid"}},
+};
+let smsKind = "sms_status", smsDirty = false;
+const smsSaved = () => S.settings[smsKind] || SMS_DEFAULTS[smsKind];
+function renderSmsEditor() {
+  $("#smsPick").innerHTML = Object.entries(SMS_KINDS).map(([k, v]) => `<button data-k="${k}" aria-pressed="${k === smsKind}">${esc(v.label)}</button>`).join("");
+  const kind = SMS_KINDS[smsKind];
+  $("#smsVars").innerHTML = Object.entries(kind.vars).map(([k, v]) => `<button type="button" data-v="${k}">${esc(v)}</button>`).join("");
+  $("#smsHelp").textContent = kind.help + " Words in { } are filled in for each seller; keep them as they are.";
+  if (!smsDirty) $("#smsBody").value = smsSaved();
+  $("#smsSender").textContent = "0917 123 4567";
+  showSmsPreview();
+}
+const showSmsPreview = run(async () => {
+  const body = $("#smsBody"), r = await api("/api/sms-preview", {key: smsKind, template: body.value || SMS_DEFAULTS[smsKind]});
+  $("#smsBubble").textContent = r.text;
+  const n = r.text.length + (r.text.match(/[\^{}[\]~|\\]/g) || []).length, parts = n <= 160 ? 1 : Math.ceil(n / 153);
+  $("#smsCount").textContent = `Sample: ${n} characters · ${parts} text${parts > 1 ? "s" : ""}${parts > 2 ? ". Shorter is cheaper." : ""}`;
+});
+$("#smsBody").oninput = () => { smsDirty = true; showSmsPreview(); };
+$("#smsPick").onclick = e => { const b = e.target.closest("button"); if (b) { smsKind = b.dataset.k; smsDirty = false; renderSmsEditor(); } };
+$("#smsVars").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const t = $("#smsBody"), at = t.selectionStart ?? t.value.length, w = `{${b.dataset.v}}`;
+  t.value = t.value.slice(0, at) + w + t.value.slice(t.selectionEnd ?? at);
+  t.focus(); t.selectionStart = t.selectionEnd = at + w.length; smsDirty = true; showSmsPreview();
+};
+$("#smsSave").onclick = run(async () => {
+  await api("/api/settings", {[smsKind]: $("#smsBody").value === SMS_DEFAULTS[smsKind] ? "" : $("#smsBody").value});
+  smsDirty = false; await load(); toast("Wording saved");
+});
+$("#smsReset").onclick = run(async () => { $("#smsBody").value = SMS_DEFAULTS[smsKind]; await api("/api/settings", {[smsKind]: ""}); smsDirty = false; await load(); toast("Original wording back"); });
 
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
@@ -2400,7 +2466,7 @@ function renderSettings() {
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
   if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";
   if (document.activeElement !== $("#rentNotice")) $("#rentNotice").value = S.settings.rent_notice_days || "3";
-  renderReceiptPreview();
+  renderReceiptPreview(); renderSmsEditor();
   const failed = Local.failed();
   $("#devConn").innerHTML = online ? '<span style="color:var(--good)">Connected</span>' : '<span class="warn">Offline: sales are saved on this device</span>';
   $("#devSync").innerHTML = (Local.pending() ? `<span class="warn">${Local.pending()} waiting to sync</span>` : "All synced")
