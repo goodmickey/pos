@@ -206,6 +206,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .setnav button:hover{background:var(--chip)}
 .setnav button.on{background:var(--chip);font-weight:500}
 .setnav svg.i{width:22px;height:22px}
+.setgroup{margin:14px 12px 4px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}.setgroup:first-child{margin-top:0}
 .setpane{margin:0}
 .sethint{margin:-8px 0 8px}
 .setrow{display:grid;grid-template-columns:minmax(160px,1fr) minmax(0,1.3fr);gap:20px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
@@ -235,7 +236,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .tp-auto{background:linear-gradient(90deg,#fff 0 50%,#0f0f0f 50% 100%)}
 .tp-system{background:linear-gradient(135deg,#fff 0 50%,#0f0f0f 50% 100%)}
 @media(max-width:1100px) and (min-width:701px){.themeopts{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.setwrap{grid-template-columns:1fr}.setnav{position:static;flex-direction:row;overflow-x:auto;gap:8px}
+@media(max-width:900px){.setgroup{display:none}.setwrap{grid-template-columns:1fr}.setnav{position:static;flex-direction:row;overflow-x:auto;gap:8px}
   .setnav button{flex:none;gap:8px;background:var(--chip);border-radius:8px;min-height:40px}.setnav button.on{background:var(--strong);color:var(--onstrong)}}
 @media(max-width:700px){.setrow{grid-template-columns:1fr;gap:8px}.setrow .ctl{justify-content:flex-start}.themeopts{grid-template-columns:1fr}.url{text-align:left}}
 #appNotes{background:var(--chip);border-radius:12px;padding:12px 16px;margin-top:8px;font-size:14px}
@@ -605,15 +606,19 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
   <div class="pagehead"><h2>Settings</h2><p>Your store, this device, printing and seller emails.</p></div>
   <div class="setwrap">
     <div class="setnav" id="setnav">
+      <p class="setgroup">Business</p>
       <button data-st="store"><svg class="i" viewBox="0 0 24 24"><path d="M3 9l1.5-5h15L21 9M4 9v11h16V9M3 9h18M9 20v-6h6v6"/></svg><span>Store</span></button>
+      <p class="setgroup">Counter equipment</p>
       <button data-st="printer"><svg class="i" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg><span>Receipt printer</span></button>
-      <button data-st="scanner"><svg class="i" viewBox="0 0 24 24"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M17 8v8"/></svg><span>Barcode scanner</span></button>
       <button data-st="receipt"><svg class="i" viewBox="0 0 24 24"><path d="M5 3v18l2.5-1.5L10 21l2-1.5 2 1.5 2.5-1.5L19 21V3l-2.5 1.5L14 3l-2 1.5L10 3 7.5 4.5z"/><path d="M9 9h6M9 13h6"/></svg><span>Receipt preview</span></button>
+      <button data-st="scanner"><svg class="i" viewBox="0 0 24 24"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M17 8v8"/></svg><span>Barcode scanner</span></button>
+      <p class="setgroup">Renter messages</p>
+      <button data-st="email"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>Seller emails</span></button>
       <button data-st="sms"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2.5-3A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12.5 12h.01M16.5 12h.01"/></svg><span>Text messages</span></button>
+      <p class="setgroup">App and device</p>
       <button data-st="look"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></svg><span>Appearance</span></button>
       <button data-st="device"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg><span>This device</span></button>
       <button data-st="update"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg><span>Software update</span></button>
-      <button data-st="email"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>Seller emails</span></button>
     </div>
     <div>
       <div class="card setpane" id="st-store">
