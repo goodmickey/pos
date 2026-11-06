@@ -8,7 +8,7 @@
 
   // Requests that only Google can do (they send email)
   const CLOUD = new Set(["/api/send-now", "/api/outbox/test", "/api/sellers/report", "/api/outbox/delete", "/api/outbox/readdress"]);
-  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust", "/api/payout", "/api/text-sent"]);
+  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust", "/api/payout", "/api/text-sent", "/api/text"]);
 
   let data = {}, ops = [], meta = {}, failed = [];
 

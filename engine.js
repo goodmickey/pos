@@ -18,7 +18,7 @@ const SHEETS = {
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
   Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
-  Texts: ["id", "to_phone", "body", "created", "sent", "error", "seller_id"],  // SMS: sent by the tablet with the SIM (Google can't)
+  Texts: ["id", "to_phone", "body", "created", "sent", "error", "seller_id", "uid"],  // SMS: sent by the tablet with the SIM (Google can't)
   Payouts: ["uid", "ts", "seller_id", "name", "from_ts", "to_ts", "sales", "commission", "rent", "paid", "via", "note"],  // money settled with a renter
   Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note", "cost"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
 };
@@ -84,6 +84,8 @@ const ROUTES = {
   "/api/payout": payout_,
   "/api/texts": () => rows_("Texts").filter(t => !t.sent && !t.error).map(strip_),
   "/api/text-sent": textSent_,
+  "/api/status-text": statusText_,
+  "/api/text": sendText_,
   "/api/sale": sale_,
   "/api/drawer": drawerMove_,
   "/api/drawer-state": drawerState_,
@@ -676,10 +678,75 @@ function pull_(q) {
 // ---------- seller emails ----------
 
 // Text messages wait here for the tablet that sends them (Settings > This device). No links: the networks block them.
-function queueText_(phone, body, sellerId) {
+function queueText_(phone, body, sellerId, uid) {
   const d = String(phone || "").replace(/\D/g, ""), to = d.indexOf("63") === 0 && d.length === 12 ? "0" + d.slice(2) : d;
-  insert_("Texts", {id: nextId_(rows_("Texts")), to_phone: to, body: body, created: now_(), seller_id: sellerId || null,
+  insert_("Texts", {id: nextId_(rows_("Texts")), to_phone: to, body: smsChars_(body), created: now_(), seller_id: sellerId || null, uid: uid || null,
     error: /^09\d{9}$/.test(to) ? null : "Phone number looks wrong"});
+}
+
+// One character outside the phone alphabet (peso sign, curly quote, a-acute) shrinks a text from 160 to 70 letters and
+// multiplies its cost, so everything is turned into plain letters first. n-tilde and e-acute are in the alphabet.
+function smsChars_(t) {
+  return String(t).replace(/\u20b1/g, "P").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/[\u2013\u2014\u2212]/g, "-").replace(/\u2026/g, "...")
+    .replace(/[^\x0a\x20-\x7e\u00f1\u00d1\u00e9]/g, c => c.normalize("NFD").replace(/[^\x20-\x7e]/g, ""));
+}
+
+function smsMoney_(n) {  // P2,592 or P2,592.50
+  const v = Math.abs(n), t = v % 1 ? v.toFixed(2) : String(v), p = t.split(".");
+  return "P" + p[0].replace(/\B(?=(\d{3})+$)/g, ",") + (p[1] ? "." + p[1] : "");
+}
+
+// The status text for one seller: who it is from, what needs action, the money, one request. Named items are capped so
+// it stays within 2 texts; everything else is a count (sender first, one request).
+function statusText_(q) {
+  const s = rows_("Sellers").find(x => x.id === Number(q.id));
+  if (!s) bad_("Seller not found");
+  const st = settings_(), today = today_(), short = n => n.length > 18 ? n.slice(0, 17).trim() + "." : n, day = d => dateText_(d).slice(0, 6);
+  const items = rows_("Products").filter(p => p.seller_id === s.id), limit = s.low_stock === null || s.low_stock === undefined ? 5 : s.low_stock;
+  const expired = items.filter(p => p.stock > 0 && p.expiry && p.expiry < today);
+  const soon = items.filter(p => p.stock > 0 && p.expiry && p.expiry >= today && ((p.notify_on && p.notify_on <= today) || p.expiry <= addDays_(today, 7)));
+  const dated = expired.concat(soon), low = items.filter(p => p.stock <= limit && dated.indexOf(p) < 0).sort((a, b) => a.stock - b.stock);
+  const pay = payoutState_({id: s.id})[0], month = now_().slice(0, 8) + "01T00:00:00", sold = renterSales_(s.id, month, now_()).reduce((n, i) => n + i.qty, 0);
+  const due = nextDue_(s.rent_start, today), rentSoon = s.rent && due && due <= addDays_(today, 7);
+  const parts = named => {
+    const out = [], first = s.name.trim().split(/\s+/)[0], left = named, ds = dated.slice(0, left);
+    ds.forEach(p => out.push(short(p.name) + (p.expiry < today ? " expired " : " expires ") + day(p.expiry) + ", " + p.stock + " left."));
+    if (dated.length > ds.length) out.push("+" + (dated.length - ds.length) + " more expiring.");
+    const ls = low.slice(0, Math.max(left - ds.length, 0));
+    if (ls.length) out.push("Low stock: " + ls.map(p => short(p.name) + " " + Math.max(p.stock, 0)).join(", ") + (low.length > ls.length ? ", +" + (low.length - ls.length) + " more." : "."));
+    else if (low.length) out.push(low.length + (low.length === 1 ? " item low." : " items low."));
+    const fine = items.length - dated.length - low.length;
+    return {first: first, list: out, fine: fine};
+  };
+  const money = [];
+  if (pay.sales || pay.rent) money.push(pay.to_pay < 0 ? "Balance owed to store: " + smsMoney_(pay.to_pay) + "." :
+    "For payout: " + smsMoney_(pay.to_pay) + (pay.commission && pay.rent ? " after commission and rent." : pay.commission ? " after commission." : pay.rent ? " after rent." : "."));
+  if (rentSoon) money.push("Rent " + smsMoney_(s.rent) + " due " + day(due) + ".");
+  const ask = expired.length + soon.length ? (expired.length ? "Please pull out expired items." : "Please pull out the " + short(soon[0].name) + " by " + day(soon[0].expiry) + ".")
+    : low.length ? "Please restock soon." : "";
+  const call = st.receipt_phone ? "Questions? Call " + st.receipt_phone + "." : "";
+  const head = (st.store_name || "Urdaneta Store") + (s.shelf ? ", Shelf " + s.shelf : "") + ": Hi ";
+  const write = (named, withSales) => {
+    const p = parts(named), okAll = !dated.length && !low.length;
+    const line = okAll ? [items.length === 1 ? "your 1 item is OK." : items.length ? "all " + items.length + " items OK." : "no items on your shelf."] : p.list.concat(p.fine ? [p.fine + (p.fine === 1 ? " other item OK." : " other items OK.")] : []);
+    return head + p.first + (okAll ? ", " : ". ") + line.concat(withSales && sold ? [day(today).slice(0, 3) + " sales: " + sold + " pcs."] : [], money, ask ? [ask] : [], call ? [call] : []).join(" ");
+  };
+  let text = "";
+  for (const [n, sales] of [[3, true], [2, true], [2, false], [1, false], [0, false]]) { text = smsChars_(write(n, sales)); if (text.length <= 306) break; }
+  return {to: s.phone || "", text: text};
+}
+
+function sendText_(d) {  // a text written by staff, checked on screen first
+  const uid = d.uid ? String(d.uid) : null;
+  if (uid && rows_("Texts").some(t => t.uid === uid)) return {duplicate: true};
+  const s = rows_("Sellers").find(x => x.id === Number(d.id));
+  if (!s) bad_("Seller not found");
+  if (!s.phone) bad_("Add the seller's phone number first");
+  const body = String(d.body || "").trim();
+  if (!body) bad_("The message is empty");
+  if (/(https?:|www\.|\.com\b|\.ph\b)/i.test(body)) bad_("Take out the web link: the phone networks block texts with links");
+  queueText_(s.phone, body.slice(0, 480), s.id, uid);
+  return {ok: true};
 }
 
 function textSent_(d) {  // the tablet's result; with `retry` the text goes back in the queue

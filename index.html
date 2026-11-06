@@ -292,7 +292,9 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
-#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm{display:grid;gap:12px}
+#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm{display:grid;gap:12px}#txForm p{margin:0}
+textarea{font:inherit;color:var(--ink);padding:9px 12px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);width:100%;resize:vertical}
+textarea:focus{outline:0;border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 #rcptPick{margin-top:12px}
 .logobtn{flex-direction:row;align-items:center;font-size:14px;font-weight:500;color:var(--ink);min-height:40px;padding:8px 16px;border-radius:18px;background:var(--chip);cursor:pointer}
 .logobtn:hover{background:var(--chip2)}
@@ -754,6 +756,15 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     </div>
     <p class="muted" style="margin:8px 0 0">For perishables, set the date printed on the new pieces. Leave it if it hasn't changed.</p>
     <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
+  </form>
+</dialog>
+<dialog id="txDlg" class="formdlg small">
+  <div class="dlghead"><h3 id="txTitle">Text status</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="txForm">
+    <p class="muted" id="txTo"></p>
+    <label>Message (you can change it)<textarea name="body" rows="7" maxlength="480" required></textarea></label>
+    <p class="muted" id="txCount"></p>
+    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="txSend">Send text</button></div>
   </form>
 </dialog>
 <dialog id="poDlg" class="formdlg small">
@@ -1606,7 +1617,7 @@ function rentRow(s) {
   const r = rentInfo(s);
   if (!r) return `<div class="rentrow"><div class="when"><span>Rent</span><b class="muted">No rental start date</b></div><button class="sm" data-edit="${s.id}">Set it</button></div>`;
   const status = r.answer === "yes" ? '<span class="badge good">Renewing</span>' : r.answer === "no" ? '<span class="badge bad">Not renewing</span>'
-    : r.soon ? `<span class="badge low">${s.email ? "Waiting for reply" : "Ask them (no email)"}</span>` : "";
+    : r.soon ? `<span class="badge low">${s.email || s.phone ? "Waiting for reply" : "Ask them (no email or phone)"}</span>` : "";
   const ask = r.soon && !r.answer ? `<button class="sm" data-renew="${s.id}" data-a="yes">They renew</button><button class="sm" data-renew="${s.id}" data-a="no">They end</button>`
     : r.answer ? `<button class="sm ghost" data-renew="${s.id}" data-a="" title="Clear the answer">Change</button>` : "";
   return `<div class="rentrow${r.soon && r.answer !== "yes" ? " soon" : ""}"><div class="when"><span>Next rent</span><b>${dayText(r.due)}</b>
@@ -1634,11 +1645,11 @@ function renderSellers() {
     const expiring = items.filter(p => p.stock > 0 && dueSoon(p)).length, low = items.filter(p => p.stock <= s.low_stock).length;
     return `<div class="scard"><div class="shead"><span class="pimg ini" style="background:${ownerColor(s.id, true)}">${esc((s.name.trim()[0] || "?").toUpperCase())}</span>
         <div><b>${esc(s.name)}</b>${s.shelf ? `<span class="badge">Shelf ${esc(s.shelf)}</span>` : ""}</div></div>
-      <div class="contact"><span>${esc(s.phone) || "No phone"}</span><span>${s.email ? esc(s.email) : '<span class="warn">No email: no alerts can be sent</span>'}</span></div>
+      <div class="contact"><span>${esc(s.phone) || "No phone"}</span><span>${s.email ? esc(s.email) : s.phone ? "No email: texts only" : '<span class="warn">No email or phone: no alerts can be sent</span>'}</span></div>
       ${rentRow(s)}${payRow(s)}
       <div class="nums"><div><span>Items</span><b>${items.length}</b></div><div><span>Pieces left</span><b>${items.reduce((n, p) => n + Math.max(p.stock, 0), 0)}</b></div><div><span>Rent</span><b>${peso(s.rent)}</b></div></div>
       <div class="acts">${expiring ? `<button class="badge low" data-items="${s.id}" data-f="soon">${expiring} expiring</button>` : low ? `<button class="badge low" data-items="${s.id}" data-f="low">${low} low: restock</button>` : '<span class="badge">All good</span>'}
-        ${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
+        <button class="sm" data-text="${s.id}">Text status</button>${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
   }).join("") || `<div class="card muted">No shelf renters yet. Tap New seller to add the people renting your shelves.</div>`;
 }
 function editSeller(s) {
@@ -1653,6 +1664,7 @@ $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
   if (b.dataset.payout) openPayout(S.sellers.find(s => s.id === +b.dataset.payout));
+  if (b.dataset.text) await openStatusText(S.sellers.find(s => s.id === +b.dataset.text));
   if (b.dataset.renew) {  // the renter answered by text or in person
     await api("/api/sellers/renew", {id: b.dataset.renew, answer: b.dataset.a});
     toast(b.dataset.a === "yes" ? "Marked as renewing" : b.dataset.a === "no" ? "Marked as not renewing" : "Answer cleared"); await load();
@@ -2173,10 +2185,32 @@ async function sendTexts() {
       let error = "";
       try { await sms.send({to: t.to_phone, body: t.body}); } catch (e) { error = e.message || "Not sent"; }
       await Local.call("/api/text-sent", {id: t.id, error});
+      await new Promise(r => setTimeout(r, 3000));  // spaced out, so the network doesn't take the SIM for a spammer
     }
   } finally { texting = false; }
   if (Local.pending()) syncSoon();
 }
+// Text one seller about their items: the message is written by the engine (statusText_), checked and changed here
+let textingTo = null;
+function showTextCount() {
+  const t = $("#txForm").body.value, n = t.length + (t.match(/[\^{}[\]~|\\]/g) || []).length, parts = n <= 160 ? 1 : Math.ceil(n / 153);
+  $("#txCount").textContent = `${n} characters · ${parts} text${parts > 1 ? "s" : ""} from the SIM's load`;
+}
+async function openStatusText(s) {
+  if (!s.phone) { toast("Add the seller's phone number first", true); return editSeller(s); }
+  textingTo = s;
+  const r = await api("/api/status-text", {id: s.id}), f = $("#txForm");
+  $("#txTitle").textContent = `Text ${s.name}`;
+  $("#txTo").textContent = `To ${s.phone}. It goes out from the tablet with the SIM${window.Capacitor?.isPluginAvailable?.("Sms") && store.get("smsOn", false) ? " (this one)" : ""} when the POS is open there.`;
+  f.body.value = r.text; showTextCount();
+  $("#txDlg").showModal();
+}
+$("#txForm").body.oninput = showTextCount;
+$("#txForm").onsubmit = run(async e => {
+  e.preventDefault();
+  await api("/api/text", {uid: newUid(), id: textingTo.id, body: e.target.body.value});
+  $("#txDlg").close(); toast(`Text to ${textingTo.name} is on its way. See Settings → Seller emails.`); await load(); syncSoon();
+});
 $("#smsOn").onchange = run(async e => {
   const on = e.target.checked;
   if (on) {
