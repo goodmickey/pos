@@ -280,6 +280,8 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .lprev{position:sticky;top:72px}
 #lpreview{background:#fff;border-radius:8px;padding:14px;display:flex;justify-content:center;border:1px solid var(--line)}
 #lpreview .label{width:180px;border-style:solid}
+.lhow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px}.lhow>div{flex:1;min-width:220px}.lhow b{display:block;font-weight:500}.lhow small{color:var(--muted);font-size:13px}
+#lpreview .paper{width:100%;padding:8px 4px;font-size:9.5px;box-shadow:none}
 .copies{display:inline-flex;align-items:center;gap:2px;border-radius:18px;background:var(--chip)}
 .copies button{background:none;min-height:32px;min-width:32px;padding:0;border-radius:50%;font-size:16px}
 .copies button:hover{background:var(--chip2)}
@@ -541,8 +543,11 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 </section>
 
 <section id="labels">
-  <div class="pagehead rhead"><div><h2>Barcode Labels</h2><p>Price and barcode stickers, 4 per row on A4 or Letter paper. Any barcode scanner reads them.</p></div>
-    <button class="primary" id="lprint">Print labels</button></div>
+  <div class="pagehead rhead"><div><h2>Barcode Labels</h2><p>Price and barcode stickers. Any barcode scanner reads them.</p></div>
+    <div class="row"><button id="ltest">Print 1 test label</button><button class="primary" id="lprint">Print labels</button></div></div>
+  <div class="card lhow"><div><b id="lhowTitle"></b><small id="lhowText"></small></div>
+    <label class="check" id="lpicRow"><input type="checkbox" id="lpic"><span>Print barcode as a picture <span class="muted">(if no barcode comes out)</span></span></label>
+    <button class="sm" id="lsetup">Printer settings</button></div>
   <div class="lwrap">
     <div class="card">
       <div class="toolbar"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lfilter" placeholder="Search products"></div>
@@ -1328,7 +1333,13 @@ async function printTickets(parts, done) {
   try { await PRINTERS[method](all); if (done) toast(done); } catch (e) { toast("Printer: " + (e.message || e), true); }
   return true;
 }
-const printHTML = pages => { $("#print").innerHTML = pages.join('<div style="break-after:page"></div>'); print(); };
+const printHTML = pages => {
+  // The Android app has no Print window: print() would silently do nothing
+  if (window.Capacitor?.isNativePlatform?.()) return toast("Tablets can't use the regular Print window. Choose the Bluetooth receipt printer in Settings → Receipt printer.", true, 8000);
+  $("#print").innerHTML = pages.join('<div style="break-after:page"></div>'); print();
+};
+// Bytes to base64 in pieces: a big label job is too long for one call
+const b64 = bytes => { let s = ""; for (let i = 0; i < bytes.length; i += 8190) s += String.fromCharCode(...bytes.slice(i, i + 8190)); return btoa(s); };
 
 // Sent to the printer, whose port opens the cash drawer: ESC p 0, a 50 ms pulse then a 500 ms pause
 const DRAWER_PULSE = new Uint8Array([0x1b, 0x70, 0, 25, 250]);
@@ -1373,6 +1384,10 @@ function ticket() {
     text: v => wrap(v).forEach(t.line),
     lr: (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; t.line(gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r); },
     rule: () => t.line("-".repeat(W)),
+    barcode: code => {  // the printer draws Code 128 itself: few bytes, so many labels print quickly
+      const b = [...code].map(c => c.charCodeAt(0));
+      out.push(0x1d, 0x68, 60, 0x1d, 0x77, b.length > 15 ? 1 : 2, 0x1d, 0x48, 0, 0x1d, 0x6b, 73, b.length + 2, 0x7b, 0x42, ...b, 10);  // height, width, no text, GS k
+    },
     image: l => { const w = Math.ceil(l.w / 8); out.push(0x1d, 0x76, 0x30, 0, w & 255, w >> 8, l.h & 255, l.h >> 8); for (const b of l.bits) out.push(b); out.push(10); },  // GS v 0
     bold: on => out.push(ESC, 0x45, on ? 1 : 0),
     center: on => out.push(ESC, 0x61, on ? 1 : 0),
@@ -1436,7 +1451,7 @@ function reportBytes(r) {
 if (!window.nativePrinter && window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
   const bt = Capacitor.Plugins.BtPrinter;
   window.nativePrinter = {list: async () => (await bt.list()).printers,
-    print: (id, bytes) => bt.print({id, data: btoa(String.fromCharCode(...bytes))})};
+    print: (id, bytes) => bt.print({id, data: b64(bytes)})};
 }
 // The installed app prints directly by default; a choice of a printing method no longer offered falls back to that default
 const printerMethod = () => { const m = store.get("printer", ""); return m === "browser" || m in PRINTERS ? m : window.nativePrinter ? "app" : "browser"; };
@@ -1450,7 +1465,7 @@ const PRINTERS = {
   },
   // Android tablet: the free RawBT app prints to any paired Bluetooth printer
   async rawbt(bytes) {
-    location.href = "rawbt:base64," + btoa(String.fromCharCode(...bytes));
+    location.href = "rawbt:base64," + b64(bytes);
   },
 };
 const PRINTER_HELP = {
@@ -1754,8 +1769,13 @@ function renderLabelTotals() {
   const n = Object.values(labelCopies).reduce((a, b) => a + (b || 0), 0);
   $("#lprint").textContent = n ? `Print ${n} label${n === 1 ? "" : "s"}` : "Print labels";
   const p = S.products.find(p => labelCopies[p.id] > 0) || shownLabels()[0];
-  $("#lpreview").innerHTML = p ? labelHTML(p) : '<span class="muted">No products yet</span>';
-  $("#lcount").textContent = n ? `${n} sticker${n === 1 ? "" : "s"} on ${Math.ceil(n / 4 / 10)} page${Math.ceil(n / 40) === 1 ? "" : "s"} (about 40 per page)` : "Set copies for the items you want stickers for.";
+  const roll = printerMethod() !== "browser";
+  $("#lhowTitle").textContent = roll ? "Printing on the receipt printer" : "Printing on a regular printer";
+  $("#lhowText").textContent = roll ? "One label after another on the 58 mm roll, sticker paper or plain." : "4 labels per row on A4 or Letter sticker paper, through the Print window.";
+  $("#lpicRow").hidden = !roll; $("#lpic").checked = store.get("labelPicture", false);
+  $("#lpreview").innerHTML = !p ? '<span class="muted">No products yet</span>' : roll ? `<div class="paper">${bytesToPaper(labelBytes([p], true))}</div>` : labelHTML(p);
+  $("#lcount").textContent = !n ? "Set copies for the items you want stickers for." : roll ? `${n} label${n === 1 ? "" : "s"} on the roll, about ${Math.ceil(n * (store.get("labelPicture", false) ? 2.5 : .3))} sec to send`
+    : `${n} sticker${n === 1 ? "" : "s"} on ${Math.ceil(n / 40)} page${Math.ceil(n / 40) === 1 ? "" : "s"} (about 40 per page)`;
 }
 $("#lfilter").oninput = renderLabels;
 $("#llist").oninput = e => { labelCopies[e.target.dataset.id] = Math.max(0, +e.target.value || 0); renderLabelTotals(); };
@@ -1766,11 +1786,36 @@ $("#llist").onclick = e => {
 };
 $("#lstock").onclick = () => { shownLabels().forEach(p => labelCopies[p.id] = Math.max(p.stock, 0)); renderLabels(); };
 $("#lzero").onclick = () => { labelCopies = {}; renderLabels(); };
-$("#lprint").onclick = () => {
-  const html = S.products.flatMap(p => Array(labelCopies[p.id] || 0).fill(labelHTML(p))).join("");
-  if (!html) return toast("Set copies for at least one product", true);
-  printHTML([`<div class="labels">${html}</div>`]);
-};
+// One label on the 58 mm roll: name, price, barcode, code, with a gap to tear or peel. Picture mode draws the bars
+// here, for a printer that doesn't know the barcode command (slower: a few KB per label over Bluetooth).
+function barcodeBits(text) {
+  const codes = [104, ...[...text].map(c => c.charCodeAt(0) - 32)], check = codes.reduce((s, c, i) => s + c * (i || 1), 0) % 103;
+  const widths = [...codes, check, 106].map(c => C128[c]).join(""), mods = [...widths].reduce((n, w) => n + +w, 0), k = mods * 2 <= 376 ? 2 : 1;
+  const w = Math.ceil(mods * k / 8) * 8, h = 60, row = new Uint8Array(w / 8);
+  let x = Math.floor((w - mods * k) / 2);
+  [...widths].forEach((m, i) => { for (let d = 0; d < m * k; d++, x++) if (i % 2 === 0) row[x >> 3] |= 128 >> (x & 7); });
+  const bits = new Uint8Array(row.length * h);
+  for (let y = 0; y < h; y++) bits.set(row, y * row.length);
+  return {w, h, bits};
+}
+function labelBytes(list, picture) {
+  const t = ticket();
+  list.forEach(p => {
+    t.center(1); t.text(p.name); t.bold(1); t.line(peso(p.price)); t.bold(0);
+    if (picture) t.image(barcodeBits(p.barcode)); else t.barcode(p.barcode);
+    t.line(p.barcode); t.line(""); t.line("");
+  });
+  return t.end();
+}
+$("#lpic").onchange = e => { store.set("labelPicture", e.target.checked); renderLabelTotals(); };
+$("#lsetup").onclick = () => { document.querySelector('nav [data-tab="settings"]').click(); showSettingsPane("printer"); };
+const printLabels = run(async list => {
+  if (!list.length) return toast("Set copies for at least one product", true);
+  if (printerMethod() === "browser") return printHTML([`<div class="labels">${list.map(labelHTML).join("")}</div>`]);
+  await printTickets([labelBytes(list, store.get("labelPicture", false))], `${list.length} label${list.length === 1 ? "" : "s"} sent to the printer`);
+});
+$("#lprint").onclick = () => printLabels(S.products.flatMap(p => Array(labelCopies[p.id] || 0).fill(p)));
+$("#ltest").onclick = () => { const p = S.products.find(p => labelCopies[p.id] > 0) || shownLabels()[0]; printLabels(p ? [p] : []); };
 
 // ---------- reports ----------
 let lastReport = null, sellerRep = [];  // what Reports shows now (printing uses the same)
@@ -2600,6 +2645,7 @@ async function renderPrinter(refresh) {
   $("#kickRow").hidden = printerMethod() === "browser";  // a regular printer can't open a drawer
   $("#printerFind").hidden = $("#appPrinterBox").hidden = m !== "app";
   $("#printerHelp").textContent = PRINTER_HELP[m];
+  renderLabelTotals();  // the Labels page follows the printer chosen here
   if (m === "app" && window.nativePrinter && (refresh || !$("#appPrinter").options.length)) {
     const list = await nativePrinter.list(), cur = store.get("appPrinter", "");
     if (!cur && list.length === 1) store.set("appPrinter", list[0].id);
