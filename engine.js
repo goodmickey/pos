@@ -10,7 +10,7 @@ const TZ = "Asia/Manila";
 const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
   Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost"],  // cost: what the store paid per piece
-  Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at"],
+  Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at", "commission"],  // commission: % the store keeps of their sales
   Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason"],  // pay_via/epay: GCash, Maya...; refund_of: uid
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price", "cost"],  // cost at the time of the sale
   Alerts: ["product_id", "kind", "ref"],
@@ -18,12 +18,13 @@ const SHEETS = {
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
   Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
+  Payouts: ["uid", "ts", "seller_id", "name", "from_ts", "to_ts", "sales", "commission", "rent", "paid", "via", "note"],  // money settled with a renter
   Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note", "cost"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
 };
-const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted", "cost"]);
+const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted", "cost", "commission", "sales", "paid"]);
 const PAY_VIA = ["GCash", "Maya", "Bank / QR"];  // paid by phone: the exact amount, checked by its reference number
 const DATES = new Set(["expiry", "mfg_date", "notify_on", "rent_start", "renew_for"]);  // yyyy-MM-dd
-const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at"]);  // yyyy-MM-ddTHH:mm:ss
+const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at", "from_ts", "to_ts"]);  // yyyy-MM-ddTHH:mm:ss
 
 // ---------- web app entry ----------
 
@@ -78,6 +79,8 @@ const ROUTES = {
   "/api/sellers/delete": deleteSeller_,
   "/api/sellers/report": stockReport_,
   "/api/sellers/renew": renewSeller_,
+  "/api/payouts": payoutState_,
+  "/api/payout": payout_,
   "/api/sale": sale_,
   "/api/drawer": drawerMove_,
   "/api/drawer-state": drawerState_,
@@ -355,15 +358,19 @@ function saveSeller_(d) {
     low_stock: d.low_stock === "" || d.low_stock == null ? 5 : num_(d.low_stock, "Low-stock alert"),
     rent_start: d.rent_start || null,
   };
+  const commission = d.commission === undefined || d.commission === null || d.commission === "" ? 0 : num_(d.commission, "Commission");
+  if (commission < 0 || commission > 100) bad_("Commission must be from 0 to 100 percent");
   if (s.rent_start && !isDate_(s.rent_start)) bad_("Bad date: " + s.rent_start);
   if (!s.name) bad_("Name is required");
   if (s.email && s.email.indexOf("@") < 0) bad_("Email address looks wrong");
   const all = rows_("Sellers");
   const old = s.id && all.find(r => r.id === s.id);
   if (old) {  // the renter's renewal answer is kept (it is changed with renewSeller_ or their email link)
-    update_("Sellers", Object.assign(s, {_row: old._row, renew_answer: old.renew_answer, renew_for: old.renew_for, renew_at: old.renew_at}));
+    update_("Sellers", Object.assign(s, {_row: old._row, renew_answer: old.renew_answer, renew_for: old.renew_for, renew_at: old.renew_at,
+      commission: "commission" in d ? commission : old.commission}));
   } else {
     s.id = s.id || uniqueId_(all);
+    s.commission = commission;
     insert_("Sellers", s);
   }
   return {id: s.id};
@@ -603,7 +610,11 @@ function sellerReport_(q) {
     const mails = emails.filter(m => (m.seller_id ? m.seller_id === s.id : s.email && m.to_addr === s.email) && m.created >= from && m.created <= to)
       .map(m => ({created: m.created, sent: m.sent, subject: m.subject, error: m.error})).reverse();
     const pcs = lines.reduce((n, l) => n + l.qty, 0), amount = lines.reduce((n, l) => n + l.amount, 0), rent = s.rent || 0;
-    return {seller: strip_(s), summary: {pcs: pcs, amount: amount, rent: rent, payout: amount - rent}, products: shelf, sales: lines, emails: mails};
+    // Rent is monthly, so it is settled at each payout (see payoutState_), never taken from a period of any length here
+    const pct = s.commission || 0, commission = r2_(amount * pct / 100);
+    const paid = rows_("Payouts").filter(p => p.seller_id === s.id && p.ts >= from && p.ts <= to).reverse().map(strip_);
+    return {seller: strip_(s), summary: {pcs: pcs, amount: amount, rent: rent, pct: pct, commission: commission, payout: r2_(amount - commission)},
+            products: shelf, sales: lines, emails: mails, payouts: paid};
   });
 }
 
@@ -653,6 +664,7 @@ function pull_(q) {
     sales: batch.map(s => Object.assign(strip_(s), {items: items.filter(i => i.sale_id === s.id).map(strip_)})),
     drawer: rows_("Drawer").slice(-500).map(strip_),
     adjustments: rows_("Adjustments").slice(-2000).map(strip_),
+    payouts: rows_("Payouts").slice(-1000).map(strip_),
     more: newer.length > batch.length, quota: MailApp.getRemainingDailyQuota(),
   };
 }
@@ -800,6 +812,65 @@ function renewPage_(q) {
 }
 
 // The store records an answer itself (the renter replied by text or in person); "" clears it
+// ---------- renter payouts: sales since the last payout, minus commission, minus rent due since then ----------
+// ponytail: a sale synced late with a time before a payout falls outside it; only matters with several offline counters.
+function renterSales_(id, from, to) {
+  const ids = new Map(rows_("Sales").filter(s => s.ts > from && s.ts <= to).map(s => [s.id, s]));
+  return rows_("SaleItems").filter(i => i.seller_id === id && ids.has(i.sale_id));
+}
+
+function rentDates_(s, from, to) {  // the rent due dates after `from`, up to and including `to`
+  const out = [];
+  let d = s.rent ? nextDue_(s.rent_start, addDays_(from.slice(0, 10), 1)) : null;
+  while (d && d <= to.slice(0, 10) && out.length < 60) { out.push(d); d = nextDue_(s.rent_start, addDays_(d, 1)); }
+  return out;
+}
+
+function payoutState_(q) {
+  q = q || {};
+  const now = now_(), payouts = rows_("Payouts");
+  return rows_("Sellers").filter(s => !q.id || s.id === Number(q.id)).map(s => {
+    const mine = payouts.filter(p => p.seller_id === s.id).sort((a, b) => a.to_ts.localeCompare(b.to_ts)), last = mine[mine.length - 1];
+    // First payout: from the 1st of this month (older sales were settled by hand); the pop-up can change the date
+    const since = q.from ? q.from + "T00:00:00" : last ? last.to_ts : now.slice(0, 8) + "01T00:00:00";
+    const lines = renterSales_(s.id, since, now), sales = r2_(lines.reduce((n, i) => n + i.qty * i.price, 0));
+    const pct = s.commission || 0, commission = r2_(sales * pct / 100), dates = rentDates_(s, since, now), rent = r2_(dates.length * (s.rent || 0));
+    return {id: s.id, since: since, sales: sales, pcs: lines.reduce((n, i) => n + i.qty, 0), pct: pct, commission: commission,
+            rent: rent, rent_dates: dates, to_pay: r2_(sales - commission - rent), last: last ? strip_(last) : null};
+  });
+}
+
+function payout_(d) {
+  const uid = d.uid ? String(d.uid) : null, all = rows_("Payouts");
+  if (uid && all.some(p => p.uid === uid)) return {duplicate: true};  // a retry: already recorded
+  const s = rows_("Sellers").find(x => x.id === Number(d.id));
+  if (!s) bad_("Seller not found");
+  const via = String(d.via || "Cash");
+  if (via !== "Cash" && PAY_VIA.indexOf(via) < 0) bad_("Unknown payment: " + via);
+  const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
+  const from = String(d.from_ts || "");
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(from) || from > ts) bad_("Bad start date");
+  // The amounts the owner saw and agreed with the renter, so the device and Google keep the same record
+  const sales = r2_(num_(d.sales, "Sales")), commission = r2_(num_(d.commission, "Commission")), rent = r2_(num_(d.rent, "Rent"));
+  if (commission < 0 || rent < 0) bad_("Commission and rent cannot be negative");
+  const paid = r2_(sales - commission - rent), note = String(d.note || "").trim().slice(0, 200) || null;
+  const row = {uid: uid, ts: ts, seller_id: s.id, name: s.name, from_ts: from, to_ts: ts, sales: sales, commission: commission, rent: rent, paid: paid, via: via, note: note};
+  insert_("Payouts", row);
+  // Cash goes through the drawer when it is open; a renter who owes the store pays in
+  if (via === "Cash" && paid !== 0 && drawerState_().current) {
+    insert_("Drawer", {uid: uid ? uid + "-d" : null, ts: ts, kind: paid > 0 ? "out" : "in", amount: Math.abs(paid), note: "Renter payout: " + s.name});
+  }
+  if (s.email) {
+    const store = settings_().store_name || "Urdaneta Store", php = n => "PHP " + Number(n).toFixed(2);
+    queueEmail_(s.email, store + ": your payout statement, " + dateText_(ts.slice(0, 10)),
+      "Hi " + s.name + ",\n\nThis is " + store + ". Your statement from " + dateText_(from.slice(0, 10)) + " to " + dateText_(ts.slice(0, 10)) + ":\n\n" +
+      "  Sales: " + php(sales) + "\n  Commission: " + php(commission) + "\n  Shelf rent: " + php(rent) + "\n  " +
+      (paid >= 0 ? "Paid to you (" + via + "): " + php(paid) : "You paid the store (" + via + "): " + php(-paid)) + "\n" +
+      (note ? "\nNote: " + note + "\n" : "") + "\nThank you!\n" + store, s.id);
+  }
+  return strip_(row);
+}
+
 function renewSeller_(d) {
   const s = rows_("Sellers").find(r => r.id === Number(d.id));
   if (!s) bad_("Seller not found (was it deleted?)");

@@ -292,7 +292,10 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
-#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#adjForm{display:grid;gap:4px}#adjForm label{margin-top:8px}
+#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm{display:grid;gap:12px}
+.payrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line)}
+.payrow span{display:block;font-size:12px;color:var(--muted)}.payrow b{font-size:15px}.payrow button{flex:none;white-space:nowrap}
+#adjForm{display:grid;gap:4px}#adjForm label{margin-top:8px}
 .kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--line2)}
 .fsec{grid-column:1/-1;margin:10px 0 -4px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .fsec:first-of-type{margin-top:0}
@@ -729,6 +732,21 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
   </form>
 </dialog>
+<dialog id="poDlg" class="formdlg small">
+  <div class="dlghead"><h3 id="poTitle">Pay out</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="poForm">
+    <label>Sales from <input name="from" type="date" required></label>
+    <div class="cntsum">
+      <div class="sumrow"><span id="poSalesLabel">Sales</span><b id="poSales"></b></div>
+      <div class="sumrow"><span id="poComLabel">Commission</span><b id="poCom"></b></div>
+    </div>
+    <label><span id="poRentLabel">Shelf rent to take off (₱)</span><input name="rent" type="number" step="0.01" min="0" inputmode="decimal"></label>
+    <div class="cntsum"><div class="sumrow"><span id="poPayLabel">To pay the renter</span><b class="total" id="poPay"></b></div></div>
+    <label><span id="poViaLabel">Paid by</span><select name="via" id="poVia"></select></label>
+    <label>Note (optional)<input name="note" maxlength="200" placeholder="For example: November sales"></label>
+    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button value="save">Save</button><button class="primary" value="print">Save and print</button></div>
+  </form>
+</dialog>
 <dialog id="adjDlg" class="formdlg small">
   <div class="dlghead"><h3>Remove from stock</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
   <form id="adjForm">
@@ -753,6 +771,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
       <h4 class="fsec">Shelf and rent</h4>
       <label>Shelf no. <input name="shelf" placeholder="e.g. A3"></label>
       <label>Monthly rent (₱) <input name="rent" type="number" step="0.01" min="0"></label>
+      <label>Commission (%) <input name="commission" type="number" step="0.01" min="0" max="100" placeholder="0 = rent only"></label>
       <label>Rental started <input name="rent_start" type="date"></label>
       <p class="muted fhint" id="rentHint">Rent is due on this day every month. A few days before, the seller is emailed to ask if they renew.</p>
       <h4 class="fsec">Stock alerts</h4>
@@ -864,6 +883,7 @@ async function load() {
     if (s.settings.web_app_url !== API) await Local.call("/api/settings", {web_app_url: API});  // used in the rent reminder emails
     s.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
     s.drawer = await Local.call("/api/drawer-state");
+    s.payouts = await Local.call("/api/payouts");
     S = s;
   }
   renderAll();
@@ -1571,7 +1591,7 @@ function renderSellers() {
     return `<div class="scard"><div class="shead"><span class="pimg ini" style="background:${ownerColor(s.id, true)}">${esc((s.name.trim()[0] || "?").toUpperCase())}</span>
         <div><b>${esc(s.name)}</b>${s.shelf ? `<span class="badge">Shelf ${esc(s.shelf)}</span>` : ""}</div></div>
       <div class="contact"><span>${esc(s.phone) || "No phone"}</span><span>${s.email ? esc(s.email) : '<span class="warn">No email: no alerts can be sent</span>'}</span></div>
-      ${rentRow(s)}
+      ${rentRow(s)}${payRow(s)}
       <div class="nums"><div><span>Items</span><b>${items.length}</b></div><div><span>Pieces left</span><b>${items.reduce((n, p) => n + Math.max(p.stock, 0), 0)}</b></div><div><span>Rent</span><b>${peso(s.rent)}</b></div></div>
       <div class="acts">${expiring ? `<button class="badge low" data-items="${s.id}" data-f="soon">${expiring} expiring</button>` : low ? `<button class="badge low" data-items="${s.id}" data-f="low">${low} low: restock</button>` : '<span class="badge">All good</span>'}
         ${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
@@ -1579,7 +1599,7 @@ function renderSellers() {
 }
 function editSeller(s) {
   const f = $("#sform"); f.reset();
-  for (const k of ["id", "name", "email", "phone", "shelf", "rent", "rent_start", "low_stock"]) if (s) f[k].value = s[k] ?? "";
+  for (const k of ["id", "name", "email", "phone", "shelf", "rent", "commission", "rent_start", "low_stock"]) if (s) f[k].value = s[k] ?? "";
   $("#sformTitle").textContent = s ? "Edit seller" : "New seller (shelf renter)";
   $("#sdel").hidden = !s;
   if (!$("#sDlg").open) $("#sDlg").showModal();
@@ -1588,6 +1608,7 @@ function editSeller(s) {
 $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
+  if (b.dataset.payout) openPayout(S.sellers.find(s => s.id === +b.dataset.payout));
   if (b.dataset.renew) {  // the renter answered by text or in person
     await api("/api/sellers/renew", {id: b.dataset.renew, answer: b.dataset.a});
     toast(b.dataset.a === "yes" ? "Marked as renewing" : b.dataset.a === "no" ? "Marked as not renewing" : "Answer cleared"); await load();
@@ -1719,7 +1740,7 @@ const removedCard = rm => !rm || !rm.lines.length ? "" : `<div class="card"><h3>
   ${reportTable(["When", "Item", "Qty", "Value"], rm.lines.map(l => `<tr><td>${l.ts.slice(5, 16).replace("T", " ")}</td><td>${productLink(l.id, l.name)}<div class="muted">${esc(l.reason)}${l.owner !== "Store" ? " · " + esc(l.owner) : ""}${l.note ? " · " + esc(l.note) : ""}</div></td><td class="num">${l.qty}</td><td class="num">${peso(l.value)}</td></tr>`), "")}</details>
   <p class="muted" style="margin:8px 0 0">Value at the selling price${rm.by_reason.some(x => x.cost) ? "; cost is what the store paid" : ""}.</p></div>`;
 // One table style for the report cards and their printouts (number columns right-aligned)
-const reportTable = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount|Stock|Value|Sales|Profit/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
+const reportTable = (head, rows, empty) => `<table><thead><tr>${head.map(h => `<th class="${/Price|Sold|Earned|Left|Qty|Amount|Stock|Value|Sales|Profit|Commission|Rent|Paid$/.test(h) ? "num" : ""}">${h}</th>`).join("")}</tr></thead>
   <tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">${empty}</td></tr>`}</tbody></table>`;
 
 // ---------- products: stock, price and sales (all products, or one with each of its sales) ----------
@@ -1795,10 +1816,12 @@ const mailStatus = m => !m.sent ? "waiting to send" : m.error ? m.error : "sent"
 function renterHTML(r) {
   const s = r.seller, x = r.summary, tbl = reportTable;
   return `<div class="renter"><h3 style="margin:0">${esc(s.name)}${s.shelf ? ` · Shelf ${esc(s.shelf)}` : ""}</h3>
-    <div class="muted">${esc(s.email || "no email")}${s.phone ? " · " + esc(s.phone) : ""} · Rent ${peso(s.rent)} / month</div>
-    <div class="rsum"><div><span class="muted">Pieces sold</span><b>${x.pcs}</b></div><div><span class="muted">Sales earned</span><b>${peso(x.amount)}</b></div>
-      <div><span class="muted">Shelf rent</span><b>${peso(x.rent)}</b></div>
-      <div><span class="muted">${x.payout >= 0 ? "Payout after rent" : "Seller still owes (rent)"}</span><b class="${x.payout < 0 ? "bad" : ""}">${peso(Math.abs(x.payout))}</b></div></div>
+    <div class="muted">${esc(s.email || "no email")}${s.phone ? " · " + esc(s.phone) : ""} · Rent ${peso(s.rent)} / month, taken off at each payout</div>
+    <div class="rsum"><div><span class="muted">Pieces sold</span><b>${x.pcs}</b></div><div><span class="muted">Sales</span><b>${peso(x.amount)}</b></div>
+      <div><span class="muted">Commission ${x.pct}%</span><b>${peso(x.commission)}</b></div>
+      <div><span class="muted">Earned before rent</span><b>${peso(x.payout)}</b></div></div>
+    <h4>Payouts (${r.payouts.length})</h4>${tbl(["Date", "Sales", "Commission", "Rent", "Paid", "By", ""], r.payouts.map(p =>
+      `<tr><td>${when(p.ts)}${p.note ? `<div class="muted">${esc(p.note)}</div>` : ""}</td><td class="num">${peso(p.sales)}</td><td class="num">${peso(p.commission)}</td><td class="num">${peso(p.rent)}</td><td class="num">${peso(p.paid)}</td><td>${esc(p.via)}</td><td class="num"><button class="sm" data-slip="${esc(p.uid || "")}">Print</button></td></tr>`), "No payouts in these dates")}
     <h4>Products on the shelf</h4>${tbl(["Item", "Price", "Sold", "Earned", "Left", "Expiry"], r.products.map(p =>
       `<tr><td>${esc(p.name)}</td><td class="num">${peso(p.price)}</td><td class="num">${p.sold}</td><td class="num">${peso(p.amount)}</td><td class="num">${p.stock}</td><td>${esc(p.expiry || "")}</td></tr>`), "No products on the shelf")}
     <h4>Sales (${r.sales.length})</h4>${tbl(["Date & time", "Receipt #", "Item", "Qty", "Price", "Amount"], r.sales.map(l =>
@@ -1814,6 +1837,11 @@ function renderRenters() {
   $("#rsellers").innerHTML = chosenRenters().map(renterHTML).join("") || '<p class="muted">No shelf renters yet. Add them in Sellers & Shelves.</p>';
 }
 $("#rseller").onchange = renderRenters;
+$("#rsellers").onclick = e => {
+  const b = e.target.closest("[data-slip]"); if (!b) return;
+  const p = sellerRep.flatMap(r => r.payouts).find(x => x.uid === b.dataset.slip);
+  if (p) printPayout(p);
+};
 
 function renterBytes(r, period) {
   const t = ticket(), m = t.money, s = r.seller, x = r.summary;
@@ -1823,8 +1851,9 @@ function renterBytes(r, period) {
   t.bold(1); t.text(s.name + (s.shelf ? ` - Shelf ${s.shelf}` : "")); t.bold(0);
   if (s.phone) t.line(s.phone);
   t.rule();
-  t.lr("Pieces sold", String(x.pcs)); t.lr("Sales earned", m(x.amount)); t.lr("Shelf rent", m(x.rent));
-  t.bold(1); t.lr(x.payout >= 0 ? "PAYOUT" : "SELLER OWES", m(Math.abs(x.payout))); t.bold(0);
+  t.lr("Pieces sold", String(x.pcs)); t.lr("Sales", m(x.amount)); t.lr(`Commission ${x.pct}%`, m(x.commission));
+  t.bold(1); t.lr("EARNED BEFORE RENT", m(x.payout)); t.bold(0);
+  r.payouts.forEach(p => t.lr(`Paid ${String(p.ts).slice(0, 10)}`, m(p.paid)));
   t.rule(); t.bold(1); t.line("PRODUCTS"); t.bold(0);
   r.products.forEach(p => { t.text(p.name); t.lr(`  sold ${p.sold}, left ${p.stock}`, m(p.amount)); });
   if (!r.products.length) t.line("  None");
@@ -1946,6 +1975,68 @@ $("#rfForm").onsubmit = run(async e => {
   // Show the refund slip, ready to print for the customer
   viewing = history.find(x => x.uid === uid);
   if (viewing) showSale();
+});
+
+// ---------- renter payouts: what the store owes since the last payout (the engine does the sums: payoutState_) ----------
+const payOf = s => (S.payouts || []).find(p => p.id === s.id);
+function payRow(s) {
+  const p = payOf(s); if (!p) return "";
+  return `<div class="payrow"><div><span>${p.to_pay < 0 ? "Renter owes the store" : "To pay"} · since ${esc(dayText(p.since.slice(0, 10)))}</span><b class="${p.to_pay < 0 ? "bad" : ""}">${peso(Math.abs(p.to_pay))}</b></div>
+    <button class="sm" data-payout="${s.id}">Pay out</button></div>`;
+}
+let paying_ = null, payState = null;  // the renter in the pop-up, and their sums for the dates chosen
+const payTotal = () => r2(payState.sales - payState.commission - (parseFloat($("#poForm").rent.value) || 0));
+function renderPayout() {
+  const p = payState, t = payTotal();
+  $("#poSalesLabel").textContent = `Sales (${p.pcs} pcs)`; $("#poSales").textContent = peso(p.sales);
+  $("#poComLabel").textContent = `Commission ${p.pct}%`; $("#poCom").textContent = "−" + peso(p.commission);
+  $("#poRentLabel").textContent = `Shelf rent to take off (₱)${p.rent_dates.length ? `: due ${p.rent_dates.join(", ")}` : ""}`;
+  $("#poPayLabel").textContent = t < 0 ? "Renter pays the store" : "To pay the renter";
+  $("#poPay").textContent = peso(Math.abs(t)); $("#poPay").className = "total" + (t < 0 ? " bad" : "");
+  $("#poViaLabel").textContent = t < 0 ? "Received by" : "Paid by";
+}
+const openPayout = run(async s => {
+  paying_ = s; payState = payOf(s);
+  const f = $("#poForm"); f.reset();
+  $("#poTitle").textContent = `Pay out ${s.name}`;
+  f.from.value = payState.since.slice(0, 10); f.rent.value = payState.rent || "";
+  $("#poVia").innerHTML = `<option value="Cash">Cash${S.drawer?.current ? " from the drawer" : ""}</option>` + PAY_VIA.map(v => `<option>${esc(v)}</option>`).join("");
+  renderPayout(); $("#poDlg").showModal();
+});
+$("#poForm").rent.oninput = renderPayout;
+$("#poForm").from.onchange = run(async e => {
+  if (!e.target.value) return;
+  payState = (await api("/api/payouts", {id: paying_.id, from: e.target.value}))[0];
+  $("#poForm").rent.value = payState.rent || ""; renderPayout();
+});
+$("#poForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const f = e.target, p = payState;
+  const r = await api("/api/payout", {uid: newUid(), ts: localTime(), id: paying_.id, from_ts: p.since, sales: p.sales, commission: p.commission, rent: parseFloat(f.rent.value) || 0, via: f.via.value, note: f.note.value});
+  $("#poDlg").close(); await load();
+  toast(`${paying_.name}: ${r.paid < 0 ? "received " + peso(-r.paid) : "paid " + peso(r.paid)} by ${r.via}`);
+  if (e.submitter?.value === "print") printPayout(r);
+});
+function payoutBytes(p) {
+  const t = ticket(), m = t.money, s = S.sellers.find(x => x.id === p.seller_id);
+  storeHeader(t);
+  t.bold(1); t.line("RENTER PAYOUT"); t.bold(0);
+  t.center(0); t.bold(1); t.text(p.name + (s && s.shelf ? ` - Shelf ${s.shelf}` : "")); t.bold(0);
+  t.lr("From", when(p.from_ts)); t.lr("To", when(p.to_ts)); t.rule();
+  t.lr("Sales", m(p.sales)); t.lr("Commission", m(-p.commission)); t.lr("Shelf rent", m(-p.rent));
+  t.bold(1); t.lr(p.paid < 0 ? "RENTER PAID STORE" : "PAID TO RENTER", m(Math.abs(p.paid))); t.bold(0);
+  t.lr("By", p.via);
+  if (p.note) t.text("Note: " + p.note);
+  t.rule(); t.line(""); t.line("Received by: _____________");
+  return t.end();
+}
+const printPayout = run(async p => {
+  if (await printTickets([payoutBytes(p)], "Payout slip printed")) return;
+  const row = (k, v) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`;
+  printHTML([`<div class="report"><h2>${esc(storeName())}: Renter payout</h2><p><b>${esc(p.name)}</b> · ${when(p.from_ts)} to ${when(p.to_ts)}</p><table>
+    ${row("Sales", peso(p.sales))}${row("Commission", peso(-p.commission))}${row("Shelf rent", peso(-p.rent))}
+    ${row(`<b>${p.paid < 0 ? "Renter paid store" : "Paid to renter"}</b>`, `<b>${peso(Math.abs(p.paid))}</b>`)}${row("By", esc(p.via))}</table>
+    ${p.note ? `<p>Note: ${esc(p.note)}</p>` : ""}<p style="margin-top:40px">Received by: ____________________</p></div>`]);
 });
 
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
