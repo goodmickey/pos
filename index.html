@@ -294,6 +294,9 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .restock.need{background:var(--strong);color:var(--onstrong)}
 #pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm{display:grid;gap:12px}
 #rcptPick{margin-top:12px}
+.logobtn{flex-direction:row;align-items:center;font-size:14px;font-weight:500;color:var(--ink);min-height:40px;padding:8px 16px;border-radius:18px;background:var(--chip);cursor:pointer}
+.logobtn:hover{background:var(--chip2)}
+.paper img{image-rendering:pixelated;max-width:100%}
 .paperwrap{display:flex;justify-content:center;padding:20px 12px;margin:14px 0;border-radius:12px;background:var(--chip);overflow-x:auto}
 /* 58 mm paper: always black on white, whatever the theme */
 .paper{flex:none;width:calc(32ch + 32px);padding:16px;background:#fff;color:#000;font:13px/1.35 ui-monospace,Menlo,Consolas,"Roboto Mono",monospace;font-variant-numeric:normal;box-shadow:0 2px 10px rgba(0,0,0,.25)}
@@ -627,6 +630,8 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
       <div class="card setpane" id="st-receipt">
         <h3>Receipt preview</h3>
         <p class="muted sethint">How a receipt comes out of this device's printer. The store name, address, phone and thank-you message come from Settings → Store.</p>
+        <div class="setrow"><div><b>Business logo</b><small id="rcptLogoInfo">Printed at the top of every receipt</small></div>
+          <div class="ctl"><label class="btn logobtn">Upload logo<input type="file" id="rcptLogoFile" accept="image/*" hidden></label><button class="danger" id="rcptLogoDel" hidden>Remove</button></div></div>
         <div class="chips" id="rcptPick"></div>
         <div class="paperwrap"><div class="paper" id="rcptPaper"></div></div>
         <div class="setfoot"><button class="sm" id="rcptStore">Edit store details</button><span style="flex:1"></span><button id="rcptPrint">Print this sample</button></div>
@@ -1239,6 +1244,22 @@ $("#pay").onclick = pay;
 $("#clear").onclick = () => { cart = []; resetPayment(); renderCart(); $("#scan").focus(); };
 
 const storeName = () => S.settings.store_name || "Urdaneta Store";
+// The receipt logo, saved as "width,height,base64 of 1-bit rows"
+function receiptLogo() {
+  const m = /^(\d+),(\d+),(.+)$/.exec(S.settings.receipt_logo || ""); if (!m) return null;
+  try { return {w: +m[1], h: +m[2], bits: Uint8Array.from(atob(m[3]), c => c.charCodeAt(0))}; } catch { return null; }
+}
+function logoURL(l) {  // for the screen and regular printers
+  const c = document.createElement("canvas"), g = c.getContext("2d"), wb = l.w / 8;
+  c.width = l.w; c.height = l.h;
+  const d = g.createImageData(l.w, l.h);
+  for (let i = 0; i < l.w * l.h; i++) {
+    const on = l.bits[Math.floor(i / l.w) * wb + ((i % l.w) >> 3)] & (128 >> (i % l.w & 7)), v = on ? 0 : 255;
+    d.data.set([v, v, v, 255], i * 4);
+  }
+  g.putImageData(d, 0, 0);
+  return c.toDataURL("image/png");
+}
 // Receipt printer chosen: send it the ticket(s) and return true. Regular printer chosen: return false (caller prints HTML).
 async function printTickets(parts, done) {
   const method = printerMethod();
@@ -1258,7 +1279,8 @@ async function printReceipt(sale, copies = 1) {
 
 function receiptHTML(s, label) {
   const st = S.settings;
-  return `<div class="receipt"><div style="text-align:center"><b>${esc(storeName())}</b><br>
+  const logo = receiptLogo();
+  return `<div class="receipt"><div style="text-align:center">${logo ? `<img src="${logoURL(logo)}" alt="" style="width:${Math.round(logo.w / 384 * 100)}%;display:block;margin:0 auto 4px;image-rendering:pixelated">` : ""}<b>${esc(storeName())}</b><br>
     ${st.receipt_address ? esc(st.receipt_address) + "<br>" : ""}${st.receipt_phone ? esc(st.receipt_phone) + "<br>" : ""}
     ${s.ts.replace("T", " ")} · #${s.id}${s.refund_of ? "<br><b>*** REFUND ***</b>" : ""}${label ? `<br><b>*** ${label} ***</b>` : ""}</div><hr><table style="width:100%">
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
@@ -1289,6 +1311,7 @@ function ticket() {
     text: v => wrap(v).forEach(t.line),
     lr: (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; t.line(gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r); },
     rule: () => t.line("-".repeat(W)),
+    image: l => { const w = Math.ceil(l.w / 8); out.push(0x1d, 0x76, 0x30, 0, w & 255, w >> 8, l.h & 255, l.h >> 8); for (const b of l.bits) out.push(b); out.push(10); },  // GS v 0
     bold: on => out.push(ESC, 0x45, on ? 1 : 0),
     center: on => out.push(ESC, 0x61, on ? 1 : 0),
     end: () => { t.center(0); t.line(""); t.line(""); t.line(""); return new Uint8Array(out); },  // feed past the tear bar
@@ -1304,7 +1327,8 @@ function storeHeader(t) {
 }
 
 function receiptBytes(s, label = "") {
-  const t = ticket(), m = t.money;
+  const t = ticket(), m = t.money, logo = receiptLogo();
+  if (logo) { t.center(1); t.image(logo); }
   storeHeader(t);
   t.line(`${String(s.ts).replace("T", " ").slice(0, 16)}  #${s.id}`);
   if (s.refund_of) { t.bold(1); t.line("*** REFUND ***"); t.bold(0); }
@@ -2085,6 +2109,11 @@ function bytesToPaper(bytes) {  // reads the printer commands the POS uses: rese
       if (k === "@") { flushRun(); bold = center = false; }
       else if (k === "E") { flushRun(); bold = !!bytes[++i]; }
       else if (k === "a") center = !!bytes[++i];
+    } else if (c === 0x1d && bytes[i + 1] === 0x76) {
+      const wb = bytes[i + 4] + bytes[i + 5] * 256, h = bytes[i + 6] + bytes[i + 7] * 256, bits = bytes.slice(i + 8, i + 8 + wb * h);
+      flushRun();
+      line += `<img src="${logoURL({w: wb * 8, h, bits})}" alt="" style="width:${(wb * 8 / 384 * 32).toFixed(1)}ch">`;
+      i += 7 + wb * h;
     } else if (c === 10) {
       flushRun();
       html += `<div class="pl"${center ? ' style="text-align:center"' : ""}>${line}</div>`;
@@ -2095,6 +2124,9 @@ function bytesToPaper(bytes) {  // reads the printer commands the POS uses: rese
 }
 function renderReceiptPreview() {
   $("#rcptPick").innerHTML = Object.keys(RCPT_SAMPLES).map(k => `<button data-s="${esc(k)}" aria-pressed="${k === rcptSample}">${esc(k)}</button>`).join("");
+  const has = !!receiptLogo();
+  $("#rcptLogoDel").hidden = !has;
+  $("#rcptLogoInfo").textContent = has ? "Printed at the top of every receipt, in black and white" : "Printed at the top of every receipt. A simple dark logo on white prints best.";
   const sale = sampleReceipt(rcptSample), page = printerMethod() === "browser", p = $("#rcptPaper");
   p.classList.toggle("page", page);
   p.innerHTML = page ? receiptHTML(sale, "") : bytesToPaper(receiptBytes(sale));
@@ -2102,6 +2134,32 @@ function renderReceiptPreview() {
 $("#rcptPick").onclick = e => { const b = e.target.closest("button"); if (b) { rcptSample = b.dataset.s; renderReceiptPreview(); } };
 $("#rcptPrint").onclick = () => printReceipt(sampleReceipt(rcptSample));
 $("#rcptStore").onclick = () => showSettingsPane("store");
+// The logo: at most 30 x 15 mm, black and white dots as the printer needs (dithered, so shades still show)
+const LOGO_W = 240, LOGO_H = 120;
+async function logoBits(file) {
+  const img = await createImageBitmap(file), k = Math.min(LOGO_W / img.width, LOGO_H / img.height, 1);
+  const c = document.createElement("canvas"), w = Math.ceil(Math.max(8, img.width * k) / 8) * 8, h = Math.max(1, Math.round(img.height * k));
+  c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, w, h);
+  g.drawImage(img, (w - img.width * k) / 2, 0, img.width * k, h);
+  const px = g.getImageData(0, 0, w, h).data, gray = new Float32Array(w * h), bits = new Uint8Array(w / 8 * h);
+  for (let i = 0; i < w * h; i++) gray[i] = .299 * px[i * 4] + .587 * px[i * 4 + 1] + .114 * px[i * 4 + 2];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {  // Floyd-Steinberg
+    const i = y * w + x, v = gray[i], black = v < 128, e = v - (black ? 0 : 255);
+    if (black) bits[y * (w / 8) + (x >> 3)] |= 128 >> (x & 7);
+    if (x + 1 < w) gray[i + 1] += e * 7 / 16;
+    if (y + 1 < h) { if (x) gray[i + w - 1] += e * 3 / 16; gray[i + w] += e * 5 / 16; if (x + 1 < w) gray[i + w + 1] += e / 16; }
+  }
+  return `${w},${h},${btoa(String.fromCharCode(...bits))}`;
+}
+$("#rcptLogoFile").onchange = run(async e => {
+  const file = e.target.files[0]; e.target.value = "";
+  if (!file) return;
+  const logo = await logoBits(file).catch(() => { throw new Error("Couldn't read that picture. Try another one."); });
+  await api("/api/settings", {receipt_logo: logo}); await load(); toast("Logo saved");
+});
+$("#rcptLogoDel").onclick = run(async () => { await api("/api/settings", {receipt_logo: ""}); await load(); toast("Logo removed"); });
 
 // ---------- text messages: Google queues them, the one tablet with the SIM sends them after each sync ----------
 let texting = false;

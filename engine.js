@@ -941,9 +941,10 @@ function testEmail_() {
 
 // ---------- settings / state ----------
 
-const PUBLIC_SETTINGS = ["store_name", "smtp_from", "receipt_address", "receipt_phone", "receipt_footer", "rent_notice_days", "web_app_url"];
+const PUBLIC_SETTINGS = ["store_name", "smtp_from", "receipt_address", "receipt_phone", "receipt_footer", "rent_notice_days", "web_app_url", "receipt_logo"];  // receipt_logo: "width,height,base64" 1-bit picture
 
 function saveSettings_(d) {
+  if (String(d.receipt_logo || "").length > 20000) bad_("The logo is too big");  // a Sheet cell holds 50,000 characters
   PUBLIC_SETTINGS.forEach(k => { if (k in d) setSetting_(k, String(d[k] || "").trim()); });
 }
 
