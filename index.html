@@ -281,6 +281,8 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 #lpreview{background:#fff;border-radius:8px;padding:14px;display:flex;justify-content:center;border:1px solid var(--line)}
 #lpreview .label{width:180px;border-style:solid}
 .lhow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px}.lhow>div{flex:1;min-width:220px}.lhow b{display:block;font-weight:500}.lhow small{color:var(--muted);font-size:13px}
+.lsize{flex-direction:row;align-items:center;gap:8px;white-space:nowrap}.lsize select{width:auto;min-height:36px;padding:4px 8px}
+#lpreview .labels{display:block;margin:0 auto;border-radius:0}#lpreview .labels.large{width:48mm}#lpreview .labels.small{width:36mm}#lpreview .labels.tiny{width:30mm}#lpreview .labels .label{width:auto}
 #lpreview .paper{width:100%;padding:8px 4px;font-size:9.5px;box-shadow:none}
 .copies{display:inline-flex;align-items:center;gap:2px;border-radius:18px;background:var(--chip)}
 .copies button{background:none;min-height:32px;min-width:32px;padding:0;border-radius:50%;font-size:16px}
@@ -430,6 +432,10 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 .label{border:1px dashed #aaa;padding:2mm;text-align:center;font:9pt Arial,sans-serif;break-inside:avoid;color:#000}
 .label b{display:block;font-size:13pt}
 .label svg{width:100%;height:13mm;display:block}
+/* regular printer sizes: "large" is the default above */
+.labels.small{grid-template-columns:repeat(5,1fr);gap:2mm}.labels.small .label{padding:1mm;font-size:7pt;line-height:1.15}.labels.small .label b{font-size:10pt}.labels.small svg{height:9mm}
+.labels.tiny{grid-template-columns:repeat(6,1fr);gap:1.5mm}.labels.tiny .label{padding:.8mm;font-size:6pt;line-height:1.1}.labels.tiny .label b{font-size:8pt}.labels.tiny svg{height:7mm}
+.labels.small .label,.labels.tiny .label{overflow:hidden}
 .receipt{width:58mm;font:11px/1.35 ui-monospace,monospace}
 .receipt td{border:0;padding:0}
 .report{font:12px/1.4 Arial,sans-serif;color:#000}
@@ -546,6 +552,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
   <div class="pagehead rhead"><div><h2>Barcode Labels</h2><p>Price and barcode stickers. Any barcode scanner reads them.</p></div>
     <div class="row"><button id="ltest">Print 1 test label</button><button class="primary" id="lprint">Print labels</button></div></div>
   <div class="card lhow"><div><b id="lhowTitle"></b><small id="lhowText"></small></div>
+    <label class="lsize" id="lsizeRow">Label size<select id="lsize"></select></label>
     <label class="check" id="lpicRow"><input type="checkbox" id="lpic"><span>Print barcode as a picture <span class="muted">(if no barcode comes out)</span></span></label>
     <button class="sm" id="lsetup">Printer settings</button></div>
   <div class="lwrap">
@@ -1770,12 +1777,16 @@ function renderLabelTotals() {
   $("#lprint").textContent = n ? `Print ${n} label${n === 1 ? "" : "s"}` : "Print labels";
   const p = S.products.find(p => labelCopies[p.id] > 0) || shownLabels()[0];
   const roll = printerMethod() !== "browser";
+  const size = labelSize(), L = LABEL_SIZES[size];
   $("#lhowTitle").textContent = roll ? "Printing on the receipt printer" : "Printing on a regular printer";
-  $("#lhowText").textContent = roll ? "One label after another on the 58 mm roll, sticker paper or plain." : "4 labels per row on A4 or Letter sticker paper, through the Print window.";
+  $("#lhowText").textContent = roll ? "One label after another on the 58 mm roll, sticker paper or plain." : `${L.row} labels per row on A4 or Letter paper, through the Print window. Print at 100% scale.`;
   $("#lpicRow").hidden = !roll; $("#lpic").checked = store.get("labelPicture", false);
-  $("#lpreview").innerHTML = !p ? '<span class="muted">No products yet</span>' : roll ? `<div class="paper">${bytesToPaper(labelBytes([p], true))}</div>` : labelHTML(p);
+  $("#lsizeRow").hidden = roll;
+  if (!$("#lsize").options.length) $("#lsize").innerHTML = Object.entries(LABEL_SIZES).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join("");
+  $("#lsize").value = size;
+  $("#lpreview").innerHTML = !p ? '<span class="muted">No products yet</span>' : roll ? `<div class="paper">${bytesToPaper(labelBytes([p], true))}</div>` : `<div class="labels ${size}">${labelHTML(p)}</div>`;
   $("#lcount").textContent = !n ? "Set copies for the items you want stickers for." : roll ? `${n} label${n === 1 ? "" : "s"} on the roll, about ${Math.ceil(n * (store.get("labelPicture", false) ? 2.5 : .3))} sec to send`
-    : `${n} sticker${n === 1 ? "" : "s"} on ${Math.ceil(n / 40)} page${Math.ceil(n / 40) === 1 ? "" : "s"} (about 40 per page)`;
+    : `${n} sticker${n === 1 ? "" : "s"} on ${Math.ceil(n / L.page)} page${Math.ceil(n / L.page) === 1 ? "" : "s"} (about ${L.page} per page)`;
 }
 $("#lfilter").oninput = renderLabels;
 $("#llist").oninput = e => { labelCopies[e.target.dataset.id] = Math.max(0, +e.target.value || 0); renderLabelTotals(); };
@@ -1788,6 +1799,9 @@ $("#lstock").onclick = () => { shownLabels().forEach(p => labelCopies[p.id] = Ma
 $("#lzero").onclick = () => { labelCopies = {}; renderLabels(); };
 // One label on the 58 mm roll: name, price, barcode, code, with a gap to tear or peel. Picture mode draws the bars
 // here, for a printer that doesn't know the barcode command (slower: a few KB per label over Bluetooth).
+// Regular printer: label sizes. Bars get thinner with the label, so Extra small suits short in-store codes best.
+const LABEL_SIZES = {small: {name: "Small, 5 per row", row: 5, page: 50}, tiny: {name: "Extra small, 6 per row", row: 6, page: 78}, large: {name: "Large, 4 per row", row: 4, page: 28}};
+const labelSize = () => { const k = store.get("labelSize", "small"); return k in LABEL_SIZES ? k : "small"; };
 function barcodeBits(text) {
   const codes = [104, ...[...text].map(c => c.charCodeAt(0) - 32)], check = codes.reduce((s, c, i) => s + c * (i || 1), 0) % 103;
   const widths = [...codes, check, 106].map(c => C128[c]).join(""), mods = [...widths].reduce((n, w) => n + +w, 0), k = mods * 2 <= 376 ? 2 : 1;
@@ -1807,11 +1821,12 @@ function labelBytes(list, picture) {
   });
   return t.end();
 }
+$("#lsize").onchange = e => { store.set("labelSize", e.target.value); renderLabelTotals(); };
 $("#lpic").onchange = e => { store.set("labelPicture", e.target.checked); renderLabelTotals(); };
 $("#lsetup").onclick = () => { document.querySelector('nav [data-tab="settings"]').click(); showSettingsPane("printer"); };
 const printLabels = run(async list => {
   if (!list.length) return toast("Set copies for at least one product", true);
-  if (printerMethod() === "browser") return printHTML([`<div class="labels">${list.map(labelHTML).join("")}</div>`]);
+  if (printerMethod() === "browser") return printHTML([`<div class="labels ${labelSize()}">${list.map(labelHTML).join("")}</div>`]);
   await printTickets([labelBytes(list, store.get("labelPicture", false))], `${list.length} label${list.length === 1 ? "" : "s"} sent to the printer`);
 });
 $("#lprint").onclick = () => printLabels(S.products.flatMap(p => Array(labelCopies[p.id] || 0).fill(p)));
