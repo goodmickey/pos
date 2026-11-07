@@ -299,6 +299,7 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
 #pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm,#sinForm{display:grid;gap:12px}
+.delyes{background:var(--alert);color:#fff}.delyes:hover{background:var(--alert);opacity:.85}
 .sinbig{display:flex;align-items:center;justify-content:center;gap:20px;padding:8px 0}
 .sinbig>div{text-align:center;min-width:130px}.sinbig b{display:block;font-size:56px;line-height:1.1;font-weight:700}.sinbig span{font-size:13px;color:var(--muted)}
 .sinbig button{width:56px;height:56px;padding:0;border-radius:50%;font-size:26px;flex:none}
@@ -821,6 +822,11 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <p class="muted" style="margin:8px 0 0">For perishables, set the date printed on the new pieces. Leave it if it hasn't changed.</p>
     <div class="dlgfoot"><button type="button" id="rsScan">Scan pieces instead</button><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
   </form>
+</dialog>
+<dialog id="delDlg">
+  <h3 id="delTitle" style="margin:0 0 8px"></h3>
+  <ul id="delList" style="margin:0 0 16px;padding-left:20px;display:grid;gap:6px;font-size:14px"></ul>
+  <div class="row" style="justify-content:flex-end"><button id="delNo">Cancel</button><button class="delyes" id="delYes">Yes, delete</button></div>
 </dialog>
 <dialog id="txDlg" class="formdlg small">
   <div class="dlghead"><h3 id="txTitle">Text status</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
@@ -1741,7 +1747,7 @@ function renderSellers() {
       ${rentRow(s)}${payRow(s)}
       <div class="nums"><div><span>Items</span><b>${items.length}</b></div><div><span>Pieces left</span><b>${items.reduce((n, p) => n + Math.max(p.stock, 0), 0)}</b></div><div><span>Rent</span><b>${peso(s.rent)}</b></div></div>
       <div class="acts">${expiring ? `<button class="badge low" data-items="${s.id}" data-f="soon">${expiring} expiring</button>` : low ? `<button class="badge low" data-items="${s.id}" data-f="low">${low} low: restock</button>` : '<span class="badge">All good</span>'}
-        <button class="sm" data-text="${s.id}">Text status</button>${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button></div></div>`;
+        <button class="sm" data-text="${s.id}">Text status</button>${s.email ? `<button class="sm" data-report="${s.id}">Email stock</button>` : ""}<button class="sm" data-edit="${s.id}">Edit</button><button class="sm danger" data-del="${s.id}">Delete</button></div></div>`;
   }).join("") || `<div class="card muted">No shelf renters yet. Tap New seller to add the people renting your shelves.</div>`;
 }
 function editSeller(s) {
@@ -1755,6 +1761,7 @@ function editSeller(s) {
 $("#slist").onclick = run(async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.edit) editSeller(S.sellers.find(s => s.id === +b.dataset.edit));
+  if (b.dataset.del) askDeleteSeller(S.sellers.find(s => s.id === +b.dataset.del));
   if (b.dataset.payout) openPayout(S.sellers.find(s => s.id === +b.dataset.payout));
   if (b.dataset.text) await openStatusText(S.sellers.find(s => s.id === +b.dataset.text));
   if (b.dataset.renew) {  // the renter answered by text or in person
@@ -1773,9 +1780,25 @@ $("#sform").onsubmit = run(async e => {
   toast("Seller saved"); $("#sDlg").close(); await load();
 });
 $("#snew").onclick = () => editSeller(null);
-$("#sdel").onclick = run(async () => {
-  const f = $("#sform"); if (!f.id.value || !confirm(`Delete ${f.name.value}?`)) return;
-  await api("/api/sellers/delete", {id: f.id.value}); $("#sDlg").close(); await load();
+$("#sdel").onclick = () => { const s = S.sellers.find(x => x.id === +$("#sform").id.value); if (s) { $("#sDlg").close(); askDeleteSeller(s); } };
+// "Are you sure?": what goes with the seller, and what stays
+let deleting = null;
+function askDeleteSeller(s) {
+  deleting = s;
+  const items = S.products.filter(p => p.seller_id === s.id), pcs = items.reduce((n, p) => n + Math.max(p.stock, 0), 0), owed = payOf(s)?.to_pay || 0;
+  $("#delTitle").textContent = `Delete ${s.name}?`;
+  $("#delList").innerHTML = [
+    items.length ? `<b>${items.length} product${items.length === 1 ? "" : "s"} (${pcs} piece${pcs === 1 ? "" : "s"} in stock)</b> will be deleted too.` : "They have no products.",
+    ...(owed > 0 ? [`<span class="bad">You still owe them ${peso(owed)}.</span> Pay them out first if you haven't.`] : owed < 0 ? [`<span class="bad">They still owe the store ${peso(-owed)}.</span>`] : []),
+    "Their past sales and payouts stay in Reports under their name.",
+    "This can't be undone.",
+  ].map(l => `<li>${l}</li>`).join("");
+  $("#delDlg").showModal();
+}
+$("#delNo").onclick = () => $("#delDlg").close();
+$("#delYes").onclick = run(async () => {
+  await api("/api/sellers/delete", {id: deleting.id}); $("#delDlg").close();
+  toast(`${deleting.name} deleted`); await load();
 });
 
 // ---------- labels ----------

@@ -10,7 +10,7 @@ const TZ = "Asia/Manila";
 const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
   Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost"],  // cost: what the store paid per piece
-  Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at", "commission"],  // commission: % the store keeps of their sales
+  Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at", "commission", "deleted"],  // commission: % the store keeps of their sales
   Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason"],  // pay_via/epay: GCash, Maya...; refund_of: uid
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price", "cost"],  // cost at the time of the sale
   Alerts: ["product_id", "kind", "ref"],
@@ -25,7 +25,7 @@ const SHEETS = {
 const NUMERIC = new Set(["id", "price", "stock", "seller_id", "rent", "low_stock", "total", "cash", "epay", "sale_id", "product_id", "qty", "amount", "expected", "counted", "cost", "commission", "sales", "paid"]);
 const PAY_VIA = ["GCash", "Maya", "Bank / QR"];  // paid by phone: the exact amount, checked by its reference number
 const DATES = new Set(["expiry", "mfg_date", "notify_on", "rent_start", "renew_for"]);  // yyyy-MM-dd
-const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at", "from_ts", "to_ts"]);  // yyyy-MM-ddTHH:mm:ss
+const TIMES = new Set(["ts", "created", "sent", "photo_at", "renew_at", "from_ts", "to_ts", "deleted"]);  // yyyy-MM-ddTHH:mm:ss
 
 // ---------- web app entry ----------
 
@@ -319,7 +319,7 @@ function adjust_(d) {
 function removed_(from, to, sellers) {
   const lines = rows_("Adjustments").filter(a => a.ts >= from && a.ts <= to).sort((a, b) => b.ts.localeCompare(a.ts)).map(a => {
     const s = sellers.find(x => x.id === a.seller_id);
-    return {ts: a.ts, id: a.product_id, name: a.name, owner: s ? s.name : "Store", qty: -a.qty, reason: a.reason, note: a.note, value: r2_(-a.qty * a.price),
+    return {ts: a.ts, id: a.product_id, name: a.name, owner: s ? sellerName_(s) : "Store", qty: -a.qty, reason: a.reason, note: a.note, value: r2_(-a.qty * a.price),
             cost: a.cost === null || a.cost === undefined ? null : r2_(-a.qty * a.cost)};
   });
   const m = {};
@@ -382,11 +382,16 @@ function saveSeller_(d) {
   return {id: s.id};
 }
 
+// A deleted seller leaves the POS with their products, but their row stays (marked deleted): past sales and payouts
+// keep their name in Reports instead of turning into the store's own sales.
+const liveSellers_ = () => rows_("Sellers").filter(s => !s.deleted);
+const sellerName_ = s => s.deleted ? s.name + " (deleted)" : s.name;
 function deleteSeller_(d) {
-  if (rows_("Products").some(p => p.seller_id === Number(d.id))) {
-    bad_("Seller still has products on the shelf. Remove or reassign them first.");
-  }
-  removeById_("Sellers", d.id);
+  const id = Number(d.id), s = rows_("Sellers").find(x => x.id === id);
+  if (!s || s.deleted) return;  // a retry: already done
+  rows_("Products").filter(p => p.seller_id === id).reverse().forEach(p => deleteProduct_({id: p.id}));
+  update_("Sellers", Object.assign(s, {deleted: now_()}));
+  rows_("Texts").filter(t => t.seller_id === id && !t.sent && !t.error).forEach(t => update_("Texts", Object.assign(t, {error: "Seller deleted"})));
 }
 
 // ---------- selling ----------
@@ -484,7 +489,7 @@ function report_(q) {
     removed: removed_(from, to, sellers),
     by_owner: group(i => i.seller_id || 0, i => {
       const s = sellers.find(x => x.id === i.seller_id);
-      return {owner: s ? s.name : "Store", shelf: s ? s.shelf : null};
+      return {owner: s ? sellerName_(s) : "Store", shelf: s ? s.shelf : null};
     }),
     by_item: group(i => i.product_id + "|" + i.name, i => ({id: i.product_id, name: i.name})),
     profit: profit_(items, rows_("Products")),
@@ -602,7 +607,7 @@ function sellerReport_(q) {
   const sales = new Map(rows_("Sales").filter(s => s.ts >= from && s.ts <= to).map(s => [s.id, s]));
   const items = rows_("SaleItems").filter(i => i.seller_id && sales.has(i.sale_id));
   const products = rows_("Products"), emails = rows_("Emails");
-  return rows_("Sellers").sort(byName_).map(s => {
+  return rows_("Sellers").sort(byName_).map(s => {  // deleted sellers only when they have something in this period
     const mine = items.filter(i => i.seller_id === s.id);
     const lines = mine.map(i => {
       const x = sales.get(i.sale_id);
@@ -619,9 +624,9 @@ function sellerReport_(q) {
     // Rent is monthly, so it is settled at each payout (see payoutState_), never taken from a period of any length here
     const pct = s.commission || 0, commission = r2_(amount * pct / 100);
     const paid = rows_("Payouts").filter(p => p.seller_id === s.id && p.ts >= from && p.ts <= to).reverse().map(strip_);
-    return {seller: strip_(s), summary: {pcs: pcs, amount: amount, rent: rent, pct: pct, commission: commission, payout: r2_(amount - commission)},
+    return {seller: Object.assign(strip_(s), {name: sellerName_(s)}), summary: {pcs: pcs, amount: amount, rent: rent, pct: pct, commission: commission, payout: r2_(amount - commission)},
             products: shelf, sales: lines, emails: mails, payouts: paid};
-  });
+  }).filter(r => !r.seller.deleted || r.sales.length || r.payouts.length);
 }
 
 const receiptNo_ = s => s.uid ? s.uid.slice(-6).toUpperCase() : String(s.id);  // same number as on the printed receipt
@@ -636,7 +641,7 @@ function productReport_(q) {
   const list = products.map(p => {
     const mine = items.filter(i => i.product_id === p.id), s = sellers.find(x => x.id === p.seller_id);
     return {id: p.id, name: p.name, barcode: p.barcode, price: p.price, stock: p.stock, value: p.price * p.stock,
-            owner: s ? s.name : "Store", shelf: s ? s.shelf : null, expiry: p.expiry, mfg_date: p.mfg_date,
+            owner: s ? sellerName_(s) : "Store", shelf: s ? s.shelf : null, expiry: p.expiry, mfg_date: p.mfg_date,
             sold: mine.reduce((n, i) => n + i.qty, 0), amount: mine.reduce((n, i) => n + i.qty * i.price, 0), sales: new Set(mine.map(i => i.sale_id)).size};
   });
   if (!one) {  // items sold in the period whose product was deleted since, so the totals match the sales report
@@ -644,7 +649,7 @@ function productReport_(q) {
     items.filter(i => !products.some(p => p.id === i.product_id)).forEach(i => {
       const k = i.product_id + "|" + i.name, s = sellers.find(x => x.id === i.seller_id);
       const g = gone.get(k) || {id: i.product_id, name: i.name, deleted: true, barcode: "", price: i.price, stock: null, value: 0,
-        owner: s ? s.name : "Store", shelf: s ? s.shelf : null, expiry: null, mfg_date: null, sold: 0, amount: 0, ids: new Set()};
+        owner: s ? sellerName_(s) : "Store", shelf: s ? s.shelf : null, expiry: null, mfg_date: null, sold: 0, amount: 0, ids: new Set()};
       g.sold += i.qty; g.amount += i.qty * i.price; g.ids.add(i.sale_id);
       gone.set(k, g);
     });
@@ -817,7 +822,7 @@ function checkAlerts_(today) {
     return true;
   };
   let queued = 0;
-  rows_("Sellers").filter(s => s.email).forEach(s => {
+  liveSellers_().filter(s => s.email).forEach(s => {
     const items = products.filter(p => p.seller_id === s.id).sort(byName_), lines = [];
     items.forEach(p => {
       if (p.expiry && p.stock > 0) {
@@ -841,7 +846,7 @@ function checkAlerts_(today) {
   // Rent: a few days before each monthly due date the renter is asked if they renew, and the owner gets a reminder.
   // Once per due date (the Alerts row uses the seller id); not when the renter already answered for that date.
   const notice = Number(settings_().rent_notice_days) || 3;
-  rows_("Sellers").filter(s => s.rent_start).forEach(s => {
+  liveSellers_().filter(s => s.rent_start).forEach(s => {
     const due = nextDue_(s.rent_start, today), left = daysFrom_(today, due);
     if (left > notice || (s.renew_for === due && s.renew_answer) || !add(s.id, "rent", due)) return;
     if (s.email) rentEmail_(s, due, left);
@@ -904,7 +909,7 @@ function renewPage_(q) {
   const page = (title, msg, extra) => HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<div style="font:17px/1.5 Arial,sans-serif;max-width:460px;margin:48px auto;padding:0 20px;text-align:center;color:#0f0f0f">' +
     '<h2 style="font-size:22px">' + title + "</h2><p>" + msg + "</p>" + (extra || "") + "</div>").setTitle("Shelf rent");
-  const s = rows_("Sellers").find(r => r.id === Number(q.s));
+  const s = liveSellers_().find(r => r.id === Number(q.s));
   const valid = s && (q.v === "yes" || q.v === "no") && /^\d{4}-\d{2}-\d{2}$/.test(q.d || "") && q.k === renewKey_(s.id, q.d, q.v);
   if (!valid) return page("Link not valid", "This link doesn't work any more. Please contact the store.");
   const store = htmlEsc_(settings_().store_name || "Urdaneta Store"), shelf = s.shelf ? " " + htmlEsc_(s.shelf) : "";
@@ -942,7 +947,7 @@ function rentDates_(s, from, to) {  // the rent due dates after `from`, up to an
 function payoutState_(q) {
   q = q || {};
   const now = now_(), payouts = rows_("Payouts");
-  return rows_("Sellers").filter(s => !q.id || s.id === Number(q.id)).map(s => {
+  return liveSellers_().filter(s => !q.id || s.id === Number(q.id)).map(s => {
     const mine = payouts.filter(p => p.seller_id === s.id).sort((a, b) => a.to_ts.localeCompare(b.to_ts)), last = mine[mine.length - 1];
     // First payout: from the 1st of this month (older sales were settled by hand); the pop-up can change the date
     const since = q.from ? q.from + "T00:00:00" : last ? last.to_ts : now.slice(0, 8) + "01T00:00:00";
@@ -996,7 +1001,7 @@ function renewSeller_(d) {
 }
 
 function stockReport_(d) {
-  const sellers = rows_("Sellers").filter(s => s.email && (!d.id || s.id === Number(d.id)));
+  const sellers = liveSellers_().filter(s => s.email && (!d.id || s.id === Number(d.id)));
   const products = rows_("Products");
   sellers.forEach(s => sellerEmail_(s, products.filter(p => p.seller_id === s.id).sort(byName_), []));
   flush_();
@@ -1049,7 +1054,7 @@ function state_() {
   const st = settings_();
   return {
     products: rows_("Products").sort(byName_).map(strip_),
-    sellers: rows_("Sellers").sort(byName_).map(strip_),
+    sellers: liveSellers_().sort(byName_).map(strip_),
     settings: PUBLIC_SETTINGS.reduce((o, k) => { o[k] = st[k] || ""; return o; }, {}),  // never the password
     outbox: rows_("Emails").slice(-20).reverse().map(m => { const c = strip_(m); delete c.body; return c; }),
     texts: rows_("Texts").slice(-20).reverse().map(strip_),
