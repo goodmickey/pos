@@ -297,7 +297,11 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
-#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm{display:grid;gap:12px}
+#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm,#sinForm{display:grid;gap:12px}
+.sinbig{display:flex;align-items:center;justify-content:center;gap:20px;padding:8px 0}
+.sinbig>div{text-align:center;min-width:130px}.sinbig b{display:block;font-size:56px;line-height:1.1;font-weight:700}.sinbig span{font-size:13px;color:var(--muted)}
+.sinbig button{width:56px;height:56px;padding:0;border-radius:50%;font-size:26px;flex:none}
+.sinmsg{margin:0;min-height:20px;font-size:14px;text-align:center;font-weight:500}.sinmsg.good{color:var(--good)}.sinmsg.warn{color:var(--warn)}.sinmsg.bad{color:var(--bad)}
 .scandevs{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
 .scanres{padding:10px 12px;margin:4px 0;border-radius:10px;background:var(--chip);font-size:14px}
 .smswrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px;margin-top:14px;align-items:start}
@@ -527,7 +531,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 
 <section id="products">
   <div class="pagehead rhead"><div><h2>Products</h2><p>Items you sell, with price, stock and dates.</p></div>
-    <button class="primary" id="pnew">+ New product</button></div>
+    <div class="row"><button id="sinOpen">Scan in stock</button><button class="primary" id="pnew">+ New product</button></div></div>
   <div class="kpis four" id="pkpis"></div>
   <div class="card">
     <div class="toolbar"><div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="pfilter" placeholder="Search, or scan a barcode to open or add it"></div>
@@ -814,7 +818,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
       <label>Notify seller on <input name="notify_on" type="date"></label>
     </div>
     <p class="muted" style="margin:8px 0 0">For perishables, set the date printed on the new pieces. Leave it if it hasn't changed.</p>
-    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
+    <div class="dlgfoot"><button type="button" id="rsScan">Scan pieces instead</button><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
   </form>
 </dialog>
 <dialog id="txDlg" class="formdlg small">
@@ -839,6 +843,20 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <label><span id="poViaLabel">Paid by</span><select name="via" id="poVia"></select></label>
     <label>Note (optional)<input name="note" maxlength="200" placeholder="For example: November sales"></label>
     <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button value="save">Save</button><button class="primary" value="print">Save and print</button></div>
+  </form>
+</dialog>
+<dialog id="sinDlg" class="formdlg small">
+  <div class="dlghead"><h3>Scan in stock</h3><button type="button" class="iconbtn" id="sinX" aria-label="Close">✕</button></div>
+  <form id="sinForm" autocomplete="off">
+    <div class="thumbcell" id="sinItem"></div>
+    <input id="sinScan" placeholder="Point the scanner at each piece" aria-label="Scan here">
+    <div class="sinbig"><button type="button" data-sd="-1" aria-label="One less">−</button><div><b id="sinCount">0</b><span>pieces scanned</span></div><button type="button" data-sd="1" aria-label="One more">+</button></div>
+    <p class="sinmsg" id="sinMsg"></p>
+    <div class="form">
+      <label>Expiry date of this batch <input name="expiry" type="date"></label>
+      <label>Notify seller on <input name="notify_on" type="date"></label>
+    </div>
+    <div class="dlgfoot"><span></span><button type="button" id="sinDone">Done</button><button class="primary" id="sinSave" disabled>Add to stock</button></div>
   </form>
 </dialog>
 <dialog id="adjDlg" class="formdlg small">
@@ -2387,8 +2405,8 @@ $("#smsReset").onclick = run(async () => { $("#smsBody").value = SMS_DEFAULTS[sm
 // ---------- Settings > Barcode scanner: a scanner types very fast and usually ends with Enter ----------
 const SCAN_GAP = 50;  // ms between characters: faster than any person
 let scanKeys = [], scanWait = null;
-function scanBeep(found) {
-  if (!store.get("scanBeep", false)) return;
+function scanBeep(found, always = false) {
+  if (!always && !store.get("scanBeep", false)) return;
   try {
     const a = scanBeep.a || (scanBeep.a = new AudioContext()), o = a.createOscillator(), g = a.createGain();
     o.frequency.value = found ? 1800 : 300; g.gain.value = .15;
@@ -2428,6 +2446,76 @@ $("#scanFind").onclick = run(async () => {
   box.hidden = false;
   box.innerHTML = list.length ? list.map(d => `<span class="badge">${esc(d.name)}</span>`).join("") : '<span class="muted">Nothing paired yet. Tap Bluetooth settings to pair the scanner.</span>';
 });
+
+// ---------- Scan in stock: each scan of the item's own barcode counts one piece; nothing changes until Add to stock ----------
+let sin = {p: null, n: 0, link: ""};  // the product, pieces scanned, a new barcode to link to it
+function renderScanIn() {
+  const p = sin.p;
+  $("#sinItem").innerHTML = p ? `${thumb(p)}<div><b>${esc(p.name)}</b><small>${p.stock} in stock · barcode ${esc(sin.link || p.barcode)}</small></div>`
+    : '<div><b>Scan any item to start</b><small>The barcode tells the POS which product it is</small></div>';
+  $("#sinCount").textContent = sin.n;
+  $("#sinSave").disabled = !(p && sin.n > 0);
+  $("#sinSave").textContent = sin.n ? `Add ${sin.n} to stock` : "Add to stock";
+}
+const sinSay = (text, kind = "") => { $("#sinMsg").textContent = text; $("#sinMsg").className = "sinmsg " + kind; };
+function openScanIn(p = null) {
+  sin = {p, n: 0, link: ""};
+  const f = $("#sinForm"); f.reset();
+  if (p) { f.expiry.value = p.expiry || ""; f.notify_on.value = p.notify_on || ""; }
+  sinSay(p ? "Scan each piece of this item." : "");
+  renderScanIn();
+  $("#sinScan").inputMode = matchMedia("(pointer:coarse)").matches ? "none" : "text";  // the scanner types, no on-screen keyboard
+  $("#sinDlg").showModal(); $("#sinScan").focus();
+}
+function scanIn(code) {
+  const hit = byCode(code), p = sin.p;
+  if (!p && !hit) { scanBeep(false, true); return sinSay(`${code} is not in your products. Open the product and tap + then Scan pieces instead to link it.`, "bad"); }
+  if (!p) {
+    sin.p = hit; sin.n = 1;
+    $("#sinForm").expiry.value = hit.expiry || ""; $("#sinForm").notify_on.value = hit.notify_on || "";
+  } else if (hit === p || code === sin.link) sin.n++;
+  else if (hit) { scanBeep(false, true); return sinSay(`That is ${hit.name}, not ${p.name}. Not counted.`, "bad"); }
+  else if (!sin.link && /^20\d{6}$/.test(p.barcode)) { sin.link = code; sin.n++; }  // an in-store code: this item's own barcode replaces it
+  else { scanBeep(false, true); return sinSay(`That barcode isn't ${p.name}'s. Not counted.`, "bad"); }
+  scanBeep(true, true);
+  sinSay(sin.link ? `Barcode ${sin.link} will be linked to this item.` : "Counted.", sin.link ? "warn" : "good");
+  renderScanIn();
+}
+$("#sinScan").onkeydown = e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const v = e.target.value.trim(); e.target.value = "";
+  clearTimeout(sinWait); if (v) scanIn(v);
+};
+let sinWait = null;  // scanners that send no Enter (Settings > Barcode scanner)
+$("#sinScan").oninput = e => {
+  if (!store.get("scanNoEnter", false)) return;
+  clearTimeout(sinWait);
+  sinWait = setTimeout(() => { const v = e.target.value.trim(); e.target.value = ""; if (v) scanIn(v); }, 150);
+};
+$("#sinForm").onclick = e => {
+  const b = e.target.closest("[data-sd]");
+  if (b && sin.p) { sin.n = Math.max(0, sin.n + +b.dataset.sd); renderScanIn(); }
+  if (!/^(INPUT|SELECT)$/.test(e.target.tagName)) $("#sinScan").focus();  // ready for the next scan
+};
+$("#sinForm").expiry.onchange = e => { const n = $("#sinForm").notify_on; if (e.target.value && (!n.value || n.value > e.target.value)) n.value = addDays(e.target.value, -3); };
+const sinLeave = () => !sin.n || confirm(`${sin.n} scanned piece${sin.n === 1 ? "" : "s"} will not be added. Leave anyway?`);
+$("#sinDone").onclick = $("#sinX").onclick = () => { if (sinLeave()) { sin.n = 0; $("#sinDlg").close(); } };
+$("#sinDlg").oncancel = e => { if (!sinLeave()) e.preventDefault(); };
+$("#sinForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const {p, n, link} = sin, f = e.target; if (!p || !n) return;
+  if (link) await api("/api/products", {id: p.id, name: p.name, barcode: link, price: p.price, cost: p.cost ?? "", stock: p.stock, stock_was: p.stock,
+    seller_id: p.seller_id || "", expiry: p.expiry || "", mfg_date: p.mfg_date || "", notify_on: p.notify_on || ""});
+  const body = {id: p.id, add: n};
+  if (f.expiry.value !== (p.expiry || "") || f.notify_on.value !== (p.notify_on || "")) Object.assign(body, {expiry: f.expiry.value, notify_on: f.notify_on.value});
+  const r = await api("/api/restock", body);
+  await load();
+  sin = {p: null, n: 0, link: ""}; f.reset(); renderScanIn();
+  sinSay(`${p.name}: ${n} added, ${r.stock} in stock. Scan the next item.`, "good"); $("#sinScan").focus();
+});
+$("#sinOpen").onclick = () => openScanIn();
+$("#rsScan").onclick = () => { const p = restocking; $("#rsDlg").close(); openScanIn(p); };
 
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
