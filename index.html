@@ -240,7 +240,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   .setnav button{flex:none;gap:8px;background:var(--chip);border-radius:8px;min-height:40px}.setnav button.on{background:var(--strong);color:var(--onstrong)}}
 @media(max-width:700px){.setrow{grid-template-columns:1fr;gap:8px}.setrow .ctl{justify-content:flex-start}.themeopts{grid-template-columns:1fr}.url{text-align:left}}
 #appNotes{background:var(--chip);border-radius:12px;padding:12px 16px;margin-top:8px;font-size:14px}
-#appNotes ul{margin:6px 0 0;padding-left:20px}
+.notelist{margin:6px 0 0;padding-left:20px}
+.notemore{margin-top:8px}.notemore summary{cursor:pointer;color:var(--accent);font-weight:500;min-height:32px;display:list-item}.notemore .notelist{max-height:40vh;overflow:auto;font-size:13px}
 #appNotes.fresh{box-shadow:inset 0 0 0 2px var(--accent)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chips button{border-radius:8px}
@@ -729,7 +730,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
         <div class="setrow"><div><b>Version</b>
           <dl class="verlist" id="verList" hidden><dt>App version</dt><dd id="verApp">–</dd><dt>Date</dt><dd id="verDate">–</dd><dt>Time</dt><dd id="verTime">–</dd></dl>
           <small id="appVersion">The web version updates itself each time it opens.</small></div><div class="ctl"><button id="appUpdate" hidden>Software update</button></div></div>
-        <div id="appNotes" hidden><b>What's new in this version</b><ul></ul></div>
+        <div id="appNotes" hidden><b>What's new in this version</b><div id="appNotesBody"></div></div>
       </div>
 
       <div class="card setpane" id="st-email">
@@ -901,7 +902,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 <dialog id="updDlg">
   <h2 id="updTitle" style="margin:0 0 4px"></h2>
   <div class="muted" id="updInfo"></div>
-  <ul id="updNotes" style="padding-left:20px;margin:12px 0"></ul>
+  <div id="updNotes" style="margin:12px 0"></div>
   <p class="muted" id="updHow" style="margin:0 0 14px"></p>
   <div class="row" style="flex-wrap:nowrap"><button class="primary" id="updGo" style="flex:1">Install now</button><button id="updLater">Later</button></div>
 </dialog>
@@ -2517,6 +2518,13 @@ $("#sinForm").onsubmit = run(async e => {
 $("#sinOpen").onclick = () => openScanIn();
 $("#rsScan").onclick = () => { const p = restocking; $("#rsDlg").close(); openScanIn(p); };
 
+// What's new: the key points, with everything else folded under "Read full details"
+function notesHTML(keynotes, notes = []) {
+  const list = l => `<ul class="notelist">${l.map(n => `<li>${esc(n)}</li>`).join("")}</ul>`;
+  const keys = keynotes?.length ? keynotes : notes.slice(0, 4).map(n => n.split(/(?<=\.)\s/)[0]);
+  return list(keys) + (notes.length > keys.length || keynotes?.length ? `<details class="notemore"><summary>Read full details</summary>${list(notes)}</details>` : "");
+}
+
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
 const r2 = n => Math.round(n * 100) / 100;
@@ -2801,7 +2809,7 @@ function askUpdate(u, major) {
     $("#updTitle").textContent = major ? "Major software update" : "Software update";
     $("#updInfo").textContent = major ? `A new version of the app is ready: version ${major.name} (you have ${shellInfo.name}).`
       : `A new version of the POS is ready (${versionText(u.version)}).`;
-    $("#updNotes").innerHTML = (u.notes || []).map(n => `<li>${esc(n)}</li>`).join("");
+    $("#updNotes").innerHTML = notesHTML(u.keynotes, u.notes);
     $("#updHow").textContent = major ? appShell.how : "It installs in a few seconds. Your data stays.";
     $("#updGo").onclick = () => { d.close(); ok(true); };
     $("#updLater").onclick = () => { d.close(); ok(false); };
@@ -2840,7 +2848,7 @@ if (window.APP_VERSION) {
   $("#verTime").textContent = when.toLocaleTimeString("en-PH", {hour: "numeric", minute: "2-digit"});
   if (appShell) appShell.info().then(i => { shellInfo = i; $("#verApp").textContent = i.name; }).catch(() => {});
   if (window.APP_NOTES?.length) {
-    $("#appNotes ul").innerHTML = APP_NOTES.map(n => `<li>${esc(n)}</li>`).join("");
+    $("#appNotesBody").innerHTML = notesHTML(window.APP_KEYNOTES, APP_NOTES);
     $("#appNotes").hidden = false;
   }
   $("#appUpdate").onclick = run(async () => {
