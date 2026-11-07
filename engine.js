@@ -11,13 +11,14 @@ const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
   Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost"],  // cost: what the store paid per piece
   Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at", "commission", "deleted"],  // commission: % the store keeps of their sales
-  Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason"],  // pay_via/epay: GCash, Maya...; refund_of: uid
+  Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason", "credit_to"],  // pay_via/epay: GCash, Maya...; refund_of: uid
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price", "cost"],  // cost at the time of the sale
   Alerts: ["product_id", "kind", "ref"],
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
   Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
+  CreditPays: ["uid", "ts", "sale_uid", "name", "amount", "via", "note"],  // money received later for a Pay later sale
   Texts: ["id", "to_phone", "body", "created", "sent", "error", "seller_id", "uid"],  // SMS: sent by the tablet with the SIM (Google can't)
   Payouts: ["uid", "ts", "seller_id", "name", "from_ts", "to_ts", "sales", "commission", "rent", "paid", "via", "note"],  // money settled with a renter
   Adjustments: ["uid", "ts", "product_id", "name", "seller_id", "qty", "price", "reason", "note", "cost"],  // stock removed (qty < 0) and why  // small JPEG per product; Products.photo_at says which version is current
@@ -82,6 +83,8 @@ const ROUTES = {
   "/api/sellers/renew": renewSeller_,
   "/api/payouts": payoutState_,
   "/api/payout": payout_,
+  "/api/credits": credits_,
+  "/api/credit-pay": creditPay_,
   "/api/texts": () => rows_("Texts").filter(t => !t.sent && !t.error).map(strip_),
   "/api/text-sent": textSent_,
   "/api/status-text": statusText_,
@@ -410,11 +413,13 @@ function sale_(d) {
   }
   const refundOf = d.refund_of ? String(d.refund_of) : null, reason = refundOf ? String(d.reason || "").trim().slice(0, 200) : null;
   let origItems = [], already = new Map();  // already refunded: product id -> pieces
+  let creditTo = String(d.credit_to || "").trim().slice(0, 80) || null;  // Pay later: who will pay
   if (refundOf) {
     const orig = sales.find(s => s.uid === refundOf);
     if (!orig) bad_("The sale to refund was not found");
     if (orig.refund_of) bad_("A refund cannot be refunded");
     if (!reason) bad_("Say why the sale is refunded");
+    creditTo = orig.credit_to || null;  // items brought back from a Pay later sale: no money moves, they just owe less
     const prior = new Set(sales.filter(s => s.refund_of === refundOf).map(s => s.id));
     rows_("SaleItems").forEach(i => {
       if (i.sale_id === orig.id) origItems.push(i);
@@ -449,21 +454,21 @@ function sale_(d) {
   total = Math.round(total * 100) / 100;
   // Paid by GCash / Maya / bank QR (all, or part with the rest in cash): the amount and its reference number.
   // A refund goes back all in cash, or all by the e-wallet (the store sends it).
-  const via = String(d.pay_via || "").trim() || null;
+  const via = creditTo ? null : String(d.pay_via || "").trim() || null;
   const epay = via ? (refundOf ? total : Math.round(Number(d.epay) * 100) / 100) : 0;
   const ref = via ? String(d.epay_ref || "").trim().slice(0, 40) : null;
   if (via && PAY_VIA.indexOf(via) < 0) bad_("Unknown payment: " + via);
   if (via && !refundOf && !(epay > 0 && epay <= total)) bad_(via + " amount must be more than 0 and at most the total");
   if (via && !refundOf && ref.length < 4) bad_("Enter the " + via + " reference number (at least the last 4 digits)");
-  const cash = refundOf ? 0 : via ? Number(d.cash) || 0 : Number(d.cash) || total;  // cash received (older apps always sent it)
+  const cash = refundOf || creditTo ? 0 : via ? Number(d.cash) || 0 : Number(d.cash) || total;  // cash received (older apps always sent it)
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   const id = nextId_(sales);
-  insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash, pay_via: via, epay: epay || null, epay_ref: ref || null, refund_of: refundOf, reason: reason});
+  insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash, pay_via: via, epay: epay || null, epay_ref: ref || null, refund_of: refundOf, reason: reason, credit_to: creditTo});
   insertMany_("SaleItems", lines.map(l => ({sale_id: id, product_id: l.id, name: l.name, seller_id: l.seller_id, qty: l.qty, price: l.price, cost: l.cost})));
   const restock = !refundOf || d.restock !== false;  // refunded goods go back on the shelf unless spoiled / damaged
   lines.forEach(l => { if (l.p && restock) update_("Products", Object.assign(l.p, {stock: l.p.stock - l.qty})); });
-  return {id: id, ts: ts, total: total, cash: cash, pay_via: via, epay: epay, epay_ref: ref, refund_of: refundOf, reason: reason,
-          change: Math.round((cash + epay - total) * 100) / 100,  // for a refund: the cash given back
+  return {id: id, ts: ts, total: total, cash: cash, pay_via: via, epay: epay, epay_ref: ref, refund_of: refundOf, reason: reason, credit_to: creditTo,
+          change: creditTo ? 0 : Math.round((cash + epay - total) * 100) / 100,  // for a refund: the cash given back
           items: lines.map(l => ({name: l.name, qty: l.qty, price: l.price}))};
 }
 
@@ -487,6 +492,9 @@ function report_(q) {
               refunds: {n: sales.filter(x => x.refund_of).length, amount: r2_(-sales.filter(x => x.refund_of).reduce((s, x) => s + x.total, 0))}},
     by_pay: payments_(sales),
     removed: removed_(from, to, sellers),
+    collected: rows_("CreditPays").filter(p => p.ts >= from && p.ts <= to).reduce((m, p) => {  // Pay later money received in the period
+      const g = m.filter(x => x.via === p.via)[0] || (m.push({via: p.via, n: 0, amount: 0}), m[m.length - 1]); g.n++; g.amount = r2_(g.amount + p.amount); return m;
+    }, []),
     by_owner: group(i => i.seller_id || 0, i => {
       const s = sellers.find(x => x.id === i.seller_id);
       return {owner: s ? sellerName_(s) : "Store", shelf: s ? s.shelf : null};
@@ -519,6 +527,7 @@ function profit_(items, products) {
 function payments_(sales) {
   const m = {Cash: {via: "Cash", n: 0, amount: 0}};
   sales.forEach(s => {
+    if (s.credit_to) { const g = m["Pay later"] = m["Pay later"] || {via: "Pay later", n: 0, amount: 0}; g.n++; g.amount += s.total; return; }  // no money yet
     const e = s.pay_via ? s.epay || 0 : 0, cash = Math.round((s.total - e) * 100) / 100;
     if (cash !== 0) { m.Cash.n++; m.Cash.amount += cash; }  // refunds count negative
     if (e !== 0) { const g = m[s.pay_via] = m[s.pay_via] || {via: s.pay_via, n: 0, amount: 0}; g.n++; g.amount += e; }
@@ -582,6 +591,35 @@ function drawerMove_(d) {
   }
   insert_("Drawer", row);
   return kind === "close" ? drawerState_().past[0] : {ok: true};
+}
+
+// ---------- Pay later: goods taken now, money received later (a reseller at the end of the day) ----------
+function credits_() {  // sales with money still to receive, oldest first, each with what was brought back and paid
+  const all = rows_("Sales"), pays = rows_("CreditPays"), refunds = all.filter(s => s.refund_of);
+  const open = all.filter(s => s.credit_to && !s.refund_of), items = rows_("SaleItems"), back = {};
+  const refundOf = new Map(refunds.map(r => [r.id, r.refund_of]));
+  items.forEach(i => { const u = refundOf.get(i.sale_id); if (u) { back[u] = back[u] || {}; back[u][i.product_id] = (back[u][i.product_id] || 0) - i.qty; } });
+  return open.map(s => {
+    const returned = r2_(-refunds.filter(r => r.refund_of === s.uid).reduce((n, r) => n + r.total, 0));
+    const paid = r2_(pays.filter(p => p.sale_uid === s.uid).reduce((n, p) => n + p.amount, 0));
+    return {id: receiptNo_(s), uid: s.uid, ts: s.ts, name: s.credit_to, total: s.total, returned: returned, paid: paid, balance: r2_(s.total - returned - paid), credit_to: s.credit_to, cash: 0,
+      items: items.filter(i => i.sale_id === s.id).map(i => ({id: i.product_id, name: i.name, qty: i.qty, price: i.price, refunded: (back[s.uid] && back[s.uid][i.product_id]) || 0}))};
+  }).filter(c => c.balance > 0).sort((a, b) => a.ts.localeCompare(b.ts));
+}
+
+function creditPay_(d) {
+  const uid = d.uid ? String(d.uid) : null;
+  if (uid && rows_("CreditPays").some(p => p.uid === uid)) return {duplicate: true};  // a retry: already recorded
+  const c = credits_().filter(x => x.uid === String(d.sale_uid))[0];
+  if (!c) bad_("That sale is already fully paid");
+  const amount = r2_(num_(d.amount, "Amount")), via = String(d.via || "Cash");
+  if (!(amount > 0)) bad_("Enter the amount received");
+  if (amount > c.balance) bad_("That is more than the " + smsMoney_(c.balance) + " still to pay");
+  if (via !== "Cash" && PAY_VIA.indexOf(via) < 0) bad_("Unknown payment: " + via);
+  const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
+  insert_("CreditPays", {uid: uid, ts: ts, sale_uid: c.uid, name: c.name, amount: amount, via: via, note: String(d.note || "").trim().slice(0, 200) || null});
+  if (via === "Cash" && drawerState_().current) insert_("Drawer", {uid: uid ? uid + "-d" : null, ts: ts, kind: "in", amount: amount, note: "Pay later: " + c.name});
+  return {balance: r2_(c.balance - amount)};
 }
 
 function salesList_(q) {
@@ -676,6 +714,7 @@ function pull_(q) {
     drawer: rows_("Drawer").slice(-500).map(strip_),
     adjustments: rows_("Adjustments").slice(-2000).map(strip_),
     payouts: rows_("Payouts").slice(-1000).map(strip_),
+    credit_pays: rows_("CreditPays").slice(-2000).map(strip_),
     texts: rows_("Texts").slice(-300).map(strip_),
     more: newer.length > batch.length, quota: MailApp.getRemainingDailyQuota(),
   };

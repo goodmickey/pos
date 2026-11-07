@@ -151,8 +151,9 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .cashbox span{color:var(--muted);font-size:18px}
 .cashbox input{border:0;box-shadow:none;background:none;font-size:18px;padding:10px 4px;min-height:46px}
 .cashbox .iconbtn{width:34px;height:34px;min-height:34px;font-size:14px;color:var(--muted)}
-.paywith{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:3px;border-radius:10px;background:var(--chip)}
-.paywith button{min-height:38px;padding:4px 6px;border-radius:8px;background:none;font-size:14px;color:var(--muted)}
+.later{gap:4px;font-size:12px}
+.paywith{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:3px;border-radius:10px;background:var(--chip)}
+.paywith button{min-height:38px;padding:4px 2px;border-radius:8px;background:none;font-size:13px;color:var(--muted)}
 .paywith button[aria-pressed=true]{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .epay{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px}
 .epay label{gap:4px;font-size:12px}
@@ -298,7 +299,9 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .stockcell{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
 .restock{min-height:28px;min-width:28px;padding:0 8px;font-size:13px;border-radius:14px}
 .restock.need{background:var(--strong);color:var(--onstrong)}
-#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm,#sinForm{display:grid;gap:12px}
+#pmargin{grid-column:1/-1;margin:-4px 0 0;font-size:13px}#poForm,#txForm,#sinForm,#cpForm{display:grid;gap:12px}#cpForm p{margin:0}
+.crline{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}.crline>div:first-child{min-width:200px;flex:1}.crline b{font-weight:500}
+.crwho{display:flex;justify-content:space-between;gap:8px;margin-top:10px;font-weight:500}.crwho:first-of-type{margin-top:0}
 .delyes{background:var(--alert);color:#fff}.delyes:hover{background:var(--alert);opacity:.85}
 .sinbig{display:flex;align-items:center;justify-content:center;gap:20px;padding:8px 0}
 .sinbig>div{text-align:center;min-width:130px}.sinbig b{display:block;font-size:56px;line-height:1.1;font-weight:700}.sinbig span{font-size:13px;color:var(--muted)}
@@ -491,6 +494,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
           <label><span id="epayLabel">GCash amount</span><span class="cashbox"><span>₱</span><input id="epay" type="number" step="0.01" min="0" inputmode="decimal" aria-label="E-wallet amount"></span></label>
           <label>Reference no.<span class="cashbox"><input id="eref" autocomplete="off" inputmode="numeric" placeholder="From their phone" aria-label="Reference number"></span></label>
         </div>
+        <label class="later" id="laterbox" hidden>Who will pay<input id="laterName" list="laterNames" maxlength="80" placeholder="Reseller or customer name" autocomplete="off"><datalist id="laterNames"></datalist></label>
         <div class="cashbox" id="cashbox"><span>₱</span><input id="cash" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash received" aria-label="Cash received">
           <button id="cashClear" class="iconbtn" aria-label="Clear the cash amount" hidden>✕</button></div>
         <div class="quickcash" id="quickcash"></div>
@@ -526,6 +530,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 <section id="drawer">
   <div class="pagehead"><h2>Cash drawer</h2><p>Count the starting cash, note money put in or taken out, and count again at the end of the day.</p></div>
   <div id="dnow"></div>
+  <div class="card" id="dcredit"></div>
   <div class="card"><h3>Past counts</h3>
     <div class="scroll" style="margin-top:0"><table><thead><tr><th>Day</th><th class="num">Sales</th><th class="num">Expected</th><th class="num">Counted</th><th class="num">Difference</th><th></th></tr></thead>
       <tbody id="dpast"></tbody></table></div></div>
@@ -828,6 +833,16 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
   <ul id="delList" style="margin:0 0 16px;padding-left:20px;display:grid;gap:6px;font-size:14px"></ul>
   <div class="row" style="justify-content:flex-end"><button id="delNo">Cancel</button><button class="delyes" id="delYes">Yes, delete</button></div>
 </dialog>
+<dialog id="cpDlg" class="formdlg small">
+  <div class="dlghead"><h3 id="cpTitle">Receive payment</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
+  <form id="cpForm">
+    <p class="muted" id="cpInfo"></p>
+    <label>Amount received (₱)<input name="amount" type="number" step="0.01" min="0.01" inputmode="decimal" required></label>
+    <label>Paid by<select name="via" id="cpVia"></select></label>
+    <label>Note (optional)<input name="note" maxlength="200"></label>
+    <div class="dlgfoot"><span></span><button type="button" data-close>Cancel</button><button class="primary">Save payment</button></div>
+  </form>
+</dialog>
 <dialog id="txDlg" class="formdlg small">
   <div class="dlghead"><h3 id="txTitle">Text status</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
   <form id="txForm">
@@ -1003,6 +1018,7 @@ async function load() {
     s.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
     s.drawer = await Local.call("/api/drawer-state");
     s.payouts = await Local.call("/api/payouts");
+    s.credits = await Local.call("/api/credits");
     S = s;
   }
   renderAll();
@@ -1203,15 +1219,16 @@ function renderCart() {
   const {total, epay, due} = amounts(), cash = parseFloat($("#cash").value);
   const pcs = cart.reduce((n, l) => n + l.qty, 0);
   document.querySelectorAll("#paywith button").forEach(b => b.setAttribute("aria-pressed", b.dataset.via === payVia));
-  $("#epaybox").hidden = !payVia;
+  $("#epaybox").hidden = !payVia || payVia === PAY_LATER;
+  $("#laterbox").hidden = payVia !== PAY_LATER;
   $("#epayLabel").textContent = `${payVia} amount`;
   $("#epay").placeholder = total ? `All ${peso(total)}` : "";
-  const needCash = !payVia || due > 0;  // all paid by e-wallet: no cash box
+  const needCash = !payVia || due > 0;  // all paid by e-wallet or later: no cash box
   $("#cashbox").hidden = $("#quickcash").hidden = !needCash;
   $("#cash").placeholder = payVia ? `Rest in cash: ${peso(due)}` : "Cash received";
   $("#itemCount").textContent = pcs ? `${pcs} item${pcs > 1 ? "s" : ""}` : "";
   $("#clear").hidden = !cart.length;
-  $("#pay").textContent = cart.length ? `Charge ${peso(total)}` : "Charge";
+  $("#pay").textContent = !cart.length ? "Charge" : payVia === PAY_LATER ? `Pay later ${peso(total)}` : `Charge ${peso(total)}`;
   $("#pay").disabled = !cart.length;
   $("#total").textContent = peso(total);
   $("#quickcash").innerHTML = due ? `<button data-cash="exact">Exact</button>` + cashOptions(due).map(v => `<button data-cash="${v}">${peso(v).replace(".00", "")}</button>`).join("") : "";
@@ -1222,19 +1239,21 @@ function renderCart() {
   $("#change").className = !show ? "" : short ? "bad" : "good";
 }
 // Paid by: cash, or GCash / Maya / bank QR for all of it (or part, with the rest in cash). Each sale starts as cash.
-$("#paywith").innerHTML = ["", ...PAY_VIA].map(v => `<button type="button" data-via="${v}">${v || "Cash"}</button>`).join("");
+const PAY_LATER = "Pay later";
+$("#paywith").innerHTML = ["", ...PAY_VIA, PAY_LATER].map(v => `<button type="button" data-via="${v}">${v || "Cash"}</button>`).join("");
 $("#paywith").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   payVia = b.dataset.via; renderCart();
-  (payVia ? $("#eref") : $("#cash")).focus();
+  (payVia === PAY_LATER ? $("#laterName") : payVia ? $("#eref") : $("#cash")).focus();
 };
 // What is left to pay in cash: everything, or what the e-wallet part doesn't cover (blank e-wallet amount = all of it)
 function amounts() {
   const total = Math.round(cart.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
   const typed = parseFloat($("#epay").value), epay = payVia ? (typed > 0 ? Math.round(typed * 100) / 100 : total) : 0;
+  if (payVia === PAY_LATER) return {total, epay: 0, due: 0};
   return {total, epay, due: Math.round(Math.max(0, total - epay) * 100) / 100};
 }
-const resetPayment = () => { payVia = ""; $("#cash").value = $("#epay").value = $("#eref").value = ""; };
+const resetPayment = () => { payVia = ""; $("#cash").value = $("#epay").value = $("#eref").value = $("#laterName").value = ""; };
 $("#epay").oninput = renderCart;
 $("#epay").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#eref").focus(); } };
 // Enter after the reference moves on but never charges: a product scanned here by mistake must not finish the sale
@@ -1270,8 +1289,13 @@ let paying = false;  // a double F2 / double click must not record the sale twic
 const pay = run(async () => {
   if (paying) return;
   if (!cart.length) return toast("Cart is empty", true);
-  const {total, epay, due} = amounts(), via = payVia;
-  let ref = $("#eref").value.trim();
+  const {total, epay, due} = amounts(), later = payVia === PAY_LATER, via = later ? "" : payVia;
+  let ref = $("#eref").value.trim(), who = $("#laterName").value.trim();
+  if (later && !who) {
+    paying = true;
+    try { who = String(await ask(`Who will pay the ${peso(total)} later?`) ?? "").trim(); } finally { paying = false; }
+    if (!who) return toast("Enter who will pay, to finish the sale", true);
+  }
   if (via) {
     if (epay > total) return toast(`The ${via} amount (${peso(epay)}) is more than the total (${peso(total)})`, true);
     if (ref.length < 4) {  // the number on the customer's "sent" screen: proof the money arrived
@@ -1294,7 +1318,7 @@ const pay = run(async () => {
   }
   if (cash < due) return toast(`Cash received (${peso(cash)}) is less than ${via ? "the rest to pay" : "the total"} (${peso(due)})`, true);
   const sale = {uid: newUid(), ts: localTime(), cash,
-                ...(via ? {pay_via: via, epay, epay_ref: ref} : {}), items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
+                ...(later ? {credit_to: who} : {}), ...(via ? {pay_via: via, epay, epay_ref: ref} : {}), items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
   paying = true;
   try { lastSale = {...await api("/api/sale", sale), id: receiptNo(sale)}; }  // saved on this device at once
   finally { paying = false; }
@@ -1308,9 +1332,10 @@ function showDone(s) {
   $("#doneInfo").textContent = `Sale #${s.id}${online ? "" : " · no internet: it syncs when the connection is back"}`;
   $("#doneTotal").textContent = peso(s.total);
   const e = s.epay > 0;
-  $("#doneEpayRow").hidden = !e;
+  $("#doneEpayRow").hidden = !e && !s.credit_to;
+  if (s.credit_to) { $("#doneEpayLabel").textContent = `Pay later · ${s.credit_to}`; $("#doneEpay").textContent = peso(s.total); }
   if (e) { $("#doneEpayLabel").textContent = `${s.pay_via} · ref ${s.epay_ref}`; $("#doneEpay").textContent = peso(s.epay); }
-  $("#doneCashRow").hidden = $("#doneChangeRow").hidden = e && !(s.cash > 0);
+  $("#doneCashRow").hidden = $("#doneChangeRow").hidden = (e || s.credit_to) && !(s.cash > 0);
   $("#doneCash").textContent = peso(s.cash);
   $("#doneChange").textContent = peso(s.change);
   $("#donePrinting").textContent = "";
@@ -1391,7 +1416,9 @@ function receiptHTML(s, label) {
     ${s.items.map(i => `<tr><td>${esc(i.name)}<br>&nbsp;${i.qty} x ${peso(i.price)}</td><td class="num" style="vertical-align:bottom">${peso(i.qty * i.price)}</td></tr>`).join("")}
     </table><hr><table style="width:100%"><tr><td>TOTAL</td><td class="num"><b>${peso(s.total)}</b></td></tr>
     ${s.epay > 0 ? `<tr><td>${esc(s.pay_via)}</td><td class="num">${peso(s.epay)}</td></tr><tr><td colspan="2">&nbsp;Ref ${esc(s.epay_ref)}</td></tr>` : ""}
-    ${s.refund_of ? `<tr><td>${esc(s.pay_via || "Cash")} given back</td><td class="num">${peso(-s.total)}</td></tr><tr><td colspan="2">Refund of #${esc(s.refund_of.slice(-6).toUpperCase())}: ${esc(s.reason || "")}</td></tr>`
+    ${s.credit_to && !s.refund_of ? `<tr><td colspan="2"><b>TO PAY LATER</b><br>${esc(s.credit_to)}<br><br>Received by: ______________</td></tr>`
+      : s.refund_of && s.credit_to ? `<tr><td colspan="2">Returned: taken off what ${esc(s.credit_to)} owes<br>Refund of #${esc(s.refund_of.slice(-6).toUpperCase())}: ${esc(s.reason || "")}</td></tr>`
+      : s.refund_of ? `<tr><td>${esc(s.pay_via || "Cash")} given back</td><td class="num">${peso(-s.total)}</td></tr><tr><td colspan="2">Refund of #${esc(s.refund_of.slice(-6).toUpperCase())}: ${esc(s.reason || "")}</td></tr>`
       : s.epay > 0 && !(s.cash > 0) ? "" : `<tr><td>Cash</td><td class="num">${peso(s.cash)}</td></tr><tr><td>Change</td><td class="num">${peso(s.change)}</td></tr>`}</table>
     <hr><div style="text-align:center">${esc(st.receipt_footer || "Salamat po! Come again.")}</div></div>`;
 }
@@ -1446,7 +1473,9 @@ function receiptBytes(s, label = "") {
   s.items.forEach(i => { t.text(i.name); t.lr(`  ${i.qty} x ${m(i.price)}`, m(i.qty * i.price)); });
   t.rule();
   t.bold(1); t.lr("TOTAL", m(s.total)); t.bold(0);
-  if (s.refund_of) { t.lr(`${s.pay_via || "Cash"} given back`, m(-s.total)); t.text(`Refund of #${s.refund_of.slice(-6).toUpperCase()}: ${s.reason || ""}`); }
+  if (s.credit_to && !s.refund_of) { t.bold(1); t.line("TO PAY LATER"); t.bold(0); t.text(s.credit_to); t.line(""); t.line("Received by: _____________"); }
+  else if (s.refund_of && s.credit_to) { t.text(`Returned: taken off what ${s.credit_to} owes`); t.text(`Refund of #${s.refund_of.slice(-6).toUpperCase()}: ${s.reason || ""}`); }
+  else if (s.refund_of) { t.lr(`${s.pay_via || "Cash"} given back`, m(-s.total)); t.text(`Refund of #${s.refund_of.slice(-6).toUpperCase()}: ${s.reason || ""}`); }
   else {
     if (s.epay > 0) { t.lr(s.pay_via, m(s.epay)); t.text(`  Ref ${s.epay_ref}`); }
     if (!(s.epay > 0) || s.cash > 0) { t.lr("Cash", m(s.cash)); t.lr("Change", m(s.change)); }
@@ -1925,7 +1954,8 @@ const showReport = run(async () => {
   // Overview: who sold and what sold, each with its share of the total
   const share = a => r.summary.total ? `<div class="share"><i style="width:${Math.round(a / r.summary.total * 100)}%"></i></div>` : "";
   $("#rout").innerHTML = `<div class="stack"><div class="card"><h3>By payment <span class="muted">· cash to count, e-wallet to check in the app</span></h3>${reportTable(["Paid by", "Sales", "Amount"], r.by_pay.map(x =>
-      `<tr><td>${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>
+      `<tr><td>${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`).concat(r.collected.map(x =>
+      `<tr><td>Pay later received: ${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}</td></tr>`)), "No sales in this period")}</div>
     <div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
       `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>${removedCard(r.removed)}</div>
     <div class="stack"><div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
@@ -2101,10 +2131,10 @@ function renderHistory() {
   const list = history.filter(s => !q || s.id.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q))
     || String(s.epay_ref || "").toLowerCase().replace(/\s/g, "").includes(q.replace(/\s/g, "")));  // also find a GCash / Maya reference
   const total = list.reduce((n, s) => n + s.total, 0), pcs = list.reduce((n, s) => n + s.items.reduce((m, i) => m + i.qty, 0), 0);
-  const ewallet = list.reduce((n, s) => n + (s.epay || 0), 0), sold = list.filter(s => !s.refund_of).length;
+  const ewallet = list.reduce((n, s) => n + (s.epay || 0), 0), later = list.reduce((n, s) => n + (s.credit_to ? s.total : 0), 0), sold = list.filter(s => !s.refund_of).length;
   const back = -list.filter(s => s.refund_of).reduce((n, s) => n + s.total, 0);
   $("#hkpis").innerHTML = [["Sales", sold, back ? `${list.length - sold} refund${list.length - sold === 1 ? "" : "s"}: −${peso(back)}` : q ? "matching your search" : periodText($("#hfrom").value, $("#hto").value)],
-    ["Total", peso(total), ewallet ? `cash ${peso(total - ewallet)} · e-wallet ${peso(ewallet)}` : "cash taken"],
+    ["Total", peso(total), ewallet || later ? `cash ${peso(total - ewallet - later)}${ewallet ? ` · e-wallet ${peso(ewallet)}` : ""}${later ? ` · pay later ${peso(later)}` : ""}` : "cash taken"],
     ["Average sale", sold ? peso((total + back) / sold) : "–", "per customer"], ["Items sold", pcs, "pieces"]]
     .map(([k, v, x]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${esc(x)}</small></div>`).join("");
   let day = "";
@@ -2114,7 +2144,7 @@ function renderHistory() {
     const items = s.items.slice(0, 2).map(i => `${esc(i.name)} ×${i.qty}`).join(", ") + (s.items.length > 2 ? ` <span class="muted">+${s.items.length - 2} more</span>` : "");
     return (head ? `<tr class="dayrow"><td colspan="4">${new Date(d + "T12:00").toLocaleDateString("en-PH", {weekday: "short", month: "short", day: "numeric", year: "numeric"})} · ${mine.length} sale${mine.length === 1 ? "" : "s"} · ${peso(mine.reduce((n, x) => n + x.total, 0))}</td></tr>` : "")
       + `<tr data-i="${history.indexOf(s)}"><td>${s.ts.slice(11, 16)}${s.waiting ? ' <span class="badge low">waiting to sync</span>' : ""}</td>
-        <td><b>${esc(s.id)}</b>${refundBadge(s)}</td><td>${items}</td><td class="num${s.refund_of ? " bad" : ""}">${peso(s.total)}${s.epay > 0 ? `<div><span class="badge">${esc(s.pay_via)}${s.cash > 0 ? " + cash" : ""}</span></div>` : ""}</td></tr>`;
+        <td><b>${esc(s.id)}</b>${refundBadge(s)}</td><td>${items}</td><td class="num${s.refund_of ? " bad" : ""}">${peso(s.total)}${s.credit_to && !s.refund_of ? `<div><span class="badge low">Pay later: ${esc(s.credit_to)}</span></div>` : ""}${s.epay > 0 ? `<div><span class="badge">${esc(s.pay_via)}${s.cash > 0 ? " + cash" : ""}</span></div>` : ""}</td></tr>`;
   }).join("") || `<tr><td colspan="4" class="muted">No sales in these dates.</td></tr>`;
 }
 $("#hperiod").onclick = e => {
@@ -2146,7 +2176,7 @@ let refunding = null;
 function openRefund(s) {
   refunding = s; $("#rfForm").reset();
   $("#rfTitle").textContent = `Refund sale #${s.id}`;
-  $("#rfVia").innerHTML = `<option value="">Cash from the drawer</option>` + (s.pay_via ? `<option value="${esc(s.pay_via)}">${esc(s.pay_via)}: send it back from the store's phone</option>` : "");
+  $("#rfVia").innerHTML = `<option value="">${s.credit_to ? `No money back: take it off what ${esc(s.credit_to)} owes` : "Cash from the drawer"}</option>` + (s.pay_via ? `<option value="${esc(s.pay_via)}">${esc(s.pay_via)}: send it back from the store's phone</option>` : "");
   if (s.pay_via && !(s.cash > 0)) $("#rfVia").value = s.pay_via;  // paid all by e-wallet: send it back the same way
   $("#rfLines").innerHTML = s.items.map((i, k) => {
     const left = i.qty - (i.refunded || 0);
@@ -2156,6 +2186,7 @@ function openRefund(s) {
   }).join("");
   renderRefund();
   $("#saleDlg").close(); $("#rfDlg").showModal();
+  if (s.credit_to) { $("#rfForm").reason.value = "Unsold, brought back"; }
 }
 const refundQty = () => [...document.querySelectorAll("#rfLines input")].map(i => ({k: +i.dataset.k, n: Math.min(+i.max, Math.max(0, parseInt(i.value, 10) || 0))}));
 function renderRefund() {
@@ -2179,12 +2210,12 @@ $("#rfForm").onsubmit = run(async e => {
   const r = await api("/api/sale", {uid, ts: localTime(), refund_of: s.uid, reason: f.reason.value, restock: f.restock.checked,
     ...(f.via.value ? {pay_via: f.via.value} : {}), items});
   $("#rfDlg").close();
-  toast(`Refunded: give back ${peso(-r.total)}${f.via.value ? ` by ${f.via.value}` : " in cash"}`, false, 8000);
+  toast(s.credit_to ? `${peso(-r.total)} taken off what ${s.credit_to} owes` : `Refunded: give back ${peso(-r.total)}${f.via.value ? ` by ${f.via.value}` : " in cash"}`, false, 8000);
   await load(); await showHistory();
   // Show the refund slip, ready to print for the customer
   viewing = history.find(x => x.uid === uid);
   if (viewing) showSale();
-  if (!f.via.value && store.get("cashKick", false)) openDrawer();  // cash to give back
+  if (!f.via.value && !s.credit_to && store.get("cashKick", false)) openDrawer();  // cash to give back
 });
 
 // ---------- renter payouts: what the store owes since the last payout (the engine does the sums: payoutState_) ----------
@@ -2548,6 +2579,36 @@ function notesHTML(keynotes, notes = []) {
   return list(keys) + (notes.length > keys.length || keynotes?.length ? `<details class="notemore"><summary>Read full details</summary>${list(notes)}</details>` : "");
 }
 
+// ---------- Pay later: who still owes, grouped by person (the engine does the sums: credits_) ----------
+function renderCredits() {
+  const list = S.credits || [], who = [...new Set(list.map(c => c.name))], total = list.reduce((n, c) => n + c.balance, 0);
+  $("#laterNames").innerHTML = [...new Set((S.credits || []).map(c => c.name))].map(n => `<option value="${esc(n)}">`).join("");
+  $("#dcredit").innerHTML = `<div class="dhead"><h3 style="margin:0">Pay later</h3><b>${list.length ? `${peso(total)} to receive` : ""}</b></div>` + (who.map(n => {
+    const mine = list.filter(c => c.name === n);
+    return `<div class="crwho"><span>${esc(n)}</span><span>${peso(mine.reduce((m, c) => m + c.balance, 0))}</span></div>` + mine.map(c => `<div class="crline"><div>${c.ts.slice(0, 16).replace("T", " ")} · #${esc(c.id)}
+      <div class="muted">${c.items.map(i => `${esc(i.name)} ×${i.qty - (i.refunded || 0)}`).join(", ")}${c.paid ? ` · paid ${peso(c.paid)}` : ""}</div></div>
+      <b>${peso(c.balance)}</b><div class="dacts"><button class="sm" data-d="credit-back" data-u="${esc(c.uid)}">Items back</button><button class="sm" data-d="credit-pay" data-u="${esc(c.uid)}">Receive payment</button></div></div>`).join("");
+  }).join("") || '<p class="muted" style="margin:0">Nobody owes the store. On Sell, tap Pay later for goods paid after.</p>');
+}
+let crediting = null;
+function openCreditPay(c) {
+  crediting = c;
+  const f = $("#cpForm"); f.reset();
+  $("#cpTitle").textContent = `Receive from ${c.name}`;
+  $("#cpInfo").textContent = `Sale #${c.id}: ${peso(c.total)}${c.returned ? `, items back ${peso(c.returned)}` : ""}${c.paid ? `, paid ${peso(c.paid)}` : ""}. Still to pay: ${peso(c.balance)}.`;
+  $("#cpVia").innerHTML = `<option value="Cash">Cash${S.drawer?.current ? " into the drawer" : ""}</option>` + PAY_VIA.map(v => `<option>${esc(v)}</option>`).join("");
+  f.amount.value = c.balance; f.amount.max = c.balance;
+  $("#cpDlg").showModal(); f.amount.select();
+}
+$("#cpForm").onsubmit = run(async e => {
+  e.preventDefault();
+  const f = e.target, c = crediting;
+  const r = await api("/api/credit-pay", {uid: newUid(), ts: localTime(), sale_uid: c.uid, amount: f.amount.value, via: f.via.value, note: f.note.value});
+  $("#cpDlg").close(); await load();
+  toast(r.balance > 0 ? `${c.name} still owes ${peso(r.balance)} on this sale` : `${c.name}: fully paid`);
+  if (f.via.value === "Cash" && store.get("cashKick", false)) openDrawer();
+});
+
 // ---------- cash drawer: starting cash, money in / out, end-of-day count (the engine does the sums: drawerState_) ----------
 const DENS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
 const r2 = n => Math.round(n * 100) / 100;
@@ -2571,7 +2632,7 @@ function renderDrawer() {
       ${last ? `<div class="dlast"><div><span>Last count · ${esc(dayText(last.closed.slice(0, 10)))}</span><b>${peso(last.counted)}</b></div><div><span>Expected</span><b>${peso(last.expected)}</b></div>
         <div><span>Result</span><b>${diffBadge(last.diff)}</b></div><div><span>Printout</span><button class="sm" data-d="print" data-i="0">Print count</button></div></div>` : ""}</div>`;
   } else {
-    const ew = cur.by_pay.filter(p => p.via !== "Cash");
+    const ew = cur.by_pay.filter(p => p.via !== "Cash" && p.via !== PAY_LATER);
     $("#dnow").innerHTML = `<div class="dhead"><p class="muted">Open since ${esc(dayText(cur.opened.slice(0, 10)))}, ${cur.opened.slice(11, 16)}${stale ? ' · <span class="bad">not closed yet</span>' : ""}</p>
         <div class="dacts"><button data-d="in">+ Money in</button><button data-d="out">− Money out</button>${store.get("cashKick", false) ? '<button data-d="kick">Open drawer</button>' : ""}<button class="primary" data-d="close">Close and count</button></div></div>
       <div class="kpis">${[["lead", "Expected in drawer", peso(cur.expected), "cash that should be there now"],
@@ -2583,6 +2644,7 @@ function renderDrawer() {
       <div class="card"><h3>Money in and out</h3>${reportTable(["Time", "What", "Amount"], [`<tr><td>${cur.opened.slice(11, 16)}</td><td>Starting cash</td><td class="num">${peso(cur.start)}</td></tr>`]
         .concat(cur.moves.map(m => `<tr><td>${m.ts.slice(11, 16)}</td><td>${esc(m.note || "")}</td><td class="num ${m.kind === "in" ? "amt-in" : "amt-out"}">${m.kind === "in" ? "+" : "−"}${peso(m.amount)}</td></tr>`)), "")}</div>`;
   }
+  renderCredits();
   $("#dpast").innerHTML = D.past.map((p, i) => `<tr><td>${esc(dayText(p.opened.slice(0, 10)))}${p.closed.slice(0, 10) !== p.opened.slice(0, 10) ? ` – ${esc(dayText(p.closed.slice(0, 10)))}` : ""}
       <div class="muted">${p.opened.slice(11, 16)} to ${p.closed.slice(11, 16)}${p.note ? " · " + esc(p.note) : ""}</div></td>
       <td class="num">${p.n}<div class="muted">${peso(p.total)}</div></td><td class="num">${peso(p.expected)}</td><td class="num">${peso(p.counted)}</td>
@@ -2596,6 +2658,8 @@ $("#drawer").onclick = e => {
   else if (d === "in" || d === "out") openMove(d);
   else if (d === "print") printCount(S.drawer.past[+b.dataset.i]);
   else if (d === "kick") openDrawer();
+  else if (d === "credit-pay") openCreditPay(S.credits.find(c => c.uid === b.dataset.u));
+  else if (d === "credit-back") { viewing = null; openRefund(S.credits.find(c => c.uid === b.dataset.u)); }
 };
 $("#drawerGo").onclick = () => {
   document.querySelector('nav [data-tab="drawer"]').click();

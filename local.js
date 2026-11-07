@@ -8,7 +8,7 @@
 
   // Requests that only Google can do (they send email)
   const CLOUD = new Set(["/api/send-now", "/api/outbox/test", "/api/sellers/report", "/api/outbox/delete", "/api/outbox/readdress"]);
-  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust", "/api/payout", "/api/text-sent", "/api/text"]);
+  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust", "/api/payout", "/api/text-sent", "/api/text", "/api/credit-pay"]);
 
   let data = {}, ops = [], meta = {}, failed = [];
 
@@ -93,6 +93,7 @@
     replace("Settings", Object.keys(r.settings).map(k => ({key: k, value: r.settings[k]})));
     if (r.drawer) replace("Drawer", r.drawer);  // cash drawer: opened, money in / out, counts (any device)
     if (r.texts) replace("Texts", r.texts);  // text messages waiting for the tablet with the SIM
+    if (r.credit_pays) replace("CreditPays", r.credit_pays);  // Pay later money received
     if (r.payouts) replace("Payouts", r.payouts);  // renter payouts made on any device
     if (r.adjustments) replace("Adjustments", r.adjustments);  // stock removed (spoiled, damaged...) for the reports
     if (!data.Sales) replace("Sales", []);
