@@ -380,7 +380,7 @@ body.navmini nav button{position:relative}body.navmini .navbadge{position:absolu
 .dlast div{background:var(--chip);border-radius:10px;padding:10px 12px}.dlast>div>span{display:block;font-size:13px;color:var(--muted)}.dlast b{font-size:18px}
 .amt-in{color:var(--good)}.amt-out{color:var(--bad)}
 .form.one{grid-template-columns:1fr}
-#cntDlg{width:min(600px,94vw)}#rfForm{display:grid;gap:12px}#rfForm p{margin:0}
+#cntDlg{width:min(600px,94vw)}#cntSame{justify-self:start}#rfForm{display:grid;gap:12px}#rfForm p{margin:0}
 .rflines td{padding:8px 0;vertical-align:middle}.rflines tr:hover{background:none}
 label.check{flex-direction:row;align-items:center;gap:10px;font-size:14px;font-weight:400;color:var(--ink)}
 label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent)}#cntForm{display:grid;gap:12px}#cntForm p{margin:0}
@@ -779,6 +779,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
   <div class="dlghead"><h3 id="cntTitle">Open the drawer</h3><button type="button" class="iconbtn" data-close aria-label="Close">✕</button></div>
   <form id="cntForm">
     <p class="muted" id="cntHint"></p>
+    <button type="button" id="cntSame" hidden></button>
     <div class="dens" id="dens"></div>
     <div class="cntsum">
       <div class="sumrow"><span>Counted</span><b id="cntTotal" class="total">₱0.00</b></div>
@@ -2690,6 +2691,11 @@ function renderCount() {
   $("#cntDiff").className = d < 0 ? "bad" : d > 0 ? "warn" : "good";
 }
 $("#dens").oninput = renderCount;
+$("#cntSame").onclick = () => {
+  document.querySelectorAll("#dens input").forEach(i => i.value = "");
+  $('#dens [data-den="other"]').value = $("#cntSame").dataset.v;
+  renderCount(); $("#cntOk").focus();
+};
 function openCount(kind) {
   if (kind === "close" && !S.drawer.current) return toast("The drawer is not open", true);
   counting = kind; $("#cntForm").reset();
@@ -2697,6 +2703,11 @@ function openCount(kind) {
   $("#cntHint").textContent = kind === "open" ? "Count the cash in the drawer before the first sale: how many of each bill and coin."
     : "Count all the cash in the drawer: how many of each bill and coin.";
   $("#cntOk").textContent = kind === "open" ? "Open drawer" : "Close drawer";
+  // Nothing touched since: one tap instead of counting every bill again
+  const last = S.drawer.past[0], same = kind === "open" ? last?.counted : S.drawer.current.expected;
+  $("#cntSame").hidden = !(same > 0);
+  $("#cntSame").dataset.v = same || 0;
+  $("#cntSame").textContent = kind === "open" ? `Same as last count: ${peso(same || 0)}` : `Same as expected: ${peso(same || 0)}`;
   renderCount(); $("#cntDlg").showModal(); $("#dens input").focus();
 }
 $("#cntForm").onsubmit = run(async e => {
