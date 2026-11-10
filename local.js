@@ -8,7 +8,7 @@
 
   // Requests that only Google can do (they send email)
   const CLOUD = new Set(["/api/send-now", "/api/outbox/test", "/api/sellers/report", "/api/outbox/delete", "/api/outbox/readdress"]);
-  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust", "/api/payout", "/api/text-sent", "/api/text", "/api/credit-pay"]);
+  const WRITE = new Set(["/api/products", "/api/products/delete", "/api/restock", "/api/photo", "/api/sellers", "/api/sellers/delete", "/api/sale", "/api/settings", "/api/drawer", "/api/adjust", "/api/payout", "/api/text-sent", "/api/text", "/api/credit-pay", "/api/sellers/renew"]);
 
   let data = {}, ops = [], meta = {}, failed = [];
 
@@ -111,6 +111,13 @@
     }
   }
 
+  function dropSale(uid) {
+    const sales = rows_("Sales"), gone = sales.filter(s => s.uid === uid).map(s => s.id);
+    if (!gone.length) return;
+    replace("Sales", sales.filter(s => s.uid !== uid));
+    replace("SaleItems", rows_("SaleItems").filter(i => gone.indexOf(i.sale_id) < 0));
+  }
+
   // remote(path, body) calls Google; it throws an Error with .offline when there is no connection, .status when Google refused
   async function sync(remote) {
     while (ops.length) {
@@ -122,6 +129,8 @@
         // the change, and every change after it, waiting here to try again: nothing is ever dropped.
         if (e.offline || e.status !== 400) throw e;
         failed.push({...ops[0], error: e.message});
+        // A sale or refund Google refused never happened there: take it off this device too, so totals agree
+        if (ops[0].path === "/api/sale" && ops[0].body.uid) dropSale(ops[0].body.uid);
       }
       ops.shift();
       await persist();

@@ -236,11 +236,11 @@ function num_(v, label) {
 
 // ---------- products / sellers ----------
 
-function nextCode_(products) {
-  // In-store barcode: 20 + 6 digits (the 20-29 prefix is reserved for in-store use, never on factory goods)
-  let n = Number(settings_().last_code || 0), code;
-  do { n++; code = "20" + String(n).padStart(6, "0"); } while (products.some(p => p.barcode === code));
-  setSetting_("last_code", n);
+function nextCode_(products, id) {
+  // In-store barcode: 2 + 7 digits (the 20-29 prefix is reserved for in-store use, never on factory goods). Taken from
+  // the product's own id, so two devices adding products offline never hand out the same code.
+  let n = Number(String(id).slice(-7)), code;
+  do { code = "2" + String(n % 1e7).padStart(7, "0"); n++; } while (products.some(p => p.barcode === code));
   return code;
 }
 
@@ -262,13 +262,20 @@ function saveProduct_(d) {
   if (p.notify_on && p.notify_on > p.expiry) bad_("Notify date must be on or before the expiry date");
   if (p.barcode && !/^[\x20-\x7e]+$/.test(p.barcode)) bad_("Barcode must be plain letters/numbers");
   const all = rows_("Products");
-  if (!p.barcode) p.barcode = nextCode_(all);
+  // A retry of an edit that changed stock: already applied (its uid is in Adjustments)
+  if (d.uid && rows_("Adjustments").some(a => a.uid === String(d.uid))) return {id: p.id, barcode: p.barcode};
+  if (!p.barcode) p.barcode = nextCode_(all, p.id || (p.id = uniqueId_(all)));
   if (all.some(r => r.barcode === p.barcode && r.id !== p.id)) bad_("That barcode is already used by another product");
   const old = p.id && all.find(r => r.id === p.id);
+  if (!old && d.stock_was !== undefined && d.stock_was !== "") bad_("Product not found (was it deleted?)");  // an edit, not a new product
   if (old) {
     // The edit form sends the stock it showed when opened (stock_was): only the change typed there is applied, so
     // sales made meanwhile on this or another device still count. (Old app versions send no stock_was: stock as typed.)
-    if (d.stock_was !== undefined && d.stock_was !== "") p.stock = (Number(old.stock) || 0) + p.stock - num_(d.stock_was, "Stock");
+    if (d.stock_was !== undefined && d.stock_was !== "") {
+      const change = p.stock - num_(d.stock_was, "Stock");
+      p.stock = (Number(old.stock) || 0) + change;
+      if (change && d.uid) insert_("Adjustments", {uid: String(d.uid), ts: now_(), product_id: old.id, name: p.name, seller_id: p.seller_id, qty: change, price: p.price, reason: "Edit", note: null, cost: null});
+    }
     update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at, cost: "cost" in d ? cost : old.cost}));  // the photo is saved separately
   } else {
     p.id = p.id || uniqueId_(all);  // a device that made it offline already chose its id
@@ -281,6 +288,8 @@ function saveProduct_(d) {
 // Restock: ADD pieces to the stock Google has now (not overwrite it), so sales made meanwhile on other devices still
 // count. A new batch can bring a new expiry date (and notify date).
 function restock_(d) {
+  const uid = d.uid ? String(d.uid) : null;
+  if (uid && rows_("Adjustments").some(a => a.uid === uid)) return {stock: (rows_("Products").find(r => r.id === Number(d.id)) || {}).stock, duplicate: true};
   const add = num_(d.add, "Pieces to add");
   if (!Number.isInteger(add) || add <= 0) bad_("Pieces to add must be a whole number above 0");
   const p = rows_("Products").find(r => r.id === Number(d.id));
@@ -295,6 +304,7 @@ function restock_(d) {
     p.expiry = e; p.notify_on = n;
   }
   update_("Products", p);
+  if (uid) insert_("Adjustments", {uid: uid, ts: now_(), product_id: p.id, name: p.name, seller_id: p.seller_id, qty: add, price: p.price, reason: "Restock", note: null, cost: p.cost === undefined ? null : p.cost});
   return {stock: p.stock};
 }
 
@@ -320,7 +330,7 @@ function adjust_(d) {
 
 // Stock removed in a period: by reason, and every removal (value at the selling price then)
 function removed_(from, to, sellers) {
-  const lines = rows_("Adjustments").filter(a => a.ts >= from && a.ts <= to).sort((a, b) => b.ts.localeCompare(a.ts)).map(a => {
+  const lines = rows_("Adjustments").filter(a => a.qty < 0 && a.reason !== "Edit" && a.ts >= from && a.ts <= to).sort((a, b) => b.ts.localeCompare(a.ts)).map(a => {
     const s = sellers.find(x => x.id === a.seller_id);
     return {ts: a.ts, id: a.product_id, name: a.name, owner: s ? sellerName_(s) : "Store", qty: -a.qty, reason: a.reason, note: a.note, value: r2_(-a.qty * a.price),
             cost: a.cost === null || a.cost === undefined ? null : r2_(-a.qty * a.cost)};
@@ -376,7 +386,7 @@ function saveSeller_(d) {
   const old = s.id && all.find(r => r.id === s.id);
   if (old) {  // the renter's renewal answer is kept (it is changed with renewSeller_ or their email link)
     update_("Sellers", Object.assign(s, {_row: old._row, renew_answer: old.renew_answer, renew_for: old.renew_for, renew_at: old.renew_at,
-      commission: "commission" in d ? commission : old.commission}));
+      commission: "commission" in d ? commission : old.commission, deleted: old.deleted}));
   } else {
     s.id = s.id || uniqueId_(all);
     s.commission = commission;
@@ -414,12 +424,19 @@ function sale_(d) {
   const refundOf = d.refund_of ? String(d.refund_of) : null, reason = refundOf ? String(d.reason || "").trim().slice(0, 200) : null;
   let origItems = [], already = new Map();  // already refunded: product id -> pieces
   let creditTo = String(d.credit_to || "").trim().slice(0, 80) || null;  // Pay later: who will pay
+  let creditBalance = null;  // a refund of a Pay later sale that is still owed: how much
   if (refundOf) {
     const orig = sales.find(s => s.uid === refundOf);
     if (!orig) bad_("The sale to refund was not found");
     if (orig.refund_of) bad_("A refund cannot be refunded");
     if (!reason) bad_("Say why the sale is refunded");
     creditTo = orig.credit_to || null;  // items brought back from a Pay later sale: no money moves, they just owe less
+    if (creditTo) {  // ...while they still owe. Paid already: a normal refund (money goes back)
+      const owed = orig.total + sales.filter(x => x.refund_of === refundOf).reduce((n, x) => n + x.total, 0)
+        - rows_("CreditPays").filter(x => x.sale_uid === refundOf).reduce((n, x) => n + x.amount, 0);
+      if (owed <= 0.001) creditTo = null;
+      else creditBalance = owed;
+    }
     const prior = new Set(sales.filter(s => s.refund_of === refundOf).map(s => s.id));
     rows_("SaleItems").forEach(i => {
       if (i.sale_id === orig.id) origItems.push(i);
@@ -428,7 +445,7 @@ function sale_(d) {
   }
   const byId = new Map();
   (d.items || []).forEach(it => {
-    const id = Number(it.id), l = byId.get(id) || {qty: 0, price: it.price, name: it.name};
+    const id = Number(it.id), l = byId.get(id) || {qty: 0, price: it.price, name: it.name, seller_id: it.seller_id, cost: it.cost};
     l.qty += parseInt(it.qty, 10);
     byId.set(id, l);
   });
@@ -438,8 +455,8 @@ function sale_(d) {
   byId.forEach((it, pid) => {
     const p = products.find(r => r.id === pid);  // may be gone if it was deleted meanwhile
     if (refundOf ? !(it.qty < 0) : !(it.qty > 0)) bad_("Bad quantity");
-    const line = {p: p, id: pid, name: it.name || (p && p.name) || "?", price: Number(it.price), seller_id: p ? p.seller_id : null, qty: it.qty,
-                  cost: p && p.cost !== null && p.cost !== undefined ? p.cost : null};
+    const line = {p: p, id: pid, name: it.name || (p && p.name) || "?", price: Number(it.price), seller_id: p ? p.seller_id : Number(it.seller_id) || null, qty: it.qty,
+                  cost: p && p.cost !== null && p.cost !== undefined ? p.cost : it.cost === undefined || it.cost === null || it.cost === "" ? null : Number(it.cost)};
     if (refundOf) {
       const o = origItems.filter(i => i.product_id === pid)[0];
       if (!o) bad_("That item is not on the sale being refunded");
@@ -452,6 +469,7 @@ function sale_(d) {
     lines.push(line);
   });
   total = Math.round(total * 100) / 100;
+  if (creditBalance !== null && -total > creditBalance + 0.001) bad_("Only " + smsMoney_(creditBalance) + " is still owed on this sale. Refund up to that now; refund the rest after they pay.");
   // Paid by GCash / Maya / bank QR (all, or part with the rest in cash): the amount and its reference number.
   // A refund goes back all in cash, or all by the e-wallet (the store sends it).
   const via = creditTo ? null : String(d.pay_via || "").trim() || null;
@@ -541,7 +559,7 @@ const r2_ = n => Math.round(n * 100) / 100;
 // part of every sale in between + money in - money out; e-wallet payments never reach the drawer.
 // ponytail: one drawer for the whole store (all devices' sales count); per-device drawers if a second counter opens.
 function drawerState_() {
-  const moves = rows_("Drawer").map(strip_).sort((a, b) => a.ts.localeCompare(b.ts)), shifts = [];
+  const moves = rows_("Drawer").map(strip_).filter(m => m.ts).sort((a, b) => a.ts.localeCompare(b.ts)), shifts = [];  // a row cleared by hand is skipped
   moves.forEach(m => {
     const cur = shifts.length && !shifts[shifts.length - 1].close ? shifts[shifts.length - 1] : null;
     if (m.kind === "open") shifts.push({open: m, moves: [], close: null});
@@ -769,7 +787,7 @@ function smsMoney_(n) {  // P2,592 or P2,592.50
 // The status text for one seller: who it is from, what needs action, the money, one request. Named items are capped so
 // it stays within 2 texts; everything else is a count (sender first, one request).
 function statusText_(q) {
-  const s = rows_("Sellers").find(x => x.id === Number(q.id));
+  const s = liveSellers_().find(x => x.id === Number(q.id));
   if (!s) bad_("Seller not found");
   const st = settings_(), today = today_(), short = n => n.length > 18 ? n.slice(0, 17).trim() + "." : n, day = d => dateText_(d).slice(0, 6);
   const items = rows_("Products").filter(p => p.seller_id === s.id), limit = s.low_stock === null || s.low_stock === undefined ? 5 : s.low_stock;
@@ -992,7 +1010,7 @@ function payoutState_(q) {
     const since = q.from ? q.from + "T00:00:00" : last ? last.to_ts : now.slice(0, 8) + "01T00:00:00";
     const lines = renterSales_(s.id, since, now), sales = r2_(lines.reduce((n, i) => n + i.qty * i.price, 0));
     const pct = s.commission || 0, commission = r2_(sales * pct / 100), dates = rentDates_(s, since, now), rent = r2_(dates.length * (s.rent || 0));
-    return {id: s.id, since: since, sales: sales, pcs: lines.reduce((n, i) => n + i.qty, 0), pct: pct, commission: commission,
+    return {id: s.id, since: since, until: now, sales: sales, pcs: lines.reduce((n, i) => n + i.qty, 0), pct: pct, commission: commission,
             rent: rent, rent_dates: dates, to_pay: r2_(sales - commission - rent), last: last ? strip_(last) : null};
   });
 }
@@ -1011,7 +1029,8 @@ function payout_(d) {
   const sales = r2_(num_(d.sales, "Sales")), commission = r2_(num_(d.commission, "Commission")), rent = r2_(num_(d.rent, "Rent"));
   if (commission < 0 || rent < 0) bad_("Commission and rent cannot be negative");
   const paid = r2_(sales - commission - rent), note = String(d.note || "").trim().slice(0, 200) || null;
-  const row = {uid: uid, ts: ts, seller_id: s.id, name: s.name, from_ts: from, to_ts: ts, sales: sales, commission: commission, rent: rent, paid: paid, via: via, note: note};
+  const until = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(d.to_ts || "") && d.to_ts <= ts ? d.to_ts : ts;  // sales after it go to the next payout
+  const row = {uid: uid, ts: ts, seller_id: s.id, name: s.name, from_ts: from, to_ts: until, sales: sales, commission: commission, rent: rent, paid: paid, via: via, note: note};
   insert_("Payouts", row);
   // Cash goes through the drawer when it is open; a renter who owes the store pays in
   if (via === "Cash" && paid !== 0 && drawerState_().current) {

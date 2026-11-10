@@ -285,6 +285,7 @@ button.badge{min-height:0;border-radius:10px;cursor:pointer}button.badge:hover{f
 .lhow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px}.lhow>div{flex:1;min-width:220px}.lhow b{display:block;font-weight:500}.lhow small{color:var(--muted);font-size:13px}
 .lsize{flex-direction:row;align-items:center;gap:8px;white-space:nowrap}.lsize select{width:auto;min-height:36px;padding:4px 8px}
 #lpreview .labels{display:block;margin:0 auto;border-radius:0}#lpreview .labels.large{width:48mm}#lpreview .labels.small{width:36mm}#lpreview .labels.tiny{width:30mm}#lpreview .labels .label{width:auto}
+#lpreview .muted{color:#555}
 #lpreview .paper{width:100%;padding:8px 4px;font-size:9.5px;box-shadow:none}
 .copies{display:inline-flex;align-items:center;gap:2px;border-radius:18px;background:var(--chip)}
 .copies button{background:none;min-height:32px;min-width:32px;padding:0;border-radius:50%;font-size:16px}
@@ -589,13 +590,6 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <div class="scroll"><table><thead><tr><th>Time</th><th>Receipt #</th><th>Items</th><th class="num">Total</th></tr></thead>
     <tbody id="hlist"></tbody></table></div>
   </div>
-  <dialog id="saleDlg">
-    <div id="saleView"></div>
-    <div class="row" style="flex-wrap:nowrap;margin-top:14px"><button id="saleReprint" style="flex:1">Reprint receipt</button>
-      <button id="saleReprint2" style="flex:1">Reprint + store copy</button></div>
-    <div class="row" style="flex-wrap:nowrap;margin-top:8px"><button class="danger" id="saleRefund" style="flex:1">Refund / void…</button>
-      <button class="ghost" id="saleClose" style="flex:1">Close</button></div>
-  </dialog>
 </section>
 
 <section id="reports">
@@ -829,6 +823,13 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <div class="dlgfoot"><button type="button" id="rsScan">Scan pieces instead</button><span></span><button type="button" data-close>Cancel</button><button class="primary" id="rsSave">Add to stock</button></div>
   </form>
 </dialog>
+<dialog id="saleDlg">
+    <div id="saleView"></div>
+    <div class="row" style="flex-wrap:nowrap;margin-top:14px"><button id="saleReprint" style="flex:1">Reprint receipt</button>
+      <button id="saleReprint2" style="flex:1">Reprint + store copy</button></div>
+    <div class="row" style="flex-wrap:nowrap;margin-top:8px"><button class="danger" id="saleRefund" style="flex:1">Refund / void…</button>
+      <button class="ghost" id="saleClose" style="flex:1">Close</button></div>
+  </dialog>
 <dialog id="delDlg">
   <h3 id="delTitle" style="margin:0 0 8px"></h3>
   <ul id="delList" style="margin:0 0 16px;padding-left:20px;display:grid;gap:6px;font-size:14px"></ul>
@@ -961,7 +962,13 @@ const API = /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost:
 if (!API) setTimeout(() => toast("config.js: paste your Google Apps Script Web app address there", true), 500);
 
 // Same as prompt(), which the Mac/Windows app doesn't have: resolves to the typed text, or null on Cancel
+let askQueue = Promise.resolve();
 function ask(text, value = "", type = "text") {
+  const next = askQueue.then(() => askNow(text, value, type));
+  askQueue = next.catch(() => {});
+  return next;
+}
+function askNow(text, value, type) {
   return new Promise(ok => {
     const d = $("#askDlg"), i = $("#askInput");
     $("#askText").textContent = text; i.type = type; i.value = value;
@@ -1009,6 +1016,13 @@ async function remoteApi(path, body, ms = 30000) {
   return j.data;
 }
 const run = fn => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
+// Form saves: a second tap while the first is saving does nothing (it would add stock twice, or make two products)
+const once = fn => { let busy = false; return run(async (e, ...a) => {
+  e?.preventDefault?.();
+  if (busy) return;
+  busy = true; const btn = e?.submitter; if (btn) btn.disabled = true;
+  try { await fn(e, ...a); } finally { busy = false; if (btn) btn.disabled = false; }
+}); };
 const setOnline = v => { online = v; netStatus(); };
 
 async function load() {
@@ -1263,7 +1277,7 @@ $("#cart").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   const l = cart[b.dataset.i];
   if (l.qty === 1 && b.dataset.d === "-1") cart.splice(b.dataset.i, 1);  // − on the last one takes the item out
-  else addToCart(S.products.find(p => p.id === l.id), +b.dataset.d);
+  else { const p = S.products.find(p => p.id === l.id); if (!p) return toast(`${l.name} was deleted on another device`, true); addToCart(p, +b.dataset.d); }
   renderCart(); $("#scan").focus();
 };
 $("#cash").oninput = renderCart;
@@ -1319,7 +1333,7 @@ const pay = run(async () => {
   }
   if (cash < due) return toast(`Cash received (${peso(cash)}) is less than ${via ? "the rest to pay" : "the total"} (${peso(due)})`, true);
   const sale = {uid: newUid(), ts: localTime(), cash,
-                ...(later ? {credit_to: who} : {}), ...(via ? {pay_via: via, epay, epay_ref: ref} : {}), items: cart.map(({id, qty, price, name}) => ({id, qty, price, name}))};
+                ...(later ? {credit_to: who} : {}), ...(via ? {pay_via: via, epay, epay_ref: ref} : {}), items: cart.map(({id, qty, price, name}) => { const p = S.products.find(x => x.id === id); return {id, qty, price, name, seller_id: p?.seller_id ?? null, cost: p?.cost ?? null}; })};
   paying = true;
   try { lastSale = {...await api("/api/sale", sale), id: receiptNo(sale)}; }  // saved on this device at once
   finally { paying = false; }
@@ -1445,8 +1459,8 @@ function ticket() {
     lr: (l, r) => { l = clean(l); r = clean(r); const gap = W - l.length - r.length; t.line(gap > 0 ? l + " ".repeat(gap) + r : l.slice(0, W - r.length - 1) + " " + r); },
     rule: () => t.line("-".repeat(W)),
     barcode: code => {  // the printer draws Code 128 itself: few bytes, so many labels print quickly
-      const b = [...code].map(c => c.charCodeAt(0));
-      out.push(0x1d, 0x68, 60, 0x1d, 0x77, b.length > 15 ? 1 : 2, 0x1d, 0x48, 0, 0x1d, 0x6b, 73, b.length + 2, 0x7b, 0x42, ...b, 10);  // height, width, no text, GS k
+      const b = [...code].flatMap(c => c === "{" ? [123, 123] : [c.charCodeAt(0)]);  // "{" is the printer's own escape
+      out.push(0x1d, 0x68, 60, 0x1d, 0x77, b.length > 14 ? 1 : 2, 0x1d, 0x48, 0, 0x1d, 0x6b, 73, b.length + 2, 0x7b, 0x42, ...b, 10);  // height, width, no text, GS k
     },
     image: l => { const w = Math.ceil(l.w / 8); out.push(0x1d, 0x76, 0x30, 0, w & 255, w >> 8, l.h & 255, l.h >> 8); for (const b of l.bits) out.push(b); out.push(10); },  // GS v 0
     bold: on => out.push(ESC, 0x45, on ? 1 : 0),
@@ -1610,11 +1624,11 @@ $("#rsform").onclick = e => {
   showRestockTotal();
 };
 $("#rsform").expiry.onchange = e => { const n = $("#rsform").notify_on; if (e.target.value && (!n.value || n.value > e.target.value)) n.value = addDays(e.target.value, -3); };
-$("#rsform").onsubmit = run(async e => {
+$("#rsform").onsubmit = once(async e => {
   e.preventDefault();
   const f = e.target, add = parseInt(f.add.value);
   if (!(add > 0)) return showRestockTotal();
-  const body = {id: f.id.value, add};
+  const body = {uid: newUid(), id: f.id.value, add};
   if (f.expiry.value !== (restocking.expiry || "") || f.notify_on.value !== (restocking.notify_on || "")) Object.assign(body, {expiry: f.expiry.value, notify_on: f.notify_on.value});
   const r = await api("/api/restock", body);
   $("#rsDlg").close(); toast(`${restocking.name}: ${r.stock} in stock now`); await load();
@@ -1647,7 +1661,7 @@ $("#adjForm").onclick = e => {
   else f.qty.value = Math.max(1, (parseInt(f.qty.value, 10) || 0) + +b.dataset.ad);
   showRemove();
 };
-$("#adjForm").onsubmit = run(async e => {
+$("#adjForm").onsubmit = once(async e => {
   e.preventDefault();
   const f = e.target, n = parseInt(f.qty.value, 10);
   if (!(n > 0) || !removeWhy) return showRemove();
@@ -1719,9 +1733,9 @@ $("#pfilter").onkeydown = e => {
 };
 // A scanner in the barcode field types + Enter: don't submit, jump to Name
 $("#pform").barcode.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#pform").name.focus(); } };
-$("#pform").onsubmit = run(async e => {
+$("#pform").onsubmit = once(async e => {
   e.preventDefault();
-  const r = await api("/api/products", Object.fromEntries(new FormData(e.target)));
+  const r = await api("/api/products", {...Object.fromEntries(new FormData(e.target)), uid: newUid()});
   if (newPhoto !== undefined) await api("/api/photo", {id: r.id, photo: newPhoto, at: localTime()});
   toast(`Saved. Barcode ${r.barcode}`); $("#pDlg").close(); await load();
 });
@@ -1805,7 +1819,7 @@ $("#slist").onclick = run(async e => {
   if (b.dataset.report) { await api("/api/sellers/report", {id: b.dataset.report}); toast("Stock report sent"); }
 });
 $("#reportAll").onclick = run(async () => { const r = await api("/api/sellers/report", {}); toast(`Sent ${r.queued} stock report(s)`); });
-$("#sform").onsubmit = run(async e => {
+$("#sform").onsubmit = once(async e => {
   e.preventDefault(); await api("/api/sellers", Object.fromEntries(new FormData(e.target)));
   toast("Seller saved"); $("#sDlg").close(); await load();
 });
@@ -1861,7 +1875,7 @@ function renderLabelTotals() {
     : `${n} sticker${n === 1 ? "" : "s"} on ${Math.ceil(n / L.page)} page${Math.ceil(n / L.page) === 1 ? "" : "s"} (about ${L.page} per page)`;
 }
 $("#lfilter").oninput = renderLabels;
-$("#llist").oninput = e => { labelCopies[e.target.dataset.id] = Math.max(0, +e.target.value || 0); renderLabelTotals(); };
+$("#llist").oninput = e => { labelCopies[e.target.dataset.id] = Math.max(0, Math.floor(+e.target.value) || 0); renderLabelTotals(); };
 $("#llist").onclick = e => {
   const b = e.target.closest("button[data-lid]"); if (!b) return;
   labelCopies[b.dataset.lid] = Math.max(0, (labelCopies[b.dataset.lid] || 0) + +b.dataset.ld);
@@ -2177,7 +2191,8 @@ let refunding = null;
 function openRefund(s) {
   refunding = s; $("#rfForm").reset();
   $("#rfTitle").textContent = `Refund sale #${s.id}`;
-  $("#rfVia").innerHTML = `<option value="">${s.credit_to ? `No money back: take it off what ${esc(s.credit_to)} owes` : "Cash from the drawer"}</option>` + (s.pay_via ? `<option value="${esc(s.pay_via)}">${esc(s.pay_via)}: send it back from the store's phone</option>` : "");
+  const owes = s.credit_to && (S.credits || []).some(c => c.uid === s.uid);  // still owed: no money back; paid already: money back
+  $("#rfVia").innerHTML = `<option value="">${owes ? `No money back: take it off what ${esc(s.credit_to)} owes` : "Cash from the drawer"}</option>` + (s.pay_via ? `<option value="${esc(s.pay_via)}">${esc(s.pay_via)}: send it back from the store's phone</option>` : "");
   if (s.pay_via && !(s.cash > 0)) $("#rfVia").value = s.pay_via;  // paid all by e-wallet: send it back the same way
   $("#rfLines").innerHTML = s.items.map((i, k) => {
     const left = i.qty - (i.refunded || 0);
@@ -2187,7 +2202,7 @@ function openRefund(s) {
   }).join("");
   renderRefund();
   $("#saleDlg").close(); $("#rfDlg").showModal();
-  if (s.credit_to) { $("#rfForm").reason.value = "Unsold, brought back"; }
+  if (owes) { $("#rfForm").reason.value = "Unsold, brought back"; }
 }
 const refundQty = () => [...document.querySelectorAll("#rfLines input")].map(i => ({k: +i.dataset.k, n: Math.min(+i.max, Math.max(0, parseInt(i.value, 10) || 0))}));
 function renderRefund() {
@@ -2203,7 +2218,7 @@ $("#rfLines").onclick = e => {
   i.value = Math.min(+i.max, Math.max(0, (parseInt(i.value, 10) || 0) + +b.dataset.d)); renderRefund();
 };
 $("#rfAll").onclick = () => { document.querySelectorAll("#rfLines input").forEach(i => i.value = i.max); renderRefund(); $("#rfForm").reason.focus(); };
-$("#rfForm").onsubmit = run(async e => {
+$("#rfForm").onsubmit = once(async e => {
   e.preventDefault();
   const f = e.target, s = refunding, uid = newUid();
   const items = refundQty().filter(q => q.n).map(q => { const i = s.items[q.k]; return {id: i.id, qty: -q.n, price: i.price, name: i.name}; });
@@ -2211,12 +2226,12 @@ $("#rfForm").onsubmit = run(async e => {
   const r = await api("/api/sale", {uid, ts: localTime(), refund_of: s.uid, reason: f.reason.value, restock: f.restock.checked,
     ...(f.via.value ? {pay_via: f.via.value} : {}), items});
   $("#rfDlg").close();
-  toast(s.credit_to ? `${peso(-r.total)} taken off what ${s.credit_to} owes` : `Refunded: give back ${peso(-r.total)}${f.via.value ? ` by ${f.via.value}` : " in cash"}`, false, 8000);
+  toast(r.credit_to ? `${peso(-r.total)} taken off what ${s.credit_to} owes` : `Refunded: give back ${peso(-r.total)}${f.via.value ? ` by ${f.via.value}` : " in cash"}`, false, 8000);
   await load(); await showHistory();
   // Show the refund slip, ready to print for the customer
   viewing = history.find(x => x.uid === uid);
   if (viewing) showSale();
-  if (!f.via.value && !s.credit_to && store.get("cashKick", false)) openDrawer();  // cash to give back
+  if (!f.via.value && !r.credit_to && store.get("cashKick", false)) openDrawer();  // cash to give back
 });
 
 // ---------- renter payouts: what the store owes since the last payout (the engine does the sums: payoutState_) ----------
@@ -2251,10 +2266,10 @@ $("#poForm").from.onchange = run(async e => {
   payState = (await api("/api/payouts", {id: paying_.id, from: e.target.value}))[0];
   $("#poForm").rent.value = payState.rent || ""; renderPayout();
 });
-$("#poForm").onsubmit = run(async e => {
+$("#poForm").onsubmit = once(async e => {
   e.preventDefault();
   const f = e.target, p = payState;
-  const r = await api("/api/payout", {uid: newUid(), ts: localTime(), id: paying_.id, from_ts: p.since, sales: p.sales, commission: p.commission, rent: parseFloat(f.rent.value) || 0, via: f.via.value, note: f.note.value});
+  const r = await api("/api/payout", {uid: newUid(), ts: localTime(), id: paying_.id, from_ts: p.since, to_ts: p.until, sales: p.sales, commission: p.commission, rent: parseFloat(f.rent.value) || 0, via: f.via.value, note: f.note.value});
   $("#poDlg").close(); await load();
   toast(`${paying_.name}: ${r.paid < 0 ? "received " + peso(-r.paid) : "paid " + peso(r.paid)} by ${r.via}`);
   if (e.submitter?.value === "print") printPayout(r);
@@ -2392,7 +2407,7 @@ async function openStatusText(s) {
   $("#txDlg").showModal();
 }
 $("#txForm").body.oninput = showTextCount;
-$("#txForm").onsubmit = run(async e => {
+$("#txForm").onsubmit = once(async e => {
   e.preventDefault();
   await api("/api/text", {uid: newUid(), id: textingTo.id, body: e.target.body.value});
   $("#txDlg").close(); toast(`Text to ${textingTo.name} is on its way. See Settings → Text messages.`); await load(); syncSoon();
@@ -2506,6 +2521,7 @@ $("#scanFind").onclick = run(async () => {
 // ---------- Scan in stock: each scan of the item's own barcode counts one piece; nothing changes until Add to stock ----------
 let sin = {p: null, n: 0, link: ""};  // the product, pieces scanned, a new barcode to link to it
 function renderScanIn() {
+  if (sin.p) sin.p = S.products.find(x => x.id === sin.p.id) || sin.p;  // the latest stock after a refresh
   const p = sin.p;
   $("#sinItem").innerHTML = p ? `${thumb(p)}<div><b>${esc(p.name)}</b><small>${p.stock} in stock · barcode ${esc(sin.link || p.barcode)}</small></div>`
     : '<div><b>Scan any item to start</b><small>The barcode tells the POS which product it is</small></div>';
@@ -2529,9 +2545,9 @@ function scanIn(code) {
   if (!p) {
     sin.p = hit; sin.n = 1;
     $("#sinForm").expiry.value = hit.expiry || ""; $("#sinForm").notify_on.value = hit.notify_on || "";
-  } else if (hit === p || code === sin.link) sin.n++;
+  } else if ((hit && hit.id === p.id) || code === sin.link) sin.n++;
   else if (hit) { scanBeep(false, true); return sinSay(`That is ${hit.name}, not ${p.name}. Not counted.`, "bad"); }
-  else if (!sin.link && /^20\d{6}$/.test(p.barcode)) { sin.link = code; sin.n++; }  // an in-store code: this item's own barcode replaces it
+  else if (!sin.link && /^2\d{7}$/.test(p.barcode)) { sin.link = code; sin.n++; }  // an in-store code: this item's own barcode replaces it
   else { scanBeep(false, true); return sinSay(`That barcode isn't ${p.name}'s. Not counted.`, "bad"); }
   scanBeep(true, true);
   sinSay(sin.link ? `Barcode ${sin.link} will be linked to this item.` : "Counted.", sin.link ? "warn" : "good");
@@ -2558,16 +2574,16 @@ $("#sinForm").expiry.onchange = e => { const n = $("#sinForm").notify_on; if (e.
 const sinLeave = () => !sin.n || confirm(`${sin.n} scanned piece${sin.n === 1 ? "" : "s"} will not be added. Leave anyway?`);
 $("#sinDone").onclick = $("#sinX").onclick = () => { if (sinLeave()) { sin.n = 0; $("#sinDlg").close(); } };
 $("#sinDlg").oncancel = e => { if (!sinLeave()) e.preventDefault(); };
-$("#sinForm").onsubmit = run(async e => {
+$("#sinForm").onsubmit = once(async e => {
   e.preventDefault();
   const {p, n, link} = sin, f = e.target; if (!p || !n) return;
-  if (link) await api("/api/products", {id: p.id, name: p.name, barcode: link, price: p.price, cost: p.cost ?? "", stock: p.stock, stock_was: p.stock,
+  if (link) await api("/api/products", {uid: newUid(), id: p.id, name: p.name, barcode: link, price: p.price, cost: p.cost ?? "", stock: p.stock, stock_was: p.stock,
     seller_id: p.seller_id || "", expiry: p.expiry || "", mfg_date: p.mfg_date || "", notify_on: p.notify_on || ""});
-  const body = {id: p.id, add: n};
+  const body = {uid: newUid(), id: p.id, add: n};
   if (f.expiry.value !== (p.expiry || "") || f.notify_on.value !== (p.notify_on || "")) Object.assign(body, {expiry: f.expiry.value, notify_on: f.notify_on.value});
   const r = await api("/api/restock", body);
   await load();
-  sin = {p: null, n: 0, link: ""}; f.reset(); renderScanIn();
+  sin = {p: null, n: 0, link: ""}; f.reset(); setTimeout(renderScanIn);  // after the save button is released
   sinSay(`${p.name}: ${n} added, ${r.stock} in stock. Scan the next item.`, "good"); $("#sinScan").focus();
 });
 $("#sinOpen").onclick = () => openScanIn();
@@ -2576,7 +2592,7 @@ $("#rsScan").onclick = () => { const p = restocking; $("#rsDlg").close(); openSc
 // What's new: the key points, with everything else folded under "Read full details"
 function notesHTML(keynotes, notes = []) {
   const list = l => `<ul class="notelist">${l.map(n => `<li>${esc(n)}</li>`).join("")}</ul>`;
-  const keys = keynotes?.length ? keynotes : notes.slice(0, 4).map(n => n.split(/(?<=\.)\s/)[0]);
+  const keys = keynotes?.length ? keynotes : notes.slice(0, 4).map(n => (n.match(/^.*?\.(?=\s|$)/) || [n])[0]);
   return list(keys) + (notes.length > keys.length || keynotes?.length ? `<details class="notemore"><summary>Read full details</summary>${list(notes)}</details>` : "");
 }
 
@@ -2601,7 +2617,7 @@ function openCreditPay(c) {
   f.amount.value = c.balance; f.amount.max = c.balance;
   $("#cpDlg").showModal(); f.amount.select();
 }
-$("#cpForm").onsubmit = run(async e => {
+$("#cpForm").onsubmit = once(async e => {
   e.preventDefault();
   const f = e.target, c = crediting;
   const r = await api("/api/credit-pay", {uid: newUid(), ts: localTime(), sale_uid: c.uid, amount: f.amount.value, via: f.via.value, note: f.note.value});
@@ -2635,7 +2651,7 @@ function renderDrawer() {
   } else {
     const ew = cur.by_pay.filter(p => p.via !== "Cash" && p.via !== PAY_LATER);
     $("#dnow").innerHTML = `<div class="dhead"><p class="muted">Open since ${esc(dayText(cur.opened.slice(0, 10)))}, ${cur.opened.slice(11, 16)}${stale ? ' · <span class="bad">not closed yet</span>' : ""}</p>
-        <div class="dacts"><button data-d="in">+ Money in</button><button data-d="out">− Money out</button>${store.get("cashKick", false) ? '<button data-d="kick">Open drawer</button>' : ""}<button class="primary" data-d="close">Close and count</button></div></div>
+        <div class="dacts"><button data-d="in">+ Money in</button><button data-d="out">− Money out</button>${store.get("cashKick", false) && printerMethod() !== "browser" ? '<button data-d="kick">Open drawer</button>' : ""}<button class="primary" data-d="close">Close and count</button></div></div>
       <div class="kpis">${[["lead", "Expected in drawer", peso(cur.expected), "cash that should be there now"],
         ["", "Starting cash", peso(cur.start), "counted when opened"],
         ["", "Cash sales", peso(cur.cash_sales), `${cur.n} sale${cur.n === 1 ? "" : "s"}${ew.length ? " · e-wallet not included" : ""}`],
@@ -2680,6 +2696,7 @@ function countTotal() {
   return r2(t);
 }
 function renderCount() {
+  if (counting === "close" && !S.drawer.current) { $("#cntDlg").close(); return toast("The drawer was closed on another device", true); }
   const t = countTotal(), closing = counting === "close";
   $("#cntTotal").textContent = peso(t);
   $("#cntExpRow").hidden = $("#cntDiffRow").hidden = $("#cntNoteRow").hidden = !closing;
@@ -2710,7 +2727,7 @@ function openCount(kind) {
   $("#cntSame").textContent = kind === "open" ? `Same as last count: ${peso(same || 0)}` : `Same as expected: ${peso(same || 0)}`;
   renderCount(); $("#cntDlg").showModal(); $("#dens input").focus();
 }
-$("#cntForm").onsubmit = run(async e => {
+$("#cntForm").onsubmit = once(async e => {
   e.preventDefault();
   const counted = countTotal(), cur = S.drawer.current;
   const detail = [...document.querySelectorAll("#dens input")].filter(i => +i.value).map(i => i.dataset.den === "other" ? `other ${i.value}` : `${i.dataset.den}x${i.value}`).join(", ");
@@ -2734,7 +2751,7 @@ function openMove(kind) {
   $("#mvReasons").innerHTML = MOVE_REASONS[kind].map(r => `<option value="${esc(r)}">`).join("");
   $("#mvDlg").showModal(); $("#mvForm").amount.focus();
 }
-$("#mvForm").onsubmit = run(async e => {
+$("#mvForm").onsubmit = once(async e => {
   e.preventDefault();
   const f = e.target;
   await api("/api/drawer", {uid: newUid(), ts: localTime(), kind: moving, amount: f.amount.value, note: f.note.value});
@@ -2795,6 +2812,7 @@ function renderSettings() {
   renderReceiptPreview(); renderSmsEditor();
   $("#scanBeep").checked = store.get("scanBeep", false); $("#scanNoEnter").checked = store.get("scanNoEnter", false);
   $("#scanNative").hidden = !window.nativePrinter;
+  $("#scanBtSettings").hidden = !window.Capacitor?.isNativePlatform?.();  // Android's pairing screen; Mac/Windows pair in their own settings
   const failed = Local.failed();
   $("#devConn").innerHTML = online ? '<span style="color:var(--good)">Connected</span>' : '<span class="warn">Offline: sales are saved on this device</span>';
   $("#devSync").innerHTML = (Local.pending() ? `<span class="warn">${Local.pending()} waiting to sync</span>` : "All synced")
@@ -2841,7 +2859,7 @@ $("#oblist").onclick = run(async e => {
 });
 let setDirty = false;
 $("#setform").oninput = () => setDirty = true;
-$("#setform").onsubmit = run(async e => {
+$("#setform").onsubmit = once(async e => {
   e.preventDefault(); await api("/api/settings", Object.fromEntries(new FormData(e.target)));
   setDirty = false; toast("Settings saved"); await load();
 });
@@ -2854,7 +2872,7 @@ async function renderPrinter(refresh) {
   $("#kickRow").hidden = printerMethod() === "browser";  // a regular printer can't open a drawer
   $("#printerFind").hidden = $("#appPrinterBox").hidden = m !== "app";
   $("#printerHelp").textContent = PRINTER_HELP[m];
-  renderLabelTotals();  // the Labels page follows the printer chosen here
+  renderLabelTotals(); renderReceiptPreview();  // the Labels page and receipt preview follow the printer chosen here
   if (m === "app" && window.nativePrinter && (refresh || !$("#appPrinter").options.length)) {
     const list = await nativePrinter.list(), cur = store.get("appPrinter", "");
     if (!cur && list.length === 1) store.set("appPrinter", list[0].id);
