@@ -9,7 +9,7 @@
 const TZ = "Asia/Manila";
 const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
-  Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost"],  // cost: what the store paid per piece
+  Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost", "category", "fav"],  // cost: what the store paid per piece; fav: 1 = starred on the Sell screen
   Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at", "commission", "deleted"],  // commission: % the store keeps of their sales
   Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason", "credit_to"],  // pay_via/epay: GCash, Maya...; refund_of: uid
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price", "cost"],  // cost at the time of the sale
@@ -94,6 +94,7 @@ const ROUTES = {
   "/api/drawer": drawerMove_,
   "/api/drawer-state": drawerState_,
   "/api/settings": saveSettings_,
+  "/api/fav": setFav_,
   "/api/outbox/delete": d => removeById_("Emails", d.id),
   "/api/outbox/readdress": readdress_,
   "/api/outbox/test": testEmail_,
@@ -249,7 +250,9 @@ function saveProduct_(d) {
     id: d.id ? Number(d.id) : null, name: String(d.name || "").trim(), barcode: String(d.barcode || "").trim(),
     price: num_(d.price, "Price"), stock: num_(d.stock, "Stock"), seller_id: d.seller_id ? Number(d.seller_id) : null,
     expiry: d.expiry || null, mfg_date: d.mfg_date || null, notify_on: d.notify_on || null,
+    category: String(d.category || "").trim() || null,
   };
+  if (p.category && p.category.length > 40) bad_("Category is too long");
   if (!p.name) bad_("Name is required");
   if (!Number.isInteger(p.stock)) bad_("Stock must be a whole number");
   if (p.price < 0 || p.stock < 0) bad_("Price and stock cannot be negative");
@@ -276,13 +279,21 @@ function saveProduct_(d) {
       p.stock = (Number(old.stock) || 0) + change;
       if (change && d.uid) insert_("Adjustments", {uid: String(d.uid), ts: now_(), product_id: old.id, name: p.name, seller_id: p.seller_id, qty: change, price: p.price, reason: "Edit", note: null, cost: null});
     }
-    update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at, cost: "cost" in d ? cost : old.cost}));  // the photo is saved separately
+    update_("Products", Object.assign(p, {_row: old._row, photo_at: old.photo_at, cost: "cost" in d ? cost : old.cost,
+      category: "category" in d ? p.category : old.category, fav: old.fav}));  // the photo is saved separately
   } else {
     p.id = p.id || uniqueId_(all);  // a device that made it offline already chose its id
     p.cost = cost;
     insert_("Products", p);
   }
   return {id: p.id, barcode: p.barcode};
+}
+
+// Star / unstar a product for the Sell screen's Favorites (shared by every device)
+function setFav_(d) {
+  const p = rows_("Products").find(r => r.id === Number(d.id));
+  if (!p) bad_("Product not found (was it deleted?)");
+  update_("Products", Object.assign(p, {fav: d.fav ? 1 : null}));
 }
 
 // Restock: ADD pieces to the stock Google has now (not overwrite it), so sales made meanwhile on other devices still

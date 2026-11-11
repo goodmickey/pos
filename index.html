@@ -116,6 +116,9 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .tile:hover{background:var(--raised);border-color:var(--line2)}
 .tile:active{transform:scale(.98)}
 .tile .tname{display:flex;gap:10px;align-items:flex-start}
+.tile{position:relative}.tile .tname{padding-right:22px}
+.tile .fav{position:absolute;top:6px;right:6px;width:32px;height:32px;display:grid;place-items:center;border-radius:8px;font-size:20px;line-height:1;color:var(--muted)}
+.tile .fav.on{color:#d97706}.tile .fav:hover{background:var(--line)}
 .tile b{font-size:15px;line-height:1.3;font-weight:500;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tile .owner{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none;vertical-align:middle}
@@ -482,6 +485,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
         <button class="kb" id="kb" title="Show on-screen keyboard to type a name">⌨ Type</button></div>
       <div class="dnote" id="drawerNote" hidden><span></span><button class="sm" id="drawerGo"></button></div>
       <div class="chips owners" id="owners"></div>
+      <div class="chips owners" id="cats"></div>
       <div class="tiles" id="tiles"></div>
     </div>
     <div class="ticket">
@@ -753,6 +757,8 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
       <input type="hidden" name="id"><input type="hidden" name="stock_was">
       <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
       <label>Name <input name="name" required></label>
+      <label>Category <input name="category" list="catList" maxlength="40" placeholder="e.g. Nuts, Candy, Drinks"></label>
+      <datalist id="catList"></datalist>
       <label>Price (₱) <input name="price" type="number" step="0.01" min="0" required></label>
       <label>Cost per piece (₱) <input name="cost" type="number" step="0.01" min="0" placeholder="What the store paid"></label>
       <p class="muted fhint" id="pmargin"></p>
@@ -1155,14 +1161,29 @@ function renderOwners() {
   $("#owners").innerHTML = chips.map(([v, label]) => `<button data-owner="${v}" aria-pressed="${v === sellOwner}">${v && v !== "store" ? `<i class="dot" style="background:${ownerColor(+v)}"></i>` : ""}${esc(label)}</button>`).join("");
 }
 $("#owners").onclick = e => { const b = e.target.closest("button"); if (b) { sellOwner = b.dataset.owner; renderTiles(); $("#scan").focus(); } };
+// Category chips: All, ★ Favorites, then each category (the choice is kept while selling)
+let sellCat = "";  // "" = all, "\u2605" = favorites, else a category name
+const cats = () => [...new Set(S.products.map(p => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+function renderCats() {
+  const chips = [["", "All"], ...(S.products.some(p => p.fav) ? [["\u2605", "\u2605 Favorites"]] : []), ...cats().map(c => [c, c])];
+  if (!chips.some(([v]) => v === sellCat)) sellCat = "";
+  $("#cats").hidden = chips.length < 2;
+  $("#cats").innerHTML = chips.map(([v, label]) => `<button data-cat="${esc(v)}" aria-pressed="${v === sellCat}">${esc(label)}</button>`).join("");
+}
+$("#cats").onclick = e => { const b = e.target.closest("button"); if (b) { sellCat = b.dataset.cat; renderTiles(); $("#scan").focus(); } };
 function renderTiles() {
-  renderOwners();
+  renderOwners(); renderCats();
   const f = $("#scan").value.trim().toLowerCase();
   const list = S.products.filter(p => (!f || p.name.toLowerCase().includes(f) || p.barcode.includes(f))
-    && (!sellOwner || (sellOwner === "store" ? !p.seller_id : String(p.seller_id) === sellOwner)));
+    && (!sellOwner || (sellOwner === "store" ? !p.seller_id : String(p.seller_id) === sellOwner))
+    && (!sellCat || (sellCat === "\u2605" ? p.fav : p.category === sellCat)));
+  // Items that can be sold first; out of stock and expired at the bottom (each part keeps its A-Z order)
+  const off = p => stockState(p)[1] === "bad";
+  list.sort((a, b) => off(a) - off(b));
   $("#tiles").innerHTML = list.map(p => {
     const s = S.sellers.find(s => s.id === p.seller_id), [note, cls] = stockState(p);
     return `<button class="tile${cls === "bad" ? " off" : ""}" data-id="${p.id}">
+      <span class="fav${p.fav ? " on" : ""}" data-fav="${p.id}" role="button" aria-label="${p.fav ? "Remove from" : "Add to"} favorites" title="${p.fav ? "Remove from" : "Add to"} favorites">${p.fav ? "\u2605" : "\u2606"}</span>
       <div class="tname">${thumb(p)}<b>${esc(p.name)}</b></div>
       <div class="owner"><i class="dot" style="background:${ownerColor(p.seller_id, true)}"></i>${s ? esc(s.name) + (s.shelf ? " · " + esc(s.shelf) : "") : "Store"}</div>
       <div class="tfoot"><span class="price">${peso(p.price)}</span><small class="stock ${cls}">${note}</small></div></button>`;
@@ -1181,7 +1202,16 @@ function stockState(p) {
 // White initials stay readable on every colour (4.5:1 or more)
 const SELLER_COLORS = ["#2563eb", "#b45309", "#9333ea", "#db2777", "#0e7490", "#4d7c0f", "#dc2626", "#4f46e5"];
 const ownerColor = (id, solid) => id ? SELLER_COLORS[id % SELLER_COLORS.length] : solid ? "#6b6b6b" : "var(--line2)";
-$("#tiles").onclick = e => { const b = e.target.closest(".tile"); if (b) askQty(S.products.find(p => p.id === +b.dataset.id)); };
+$("#tiles").onclick = run(async e => {
+  const star = e.target.closest("[data-fav]");
+  if (star) {
+    const p = S.products.find(p => p.id === +star.dataset.fav);
+    await api("/api/fav", {id: p.id, fav: !p.fav});
+    p.fav = p.fav ? null : 1;  // show it now; the next refresh brings the saved value
+    return renderTiles();
+  }
+  const b = e.target.closest(".tile"); if (b) askQty(S.products.find(p => p.id === +b.dataset.id));
+});
 
 // Quantity pop-up after tapping an item
 let qtyFor = null;
@@ -1685,7 +1715,8 @@ $("#powner").onchange = renderProducts;
 // Add / edit happens in a pop-up
 function editProduct(p) {
   const f = $("#pform"); f.reset();
-  for (const k of ["id", "barcode", "name", "price", "cost", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
+  $("#catList").innerHTML = cats().map(c => `<option value="${esc(c)}">`).join("");
+  for (const k of ["id", "barcode", "name", "category", "price", "cost", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
   f.stock_was.value = p?.id ? p.stock : "";  // saving applies only the change typed, never overwrites newer sales
   $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
   showMargin();
