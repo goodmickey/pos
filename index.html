@@ -757,6 +757,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
     <form id="pform" class="form">
       <input type="hidden" name="id"><input type="hidden" name="stock_was">
       <label>Barcode <input name="barcode" placeholder="Scan it, or blank = generate"></label>
+      <label>Other barcodes <input name="codes" placeholder="Packs of this item with a different code, comma-separated"></label>
       <label>Name <input name="name" required></label>
       <label>Category <input name="category" list="catList" maxlength="40" placeholder="e.g. Nuts, Candy, Drinks"></label>
       <datalist id="catList"></datalist>
@@ -1121,7 +1122,8 @@ function barcodeSVG(text) {
 }
 
 // ---------- selling ----------
-const byCode = code => S.products.find(p => p.barcode === code);
+const codesOf = p => (p.codes || "").split(",").filter(Boolean);  // other barcodes of the same item
+const byCode = code => S.products.find(p => p.barcode === code || codesOf(p).includes(code));
 const isExpired = p => p.expiry && p.expiry < today();
 
 // Tablet: a Bluetooth/USB scanner types like a keyboard, so keep the on-screen keyboard
@@ -1717,7 +1719,7 @@ $("#powner").onchange = renderProducts;
 function editProduct(p) {
   const f = $("#pform"); f.reset();
   $("#catList").innerHTML = cats().map(c => `<option value="${esc(c)}">`).join("");
-  for (const k of ["id", "barcode", "name", "category", "price", "cost", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
+  for (const k of ["id", "barcode", "codes", "name", "category", "price", "cost", "stock", "seller_id", "mfg_date", "expiry", "notify_on"]) f[k].value = p?.[k] ?? (k === "stock" ? 0 : "");
   f.stock_was.value = p?.id ? p.stock : "";  // saving applies only the change typed, never overwrites newer sales
   $("#pformTitle").textContent = p?.id ? "Edit product" : "New product";
   showMargin();
@@ -2551,11 +2553,11 @@ $("#scanFind").onclick = run(async () => {
 });
 
 // ---------- Scan in stock: each scan of the item's own barcode counts one piece; nothing changes until Add to stock ----------
-let sin = {p: null, n: 0, link: ""};  // the product, pieces scanned, a new barcode to link to it
+let sin = {p: null, n: 0, links: []};  // the product, pieces scanned, new barcodes to link to it
 function renderScanIn() {
   if (sin.p) sin.p = S.products.find(x => x.id === sin.p.id) || sin.p;  // the latest stock after a refresh
   const p = sin.p;
-  $("#sinItem").innerHTML = p ? `${thumb(p)}<div><b>${esc(p.name)}</b><small>${p.stock} in stock · barcode ${esc(sin.link || p.barcode)}</small></div>`
+  $("#sinItem").innerHTML = p ? `${thumb(p)}<div><b>${esc(p.name)}</b><small>${p.stock} in stock · barcode ${esc(p.barcode)}${sin.links.length ? ` + ${sin.links.length} new` : ""}</small></div>`
     : '<div><b>Scan any item to start</b><small>The barcode tells the POS which product it is</small></div>';
   $("#sinCount").textContent = sin.n;
   $("#sinSave").disabled = !(p && sin.n > 0);
@@ -2563,7 +2565,7 @@ function renderScanIn() {
 }
 const sinSay = (text, kind = "") => { $("#sinMsg").textContent = text; $("#sinMsg").className = "sinmsg " + kind; };
 function openScanIn(p = null) {
-  sin = {p, n: 0, link: ""};
+  sin = {p, n: 0, links: []};
   const f = $("#sinForm"); f.reset();
   if (p) { f.expiry.value = p.expiry || ""; f.notify_on.value = p.notify_on || ""; }
   sinSay(p ? "Scan each piece of this item." : "");
@@ -2577,12 +2579,12 @@ function scanIn(code) {
   if (!p) {
     sin.p = hit; sin.n = 1;
     $("#sinForm").expiry.value = hit.expiry || ""; $("#sinForm").notify_on.value = hit.notify_on || "";
-  } else if ((hit && hit.id === p.id) || code === sin.link) sin.n++;
+  } else if ((hit && hit.id === p.id) || sin.links.includes(code)) sin.n++;
   else if (hit) { scanBeep(false, true); return sinSay(`That is ${hit.name}, not ${p.name}. Not counted.`, "bad"); }
-  else if (!sin.link && /^2\d{7}$/.test(p.barcode)) { sin.link = code; sin.n++; }  // an in-store code: this item's own barcode replaces it
-  else { scanBeep(false, true); return sinSay(`That barcode isn't ${p.name}'s. Not counted.`, "bad"); }
+  else { sin.links.push(code); sin.n++; }  // a new code: packs of the same item can carry different barcodes
   scanBeep(true, true);
-  sinSay(sin.link ? `Barcode ${sin.link} will be linked to this item.` : "Counted.", sin.link ? "warn" : "good");
+  const isNew = sin.links.includes(code);
+  sinSay(isNew ? `New barcode ${code} will be added to this item.` : "Counted.", isNew ? "warn" : "good");
   renderScanIn();
 }
 $("#sinScan").onkeydown = e => {
@@ -2608,14 +2610,14 @@ $("#sinDone").onclick = $("#sinX").onclick = () => { if (sinLeave()) { sin.n = 0
 $("#sinDlg").oncancel = e => { if (!sinLeave()) e.preventDefault(); };
 $("#sinForm").onsubmit = once(async e => {
   e.preventDefault();
-  const {p, n, link} = sin, f = e.target; if (!p || !n) return;
-  if (link) await api("/api/products", {uid: newUid(), id: p.id, name: p.name, barcode: link, price: p.price, cost: p.cost ?? "", stock: p.stock, stock_was: p.stock,
+  const {p, n, links} = sin, f = e.target; if (!p || !n) return;
+  if (links.length) await api("/api/products", {uid: newUid(), id: p.id, name: p.name, barcode: p.barcode, codes: codesOf(p).concat(links).join(","), price: p.price, cost: p.cost ?? "", stock: p.stock, stock_was: p.stock,
     seller_id: p.seller_id || "", expiry: p.expiry || "", mfg_date: p.mfg_date || "", notify_on: p.notify_on || ""});
   const body = {uid: newUid(), id: p.id, add: n};
   if (f.expiry.value !== (p.expiry || "") || f.notify_on.value !== (p.notify_on || "")) Object.assign(body, {expiry: f.expiry.value, notify_on: f.notify_on.value});
   const r = await api("/api/restock", body);
   await load();
-  sin = {p: null, n: 0, link: ""}; f.reset(); setTimeout(renderScanIn);  // after the save button is released
+  sin = {p: null, n: 0, links: []}; f.reset(); setTimeout(renderScanIn);  // after the save button is released
   sinSay(`${p.name}: ${n} added, ${r.stock} in stock. Scan the next item.`, "good"); $("#sinScan").focus();
 });
 $("#sinOpen").onclick = () => openScanIn();
