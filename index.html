@@ -106,6 +106,7 @@ label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;
 .searchbar:focus-within{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .searchbar svg{width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:2;flex:none}
 #scan{border:0;box-shadow:none;background:none;font-size:18px;padding:10px 4px}
+.ctag{margin-left:8px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--muted);vertical-align:middle}
 .chips.owners{flex:none;margin-top:12px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .owners button{flex:none;display:flex;align-items:center;gap:6px}
 .owners .dot{width:8px;height:8px}
@@ -461,7 +462,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 <body>
 <header class="top">
   <button class="iconbtn" id="navToggle" title="Menu"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
-  <div class="brand"><img class="logo" src="icon.svg" alt=""><b id="storeName">Urdaneta Store</b><sup>POS</sup></div>
+  <div class="brand"><img class="logo" src="icon.svg" alt=""><b id="storeName">Urdaneta Store</b><sup>POS</sup><span class="ctag" id="ctag" hidden></span></div>
   <div id="net"></div>
 </header>
 <aside class="side">
@@ -535,6 +536,7 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 
 <section id="drawer">
   <div class="pagehead"><h2>Cash drawer</h2><p>Count the starting cash, note money put in or taken out, and count again at the end of the day.</p></div>
+  <p class="muted" id="drawerWho" style="margin:-4px 0 14px" hidden></p>
   <div id="dnow"></div>
   <div class="card" id="dcredit"></div>
   <div class="card"><h3>Past counts</h3>
@@ -722,6 +724,8 @@ label.check input{width:22px;min-height:22px;flex:none;accent-color:var(--accent
 
       <div class="card setpane" id="st-device">
         <h3>This device</h3><p class="muted sethint">Each device keeps its own copy of the data and syncs it with your Google Sheet.</p>
+        <div class="setrow"><div><b>This counter</b><small>Name of this till, e.g. Counter 1 or Counter 2. Each counter has its own cash drawer; its sales are marked with this name.</small></div>
+          <div class="ctl"><input id="counterName" maxlength="30" placeholder="Counter 1" aria-label="This counter's name" style="max-width:180px"></div></div>
         <div class="setrow"><div><b>Connection</b><small id="devConn"></small></div><div class="ctl"><button id="syncNow">Sync now</button></div></div>
         <div class="setrow"><div><b>Changes</b><small id="devSync"></small></div><div class="ctl"></div></div>
         <div class="setrow" id="devFailedRow" hidden><div><b class="warn">Refused by Google</b><small id="devFailed"></small></div><div class="ctl"><button id="clearFailed">OK, clear</button></div></div>
@@ -993,8 +997,12 @@ const askPassword = () => askPassword.p ||
 class Offline extends Error { get offline() { return true; } }
 // Screens work on this device's own database (local.js runs the same routes as Google, engine.js).
 // Changes are queued there and sent to Google in the background; only email actions need Google itself.
+// Which counter (till) this device is: its sales and cash go to that counter's own drawer
+const myCounter = () => store.get("counter", "").trim() || "Counter 1";
+const WITH_COUNTER = new Set(["/api/sale", "/api/drawer", "/api/credit-pay", "/api/payout"]);
 async function api(path, body, ms) {
   const [p, q] = path.split("?");
+  if (WITH_COUNTER.has(p) && body && !body.counter) body = {...body, counter: myCounter()};
   if (Local.cloudOnly(p)) { const r = await remoteApi(p, body, ms); syncSoon(); return r; }
   const out = await Local.call(p, body || Object.fromEntries(new URLSearchParams(q || "")));
   if (Local.pending()) syncSoon();
@@ -1039,7 +1047,7 @@ async function load() {
     const s = await Local.call("/api/state");  // swapped in only when complete: screens may draw while this waits
     if (s.settings.web_app_url !== API) await Local.call("/api/settings", {web_app_url: API});  // used in the rent reminder emails
     s.photos = Object.fromEntries((await Local.call("/api/photos", {})).map(r => [r.product_id, r.photo]));
-    s.drawer = await Local.call("/api/drawer-state");
+    s.drawer = await Local.call("/api/drawer-state", {counter: myCounter()});
     s.payouts = await Local.call("/api/payouts");
     s.credits = await Local.call("/api/credits");
     S = s;
@@ -2005,6 +2013,8 @@ const showReport = run(async () => {
   $("#rout").innerHTML = `<div class="stack"><div class="card"><h3>By payment <span class="muted">· cash to count, e-wallet to check in the app</span></h3>${reportTable(["Paid by", "Sales", "Amount"], r.by_pay.map(x =>
       `<tr><td>${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`).concat(r.collected.map(x =>
       `<tr><td>Pay later received: ${esc(x.via)}</td><td class="num">${x.n}</td><td class="num">${peso(x.amount)}</td></tr>`)), "No sales in this period")}</div>
+    ${(r.by_counter || []).length > 1 ? `<div class="card"><h3>By counter</h3>${reportTable(["Counter", "Sales", "Amount"], r.by_counter.map(x =>
+      `<tr><td>${esc(x.counter)}</td><td class="num">${x.n}</td><td class="num">${peso(x.total)}${share(x.total)}</td></tr>`), "")}</div>` : ""}
     <div class="card"><h3>By owner <span class="muted">· what you owe each seller</span></h3>${reportTable(["Owner", "Sold", "Amount"], r.by_owner.map(x =>
       `<tr><td>${esc(x.owner)}${x.shelf ? `<div class="muted">Shelf ${esc(x.shelf)}</div>` : ""}</td><td class="num">${x.qty}</td><td class="num">${peso(x.amount)}${share(x.amount)}</td></tr>`), "No sales in this period")}</div>${removedCard(r.removed)}</div>
     <div class="stack"><div class="card"><h3>By item</h3>${reportTable(["Item", "Sold", "Amount"], r.by_item.map(x =>
@@ -2669,7 +2679,13 @@ const diffBadge = d => d === null ? "" : d === 0 ? '<span class="badge good">✓
 let counting = "";  // the count pop-up is for "open" or "close"
 
 function renderDrawer() {
-  const D = S.drawer || {used: false, current: null, past: []}, cur = D.current, last = D.past[0];
+  const D = S.drawer || {used: false, current: null, past: [], others: []}, cur = D.current, me = myCounter();
+  const many = (D.others || []).length > 0 || D.past.some(p => p.counter !== me) || me !== "Counter 1";  // more than one till
+  const last = D.past.find(p => p.counter === me), lastI = D.past.indexOf(last);
+  $("#ctag").hidden = !many; $("#ctag").textContent = me;
+  $("#drawerWho").hidden = !many;
+  $("#drawerWho").innerHTML = `This is <b>${esc(me)}</b>'s drawer.` + ((D.others || []).length ? " Open on other counters: "
+    + D.others.map(o => `${esc(o.counter)} (expected ${peso(o.expected)})`).join(" · ") : "");
   const stale = !!cur && cur.opened.slice(0, 10) < today();  // left open since an earlier day
   $("#navDrawer").hidden = !stale;
   // Reminder on Sell, once the store uses the drawer: open it in the morning, close yesterday's
@@ -2681,7 +2697,7 @@ function renderDrawer() {
       <p class="muted">At the start of the day, count the cash in the drawer and open it. Cash sales then add up here until you count again.</p></div>
       <button class="primary" data-d="open">Open drawer</button></div>
       ${last ? `<div class="dlast"><div><span>Last count · ${esc(dayText(last.closed.slice(0, 10)))}</span><b>${peso(last.counted)}</b></div><div><span>Expected</span><b>${peso(last.expected)}</b></div>
-        <div><span>Result</span><b>${diffBadge(last.diff)}</b></div><div><span>Printout</span><button class="sm" data-d="print" data-i="0">Print count</button></div></div>` : ""}</div>`;
+        <div><span>Result</span><b>${diffBadge(last.diff)}</b></div><div><span>Printout</span><button class="sm" data-d="print" data-i="${lastI}">Print count</button></div></div>` : ""}</div>`;
   } else {
     const ew = cur.by_pay.filter(p => p.via !== "Cash" && p.via !== PAY_LATER);
     $("#dnow").innerHTML = `<div class="dhead"><p class="muted">Open since ${esc(dayText(cur.opened.slice(0, 10)))}, ${cur.opened.slice(11, 16)}${stale ? ' · <span class="bad">not closed yet</span>' : ""}</p>
@@ -2696,7 +2712,7 @@ function renderDrawer() {
         .concat(cur.moves.map(m => `<tr><td>${m.ts.slice(11, 16)}</td><td>${esc(m.note || "")}</td><td class="num ${m.kind === "in" ? "amt-in" : "amt-out"}">${m.kind === "in" ? "+" : "−"}${peso(m.amount)}</td></tr>`)), "")}</div>`;
   }
   renderCredits();
-  $("#dpast").innerHTML = D.past.map((p, i) => `<tr><td>${esc(dayText(p.opened.slice(0, 10)))}${p.closed.slice(0, 10) !== p.opened.slice(0, 10) ? ` – ${esc(dayText(p.closed.slice(0, 10)))}` : ""}
+  $("#dpast").innerHTML = D.past.map((p, i) => `<tr><td>${many ? `<b>${esc(p.counter)}</b> · ` : ""}${esc(dayText(p.opened.slice(0, 10)))}${p.closed.slice(0, 10) !== p.opened.slice(0, 10) ? ` – ${esc(dayText(p.closed.slice(0, 10)))}` : ""}
       <div class="muted">${p.opened.slice(11, 16)} to ${p.closed.slice(11, 16)}${p.note ? " · " + esc(p.note) : ""}</div></td>
       <td class="num">${p.n}<div class="muted">${peso(p.total)}</div></td><td class="num">${peso(p.expected)}</td><td class="num">${peso(p.counted)}</td>
       <td class="num">${diffBadge(p.diff)}</td><td class="num"><button class="sm" data-d="print" data-i="${i}">Print</button></td></tr>`).join("")
@@ -2755,7 +2771,7 @@ function openCount(kind) {
     : "Count all the cash in the drawer: how many of each bill and coin.";
   $("#cntOk").textContent = kind === "open" ? "Open drawer" : "Close drawer";
   // Nothing touched since: one tap instead of counting every bill again
-  const last = S.drawer.past[0], same = kind === "open" ? last?.counted : S.drawer.current.expected;
+  const last = S.drawer.past.find(p => p.counter === myCounter()), same = kind === "open" ? last?.counted : S.drawer.current.expected;
   $("#cntSame").hidden = !(same > 0);
   $("#cntSame").dataset.v = same || 0;
   $("#cntSame").textContent = kind === "open" ? `Same as last count: ${peso(same || 0)}` : `Same as expected: ${peso(same || 0)}`;
@@ -2797,7 +2813,7 @@ function countBytes(p) {
   const t = ticket(), m = t.money;
   storeHeader(t);
   t.bold(1); t.line("CASH DRAWER COUNT"); t.bold(0);
-  t.center(0); t.lr("Opened", when(p.opened)); t.lr("Closed", when(p.closed)); t.rule();
+  t.center(0); if (p.counter) t.lr("Counter", p.counter); t.lr("Opened", when(p.opened)); t.lr("Closed", when(p.closed)); t.rule();
   t.lr(`Sales (${p.n})`, m(p.total));
   p.by_pay.forEach(x => t.lr(`  ${x.via}`, m(x.amount)));
   t.rule();
@@ -2813,7 +2829,7 @@ function countBytes(p) {
 const printCount = run(async p => {
   if (await printTickets([countBytes(p)], "Count printed")) return;
   const row = (k, v) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`;
-  printHTML([`<div class="report"><h2>${esc(storeName())}: Cash drawer count</h2><p>Opened ${when(p.opened)} · closed ${when(p.closed)}</p><table>
+  printHTML([`<div class="report"><h2>${esc(storeName())}: Cash drawer count</h2><p>${p.counter ? esc(p.counter) + " · " : ""}Opened ${when(p.opened)} · closed ${when(p.closed)}</p><table>
     ${row(`Sales (${p.n})`, peso(p.total))}${p.by_pay.map(x => row("&nbsp;&nbsp;" + esc(x.via), peso(x.amount))).join("")}
     ${row("Starting cash", peso(p.start))}${row("Cash sales", peso(p.cash_sales))}${row("Money in", peso(p.ins))}${row("Money out", "−" + peso(p.outs))}
     ${p.moves.map(x => row(`&nbsp;&nbsp;${x.ts.slice(11, 16)} ${esc(x.note || "")}`, (x.kind === "in" ? "+" : "−") + peso(x.amount))).join("")}
@@ -2838,7 +2854,15 @@ const printOverview = run(async () => {
 });
 
 // ---------- settings ----------
+$("#counterName").onchange = run(async e => {
+  const v = e.target.value.trim().slice(0, 30);
+  if (S.drawer?.current && v !== (store.get("counter", "").trim())) {
+    if (!confirm(`${myCounter()}'s drawer is open. This device will now use ${v || "Counter 1"}'s drawer instead. Continue?`)) { e.target.value = store.get("counter", ""); return; }
+  }
+  store.set("counter", v); await load(); toast(`This device is now ${myCounter()}`);
+});
 function renderSettings() {
+  if (document.activeElement !== $("#counterName")) $("#counterName").value = store.get("counter", "");
   const f = $("#setform");
   // Fill the form from the saved settings, but never over what the user is typing (the 15s refresh used to wipe it)
   if (!setDirty) for (const k of ["store_name", "receipt_address", "receipt_phone", "receipt_footer", "smtp_from"]) f[k].value = S.settings[k] || "";

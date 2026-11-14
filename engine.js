@@ -11,13 +11,13 @@ const DEFAULT_NOTIFY_DAYS = 3;  // used when the seller gave no notify date
 const SHEETS = {
   Products: ["id", "barcode", "name", "price", "stock", "seller_id", "expiry", "mfg_date", "notify_on", "photo_at", "cost", "category", "fav", "codes"],  // cost: what the store paid per piece; fav: 1 = starred on the Sell screen; codes: more barcodes of the same item, comma-separated
   Sellers: ["id", "name", "email", "phone", "shelf", "rent", "low_stock", "rent_start", "renew_answer", "renew_for", "renew_at", "commission", "deleted"],  // commission: % the store keeps of their sales
-  Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason", "credit_to"],  // pay_via/epay: GCash, Maya...; refund_of: uid
+  Sales: ["id", "uid", "ts", "total", "cash", "pay_via", "epay", "epay_ref", "refund_of", "reason", "credit_to", "counter"],  // pay_via/epay: GCash, Maya...; refund_of: uid
   SaleItems: ["sale_id", "product_id", "name", "seller_id", "qty", "price", "cost"],  // cost at the time of the sale
   Alerts: ["product_id", "kind", "ref"],
   Emails: ["id", "to_addr", "subject", "body", "created", "sent", "error", "seller_id"],
   Settings: ["key", "value"],
   Photos: ["product_id", "photo", "photo_at"],
-  Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail"],  // cash drawer: open, in, out, close
+  Drawer: ["uid", "ts", "kind", "amount", "note", "expected", "counted", "detail", "counter"],  // cash drawer: open, in, out, close; counter: which till
   CreditPays: ["uid", "ts", "sale_uid", "name", "amount", "via", "note"],  // money received later for a Pay later sale
   Texts: ["id", "to_phone", "body", "created", "sent", "error", "seller_id", "uid"],  // SMS: sent by the tablet with the SIM (Google can't)
   Payouts: ["uid", "ts", "seller_id", "name", "from_ts", "to_ts", "sales", "commission", "rent", "paid", "via", "note"],  // money settled with a renter
@@ -503,7 +503,7 @@ function sale_(d) {
   const cash = refundOf || creditTo ? 0 : via ? Number(d.cash) || 0 : Number(d.cash) || total;  // cash received (older apps always sent it)
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   const id = nextId_(sales);
-  insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash, pay_via: via, epay: epay || null, epay_ref: ref || null, refund_of: refundOf, reason: reason, credit_to: creditTo});
+  insert_("Sales", {id: id, uid: uid, ts: ts, total: total, cash: cash, pay_via: via, epay: epay || null, epay_ref: ref || null, refund_of: refundOf, reason: reason, credit_to: creditTo, counter: counter_(d.counter)});
   insertMany_("SaleItems", lines.map(l => ({sale_id: id, product_id: l.id, name: l.name, seller_id: l.seller_id, qty: l.qty, price: l.price, cost: l.cost})));
   const restock = !refundOf || d.restock !== false;  // refunded goods go back on the shelf unless spoiled / damaged
   lines.forEach(l => { if (l.p && restock) update_("Products", Object.assign(l.p, {stock: l.p.stock - l.qty})); });
@@ -531,6 +531,10 @@ function report_(q) {
     summary: {n: sales.filter(x => !x.refund_of).length, total: r2_(sales.reduce((s, x) => s + x.total, 0)),  // total is after refunds
               refunds: {n: sales.filter(x => x.refund_of).length, amount: r2_(-sales.filter(x => x.refund_of).reduce((s, x) => s + x.total, 0))}},
     by_pay: payments_(sales),
+    by_counter: Object.values(sales.reduce((m, x) => {  // which till took the money
+      const c = counter_(x.counter), g = m[c] = m[c] || {counter: c, n: 0, total: 0};
+      if (!x.refund_of) g.n++; g.total = r2_(g.total + x.total); return m;
+    }, {})).sort((a, b) => a.counter.localeCompare(b.counter)),
     removed: removed_(from, to, sellers),
     collected: rows_("CreditPays").filter(p => p.ts >= from && p.ts <= to).reduce((m, p) => {  // Pay later money received in the period
       const g = m.filter(x => x.via === p.via)[0] || (m.push({via: p.via, n: 0, amount: 0}), m[m.length - 1]); g.n++; g.amount = r2_(g.amount + p.amount); return m;
@@ -580,30 +584,35 @@ const r2_ = n => Math.round(n * 100) / 100;
 // A shift runs from "open" (starting cash counted) to "close" (cash counted). Expected cash = starting cash + the cash
 // part of every sale in between + money in - money out; e-wallet payments never reach the drawer.
 // ponytail: one drawer for the whole store (all devices' sales count); per-device drawers if a second counter opens.
-function drawerState_() {
-  const moves = rows_("Drawer").map(strip_).filter(m => m.ts).sort((a, b) => a.ts.localeCompare(b.ts)), shifts = [];  // a row cleared by hand is skipped
-  moves.forEach(m => {
-    const cur = shifts.length && !shifts[shifts.length - 1].close ? shifts[shifts.length - 1] : null;
-    if (m.kind === "open") shifts.push({open: m, moves: [], close: null});
-    else if (cur && m.kind === "close") cur.close = m;
+// Each counter (till) has its own drawer: its own shifts, counted against its own cash sales. Rows and sales from
+// before counters existed have none: they belong to "Counter 1".
+const counter_ = v => String(v || "").trim().slice(0, 30) || "Counter 1";
+
+function drawerState_(q) {
+  const me = counter_(q && q.counter), shifts = [], open = {};  // open: counter -> its shift still running
+  rows_("Drawer").map(strip_).filter(m => m.ts).sort((a, b) => a.ts.localeCompare(b.ts)).forEach(m => {  // a row cleared by hand is skipped
+    const c = counter_(m.counter), cur = open[c];
+    if (m.kind === "open") { open[c] = {counter: c, open: m, moves: [], close: null}; shifts.push(open[c]); }
+    else if (cur && m.kind === "close") { cur.close = m; delete open[c]; }
     else if (cur) cur.moves.push(m);
   });
-  const sales = rows_("Sales"), last = shifts[shifts.length - 1];
+  const sales = rows_("Sales");
   return {
-    used: shifts.length > 0,
-    current: last && !last.close ? shiftSummary_(last, sales) : null,
-    past: shifts.filter(x => x.close).slice(-60).reverse().map(x => shiftSummary_(x, sales)),
+    used: shifts.length > 0, counter: me,
+    current: open[me] ? shiftSummary_(open[me], sales) : null,
+    others: Object.keys(open).filter(c => c !== me).sort().map(c => shiftSummary_(open[c], sales)),  // the other counters' drawers open now
+    past: shifts.filter(x => x.close).sort((a, b) => b.close.ts.localeCompare(a.close.ts)).slice(0, 60).map(x => shiftSummary_(x, sales)),
   };
 }
 
 function shiftSummary_(sh, sales) {
-  const to = sh.close ? sh.close.ts : "9999", mine = sales.filter(x => x.ts >= sh.open.ts && x.ts <= to);
+  const to = sh.close ? sh.close.ts : "9999", mine = sales.filter(x => x.ts >= sh.open.ts && x.ts <= to && counter_(x.counter) === sh.counter);
   const pay = payments_(mine), cashSales = (pay.filter(p => p.via === "Cash")[0] || {amount: 0}).amount;
   const sum = kind => r2_(sh.moves.filter(m => m.kind === kind).reduce((n, m) => n + m.amount, 0));
   const ins = sum("in"), outs = sum("out"), expected = r2_(sh.open.amount + cashSales + ins - outs);
   const c = sh.close;
   return {
-    opened: sh.open.ts, start: sh.open.amount, closed: c ? c.ts : null, moves: sh.moves,
+    counter: sh.counter, opened: sh.open.ts, start: sh.open.amount, closed: c ? c.ts : null, moves: sh.moves,
     n: mine.length, total: r2_(mine.reduce((n, x) => n + x.total, 0)), by_pay: pay, cash_sales: cashSales, ins: ins, outs: outs,
     expected: c ? c.expected : expected,  // a closed day keeps the figure the cashier counted against
     counted: c ? c.counted : null, diff: c ? r2_(c.counted - c.expected) : null, note: c ? c.note : null, detail: c ? c.detail : null,
@@ -618,11 +627,11 @@ function drawerMove_(d) {
   if (!(amount >= 0) || ((kind === "in" || kind === "out") && !(amount > 0))) bad_("Enter the amount");
   const note = String(d.note || "").trim().slice(0, 200) || null;
   if ((kind === "in" || kind === "out") && !note) bad_("Say what the money is for");
-  const cur = drawerState_().current;
-  if (kind === "open" && cur) bad_("The drawer is already open (since " + cur.opened.replace("T", " ").slice(0, 16) + ")");
+  const counter = counter_(d.counter), cur = drawerState_({counter: counter}).current;
+  if (kind === "open" && cur) bad_(counter + "'s drawer is already open (since " + cur.opened.replace("T", " ").slice(0, 16) + ")");
   if (kind !== "open" && !cur) bad_("Open the drawer first: count the starting cash");
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
-  const row = {uid: uid, ts: ts, kind: kind, amount: kind === "close" ? null : amount, note: note, expected: null, counted: null, detail: null};
+  const row = {uid: uid, ts: ts, kind: kind, amount: kind === "close" ? null : amount, note: note, expected: null, counted: null, detail: null, counter: counter};
   if (kind === "close") {
     // judged against what the cashier was shown (the device sends it), so the device and Google agree
     row.expected = d.expected !== undefined && d.expected !== null && d.expected !== "" && isFinite(Number(d.expected)) ? r2_(Number(d.expected)) : cur.expected;
@@ -630,7 +639,7 @@ function drawerMove_(d) {
     row.detail = d.detail ? String(d.detail).slice(0, 500) : null;
   }
   insert_("Drawer", row);
-  return kind === "close" ? drawerState_().past[0] : {ok: true};
+  return kind === "close" ? drawerState_({counter: counter}).past.filter(p => p.counter === counter)[0] : {ok: true};
 }
 
 // ---------- Pay later: goods taken now, money received later (a reseller at the end of the day) ----------
@@ -658,7 +667,7 @@ function creditPay_(d) {
   if (via !== "Cash" && PAY_VIA.indexOf(via) < 0) bad_("Unknown payment: " + via);
   const ts = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(d.ts || "") ? d.ts.slice(0, 19) : now_();
   insert_("CreditPays", {uid: uid, ts: ts, sale_uid: c.uid, name: c.name, amount: amount, via: via, note: String(d.note || "").trim().slice(0, 200) || null});
-  if (via === "Cash" && drawerState_().current) insert_("Drawer", {uid: uid ? uid + "-d" : null, ts: ts, kind: "in", amount: amount, note: "Pay later: " + c.name});
+  if (via === "Cash" && drawerState_(d).current) insert_("Drawer", {uid: uid ? uid + "-d" : null, ts: ts, kind: "in", amount: amount, note: "Pay later: " + c.name, counter: counter_(d.counter)});
   return {balance: r2_(c.balance - amount)};
 }
 
@@ -1055,8 +1064,8 @@ function payout_(d) {
   const row = {uid: uid, ts: ts, seller_id: s.id, name: s.name, from_ts: from, to_ts: until, sales: sales, commission: commission, rent: rent, paid: paid, via: via, note: note};
   insert_("Payouts", row);
   // Cash goes through the drawer when it is open; a renter who owes the store pays in
-  if (via === "Cash" && paid !== 0 && drawerState_().current) {
-    insert_("Drawer", {uid: uid ? uid + "-d" : null, ts: ts, kind: paid > 0 ? "out" : "in", amount: Math.abs(paid), note: "Renter payout: " + s.name});
+  if (via === "Cash" && paid !== 0 && drawerState_(d).current) {
+    insert_("Drawer", {uid: uid ? uid + "-d" : null, ts: ts, kind: paid > 0 ? "out" : "in", amount: Math.abs(paid), note: "Renter payout: " + s.name, counter: counter_(d.counter)});
   }
   if (s.email) {
     const store = settings_().store_name || "Urdaneta Store", php = n => "PHP " + Number(n).toFixed(2);
